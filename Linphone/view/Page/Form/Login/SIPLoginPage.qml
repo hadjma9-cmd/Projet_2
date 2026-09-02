@@ -40,8 +40,8 @@ LoginLayout {
 				colorizationColor: DefaultStyle.main2_600
 			}
 			Text {
-                //: Compte SIP tiers
-                text: qsTr("assistant_login_third_party_sip_account_title")
+				//: Authentification
+				text: qsTr("Authentification")
 				font {
                     pixelSize: Typography.h1.pixelSize
                     weight: Typography.h1.weight
@@ -51,30 +51,6 @@ LoginLayout {
 		},
 		Item {
 			Layout.fillWidth: true
-		},
-		RowLayout {
-			visible: !SettingsCpp.assistantHideCreateAccount
-            Layout.rightMargin: Utils.getSizeWithScreenRatio(51)
-            spacing: Utils.getSizeWithScreenRatio(20)
-			Text {
-                Layout.rightMargin: Utils.getSizeWithScreenRatio(15)
-                //: Pas encore de compte ?
-                text: qsTr("assistant_no_account_yet")
-				font {
-                    pixelSize: Typography.p1.pixelSize
-                    weight: Typography.p1.weight
-				}
-			}
-			BigButton {
-				Layout.alignment: Qt.AlignRight
-                //: S'inscrire
-                text: qsTr("assistant_account_register")
-				style: ButtonStyle.main
-				onClicked: {
-					console.debug("[SIPLoginPage] User: go to register page")
-					mainItem.goToRegister()
-				}
-			}
 		}
 	]
 	
@@ -107,47 +83,34 @@ LoginLayout {
                                 pixelSize: Typography.p1.pixelSize
                                 weight: Typography.p1.weight
 							}
-                            text: qsTr("Certaines fonctionnalités telles que les conversations de groupe, les vidéo-conférences, etc… nécessitent un compte %1.\n\nCes fonctionnalités seront masquées si vous utilisez un compte SIP tiers.\n\nPour les activer dans un projet commercial, merci de nous contacter.").arg(applicationName)
+							text: qsTr("Communiquez en toute sécurité avec vos clients, votre équipe et bien plus encore : appels et messagerie, où que vous soyez.\n\nSi vous rencontrez des problèmes, n'hésitez pas à nous contacter !")
 						}
 					}
 					SmallButton {
 						id: openLinkButton
 						Layout.alignment: Qt.AlignCenter
                         Layout.topMargin: Utils.getSizeWithScreenRatio(18)
-						text: "linphone.org/contact"
+						text: "gama-it.fr/contact"
 						style: ButtonStyle.secondary
 						onClicked: {
 							Qt.openUrlExternally(ConstantsCpp.ContactUrl)
 						}
 						KeyNavigation.up: backButton
-						KeyNavigation.down: createAccountButton
+						KeyNavigation.down: continueButton
 					}
 				}
 				ColumnLayout {
                     spacing: Utils.getSizeWithScreenRatio(20)
 					BigButton {
-						id: createAccountButton
-						style: ButtonStyle.secondary
-						Layout.fillWidth: true
-                        //: "Créer un compte linphone"
-                        text: qsTr("assistant_third_party_sip_account_create_linphone_account")
-						onClicked: {
-							console.debug("[SIPLoginPage] User: click register")
-							mainItem.goToRegister()
-						}
-						KeyNavigation.up: openLinkButton
-						KeyNavigation.down: continueButton
-					}
-					BigButton {
 						id: continueButton
 						Layout.fillWidth: true
-                        //: "Je comprends"
-                        text: qsTr("assistant_third_party_sip_account_warning_ok")
+						//: "Se connecter"
+						text: qsTr("Se connecter")
 						style: ButtonStyle.main
 						onClicked: {
 							rootStackView.replace(secondItem)
 						}
-						KeyNavigation.up: createAccountButton
+						KeyNavigation.up: openLinkButton
 					}
 				}
 				Item {
@@ -447,9 +410,6 @@ LoginLayout {
 			anchors.top: parent.top
 			anchors.bottom: parent.bottom
 			anchors.right: parent.right
-			// Layout.leftMargin: Utils.getSizeWithScreenRatio(119)
-			// anchors.leftMargin: Utils.getSizeWithScreenRatio(119)
-			// anchors.rightMargin: - Utils.getSizeWithScreenRatio(8)
 		},
 		Control.StackView {
 			id: rootStackView
@@ -460,12 +420,6 @@ LoginLayout {
 			anchors.leftMargin: Utils.getSizeWithScreenRatio(127)
 			width: currentItem ? currentItem.width : 0
 		},
-        // Item {
-		// 	id: sipItem
-		// 	// spacing: Utils.getSizeWithScreenRatio(8)
-        //     anchors.fill: parent
-        //     anchors.rightMargin: Utils.getSizeWithScreenRatio(50) + image.width
-        // },
 		Image {
 			id: image
 			z: -1

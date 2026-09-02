@@ -676,6 +676,7 @@ void FriendCore::save() { // Save Values to model
 				});
 			} else {
 				auto contact = core->createFriend();
+				contact->enableSubscribes(true);
 				auto friendModel = Utils::makeQObject_ptr<FriendModel>(contact);
 				friendModel->setSelf(friendModel);
 				mCoreModelConnection->invokeToCore([this, thisCopy, friendModel, contact] {

@@ -27,7 +27,7 @@ FocusScope {
     property AccountGui currentAccount: AppCpp.currentAccount
     property bool showEncryptedInfo: currentAccount && currentAccount.core.limeServerUrl !== "" && currentAccount.core.conferenceFactoryAddress !== ""
     enum PanelType { MessageReactions, SharedFiles, Medias, ImdnStatus, ForwardToList, ManageParticipants, EphemeralSettings, None}
-    
+
     signal oneOneCall(bool video)
     signal groupCall()
     signal backButtonPressed()
@@ -53,7 +53,7 @@ FocusScope {
         else
             UtilsCpp.createCall(mainItem.chat?.core.peerAddress, {'localVideoEnabled':video})
     }
-    
+
     onGroupCall: {
         mainWindow.showConfirmationLambdaPopup("",
         qsTr("chat_view_group_call_toast_message"),
@@ -106,8 +106,8 @@ FocusScope {
                 property var useVerticalLayout: width < minimumWidthForSwitchintToRowLayout
                 GridLayout {
                     id: chatInfosLayout
-		            columns: chatHeader.useVerticalLayout ? 1 : children.length
-		            rows: 1
+                    columns: chatHeader.useVerticalLayout ? 1 : children.length
+                    rows: 1
                     RowLayout {
                         id: headerInfos
                         spacing: Utils.getSizeWithScreenRatio(12)
@@ -118,13 +118,19 @@ FocusScope {
                             onPressed: mainItem.backButtonPressed()
                         }
                         Avatar {
-                            property var contactObj: mainItem.chat ? UtilsCpp.findFriendByAddress(mainItem.chat?.core.peerAddress) : null
-                            contact: contactObj?.value || null
+                            contact: mainItem.chat?.core.friendGui || null
                             displayNameVal: mainItem.chat?.core.avatarUri
                             secured: mainItem.chat && mainItem.chat.core.isSecured
                             Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)
                             Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
                         }
+
+                        Text {
+                            text: "DEBUG: " + (mainItem.chat?.core.debugFriendInfo || "no chat")
+                            color: "red"
+                            font.pixelSize: 14
+                        }
+
                         ColumnLayout {
                             Text {
                                 Layout.fillWidth: true
@@ -392,7 +398,7 @@ FocusScope {
                             anchors.bottom: chatMessagesListView.bottom
                             anchors.left: chatMessagesListView.left
                             anchors.right: chatMessagesListView.right
-                            
+
                             background: Item {
                                 anchors.fill: parent
                                 Rectangle {
@@ -443,7 +449,7 @@ FocusScope {
                         bottomPadding: Utils.getSizeWithScreenRatio(12)
                         leftPadding: Utils.getSizeWithScreenRatio(19)
                         rightPadding: Utils.getSizeWithScreenRatio(19)
-                        
+
                         Button {
                             anchors.top: parent.top
                             anchors.right: parent.right
@@ -454,11 +460,11 @@ FocusScope {
                             onClicked: {
                                 contents.clear()
                                 if (mainItem.replyingToMessage)
-                                	mainItem.replyingToMessage = false
-								else if (mainItem.editingMessage) {
-									mainItem.editingMessage = false
-									messageSender.text = ""
-								}
+                                    mainItem.replyingToMessage = false
+                                else if (mainItem.editingMessage) {
+                                    mainItem.editingMessage = false
+                                    messageSender.text = ""
+                                }
                             }
                         }
                         background: Item{
@@ -489,8 +495,8 @@ FocusScope {
                                     Layout.fillWidth: true
                                     //: Reply to %1
                                     text: mainItem.replyingToMessage ?
-                                    	(mainItem.chatMessage ? qsTr("reply_to_label").arg(UtilsCpp.boldTextPart(mainItem.chatMessage.core.fromName, mainItem.chatMessage.core.fromName)) : "")
-                                    	: qsTr("conversation_editing_message_title")
+                                        (mainItem.chatMessage ? qsTr("reply_to_label").arg(UtilsCpp.boldTextPart(mainItem.chatMessage.core.fromName, mainItem.chatMessage.core.fromName)) : "")
+                                        : qsTr("conversation_editing_message_title")
                                     color: DefaultStyle.main2_500_main
                                     textFormat: Text.RichText
                                     font {
@@ -710,10 +716,10 @@ FocusScope {
                 id: sharedFilesComponent
                 MessageSharedFilesInfos {
                     chatGui: mainItem.chat
-                    showAsSquare: contentLoader.panelType === SelectedChatView.PanelType.Medias 
-                    title: contentLoader.panelType === SelectedChatView.PanelType.Medias 
+                    showAsSquare: contentLoader.panelType === SelectedChatView.PanelType.Medias
+                    title: contentLoader.panelType === SelectedChatView.PanelType.Medias
                         //: Shared medias
-                        ? qsTr("shared_medias_title") 
+                        ? qsTr("shared_medias_title")
                         //: Shared documents
                         : qsTr("shared_documents_title")
                     filter: contentLoader.panelType === SelectedChatView.PanelType.Medias ? ChatMessageFileProxy.FilterContentType.Medias : ChatMessageFileProxy.FilterContentType.Documents
@@ -723,7 +729,7 @@ FocusScope {
                     }
                 }
             }
-            
+
             Component {
                 id: manageParticipantsComponent
                 ManageParticipants {
@@ -731,7 +737,7 @@ FocusScope {
                     onDone: contentLoader.panelType = SelectedChatView.PanelType.None
                 }
             }
-            
+
             Component {
                 id: ephemeralSettingsComponent
                 EphemeralSettings {
@@ -824,7 +830,7 @@ FocusScope {
                                 }
                             }
                         }
-                    } 
+                    }
                 }
             }
         }

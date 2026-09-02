@@ -104,6 +104,7 @@ Control.TextField {
         }
         if (mainItem.propertyName && isValid(text)) {
             if (mainItem.propertyOwnerGui) {
+                console.log("DEBUG updateText:", mainItem.propertyName, "old=", mainItem.propertyOwnerGui.core[mainItem.propertyName], "new=", text)
                 if (mainItem.propertyOwnerGui.core[mainItem.propertyName] != text) {
                     mainItem.propertyOwnerGui.core[mainItem.propertyName] = text
                 }
@@ -115,7 +116,7 @@ Control.TextField {
         } else
             mainItem.validationChecked(false)
     }
-    // Validation textfield functions
+  // Validation textfield functions
     Timer {
         id: idleTimer
         running: false
@@ -125,7 +126,12 @@ Control.TextField {
             mainItem.accepted()
         }
     }
-
+    onActiveFocusChanged: {
+        if (!activeFocus) {
+            idleTimer.stop()
+            updateText()
+        }
+    }
     background: Rectangle {
         id: inputBackground
         visible: mainItem.backgroundVisible

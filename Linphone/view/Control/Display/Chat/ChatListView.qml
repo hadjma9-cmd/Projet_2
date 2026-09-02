@@ -35,7 +35,7 @@ ListView {
     }
 
     onChatClicked: (chat) => {selectChat(chat)}
-    
+
     signal markAllAsRead()
     signal chatClicked(ChatGui chat)
 
@@ -97,8 +97,8 @@ ListView {
 
     function selectChat(chatGui, force) {
         var index = chatProxy.findChatIndex(chatGui)
-        // force adding chat to list if it already exists 
-        // but has not been added to the list yet because 
+        // force adding chat to list if it already exists
+        // but has not been added to the list yet because
         // it is empty and hide_empty_chatrooms is set
         if (index === -1 && force === true && chatGui) {
             if (chatProxy.addChatInList(chatGui)) {
@@ -176,10 +176,10 @@ ListView {
             anchors.bottomMargin: Utils.getSizeWithScreenRatio(9)
             spacing: Utils.getSizeWithScreenRatio(10)
             Avatar {
-                property var contactObj: modelData ? UtilsCpp.findFriendByAddress(modelData.core.peerAddress) : null
-                contact: contactObj?.value || null
+                contact: modelData?.core.friendGui || null
                 displayNameVal: modelData && modelData.core.avatarUri || ""
                 secured: modelData?.core.isSecured || false
+                displayPresence: true
                 Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)
                 Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
                 // isConference: modelData.core.isConference
@@ -202,88 +202,88 @@ ListView {
                         weight: unreadCount.unread > 0 ? Typography.p2.weight : Typography.p1.weight
                     }
                 }
-                
+
                 RowLayout {
-                	spacing: Utils.getSizeWithScreenRatio(5)
-					Layout.fillWidth: true
-					
-					EffectImage {
-						visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isReply && !remoteComposingInfo.visible
-						fillMode: Image.PreserveAspectFit
-						imageSource: AppIcons.reply
+                    spacing: Utils.getSizeWithScreenRatio(5)
+                    Layout.fillWidth: true
+
+                    EffectImage {
+                        visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isReply && !remoteComposingInfo.visible
+                        fillMode: Image.PreserveAspectFit
+                        imageSource: AppIcons.reply
                         colorizationColor: DefaultStyle.main2_500
-						Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
-						Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
-					}
-					
-					EffectImage {
-						visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isForward && !remoteComposingInfo.visible
-						fillMode: Image.PreserveAspectFit
-						imageSource: AppIcons.forward
-						colorizationColor: DefaultStyle.main2_500
-						Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
-						Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
-					}
-					
-					EffectImage {
-						visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.hasFileContent && !remoteComposingInfo.visible
-						fillMode: Image.PreserveAspectFit
-						imageSource: AppIcons.paperclip
-						colorizationColor: DefaultStyle.main2_500
-						Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
-						Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
-					}
-					
-					EffectImage {
-						visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isVoiceRecording && !remoteComposingInfo.visible
-						fillMode: Image.PreserveAspectFit
-						imageSource: AppIcons.waveform
-						colorizationColor: DefaultStyle.main2_500
-						Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
-						Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
-					}
-					
-					EffectImage {
-						visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isCalendarInvite && !remoteComposingInfo.visible
-						fillMode: Image.PreserveAspectFit
-						imageSource: AppIcons.calendarBlank
-						colorizationColor: DefaultStyle.main2_500
-						Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
-						Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
-					}
-					
-					Text {
-						id: lastMessageText
-						Layout.fillWidth: true
-						maximumLineCount: 1
-						visible: !remoteComposingInfo.visible
-						text: modelData ? modelData.core.lastMessageText : ""
+                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
+                        Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
+                    }
+
+                    EffectImage {
+                        visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isForward && !remoteComposingInfo.visible
+                        fillMode: Image.PreserveAspectFit
+                        imageSource: AppIcons.forward
+                        colorizationColor: DefaultStyle.main2_500
+                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
+                        Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
+                    }
+
+                    EffectImage {
+                        visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.hasFileContent && !remoteComposingInfo.visible
+                        fillMode: Image.PreserveAspectFit
+                        imageSource: AppIcons.paperclip
+                        colorizationColor: DefaultStyle.main2_500
+                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
+                        Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
+                    }
+
+                    EffectImage {
+                        visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isVoiceRecording && !remoteComposingInfo.visible
+                        fillMode: Image.PreserveAspectFit
+                        imageSource: AppIcons.waveform
+                        colorizationColor: DefaultStyle.main2_500
+                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
+                        Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
+                    }
+
+                    EffectImage {
+                        visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isCalendarInvite && !remoteComposingInfo.visible
+                        fillMode: Image.PreserveAspectFit
+                        imageSource: AppIcons.calendarBlank
+                        colorizationColor: DefaultStyle.main2_500
+                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
+                        Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
+                    }
+
+                    Text {
+                        id: lastMessageText
+                        Layout.fillWidth: true
+                        maximumLineCount: 1
+                        visible: !remoteComposingInfo.visible
+                        text: modelData ? modelData.core.lastMessageText : ""
                         textFormat: Text.AutoText
-						color: DefaultStyle.main2_400
-						font {
-							pixelSize: Typography.p1.pixelSize
-							weight: unreadCount.unread > 0 ? Typography.p2.weight : Typography.p1.weight
-						}
-					}
-					Text {
-						id: remoteComposingInfo
-						visible: modelData ? (modelData.core.composingName !== "" || modelData.core.sendingText !== "") : false
-						Layout.fillWidth: true
-						maximumLineCount: 1
-						font {
-							pixelSize: Typography.p3.pixelSize
-							weight: Typography.p3.weight
+                        color: DefaultStyle.main2_400
+                        font {
+                            pixelSize: Typography.p1.pixelSize
+                            weight: unreadCount.unread > 0 ? Typography.p2.weight : Typography.p1.weight
+                        }
+                    }
+                    Text {
+                        id: remoteComposingInfo
+                        visible: modelData ? (modelData.core.composingName !== "" || modelData.core.sendingText !== "") : false
+                        Layout.fillWidth: true
+                        maximumLineCount: 1
+                        font {
+                            pixelSize: Typography.p3.pixelSize
+                            weight: Typography.p3.weight
                             italic: modelData?.core.sendingText !== ""
-						}
-						//: %1 is writing…
-						text: modelData
+                        }
+                        //: %1 is writing…
+                        text: modelData
                             ? modelData.core.composingName !== ""
                                 ? qsTr("chat_message_is_writing_info").arg(modelData.core.composingName)
                                 : modelData.core.sendingText !== ""
                                     ? qsTr("chat_message_draft_sending_text").arg(modelData.core.sendingText)
                                     : ""
                             : ""
-					}
+                    }
                 }
             }
             ColumnLayout {
@@ -305,28 +305,28 @@ ListView {
                 RowLayout {
                     spacing: Utils.getSizeWithScreenRatio(10)
                     Item {Layout.fillWidth: true}
-					EffectImage {
-						visible: modelData?.core.ephemeralEnabled || false
+                    EffectImage {
+                        visible: modelData?.core.ephemeralEnabled || false
                         Layout.preferredWidth: visible ? Utils.getSizeWithScreenRatio(14) : 0
                         Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
                         colorizationColor: DefaultStyle.main2_400
                         imageSource: AppIcons.clockCountDown
                     }
-					EffectImage {
-						visible: modelData != undefined && !modelData.core.isEncrypted && AppCpp.currentAccount && AppCpp.currentAccount.core.limeServerUrl !== "" && AppCpp.currentAccount.core.conferenceFactoryAddress !== ""
+                    EffectImage {
+                        visible: modelData != undefined && !modelData.core.isEncrypted && AppCpp.currentAccount && AppCpp.currentAccount.core.limeServerUrl !== "" && AppCpp.currentAccount.core.conferenceFactoryAddress !== ""
                         Layout.preferredWidth: visible ? Utils.getSizeWithScreenRatio(14) : 0
                         Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
                         colorizationColor: DefaultStyle.warning_700
                         imageSource: AppIcons.lockSimpleOpen
                     }
                     EffectImage {
-						visible: modelData != undefined && modelData?.core.muted
+                        visible: modelData != undefined && modelData?.core.muted
                         Layout.preferredWidth: visible ? Utils.getSizeWithScreenRatio(14) : 0
                         Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
                         colorizationColor: DefaultStyle.main2_400
                         imageSource: AppIcons.bellSlash
                     }
-					UnreadNotification {
+                    UnreadNotification {
                         id: unreadCount
                         //: %1 chat
                         badgeType: qsTr("chat").arg(modelData.core.title)
@@ -366,20 +366,20 @@ ListView {
                 activeFocusOnTab:true
                 focusPolicy: Qt.StrongFocus
                 popup.contentItem: ColumnLayout {
-					IconLabelButton {
+                    IconLabelButton {
                         //: "Mute"
-                        text: modelData 
-                            ? modelData.core.muted 
-                                ? qsTr("chat_room_unmute") 
+                        text: modelData
+                            ? modelData.core.muted
+                                ? qsTr("chat_room_unmute")
                                 : qsTr("chat_room_mute")
                             : ""
-						icon.source: modelData ? modelData.core.muted ? AppIcons.bell : AppIcons.bellSlash : ""
+                        icon.source: modelData ? modelData.core.muted ? AppIcons.bell : AppIcons.bellSlash : ""
                         spacing: Utils.getSizeWithScreenRatio(10)
                         Layout.fillWidth: true
                         onClicked:  {
-							modelData.core.muted = !modelData.core.muted
-							chatroomPopup.close()
-						}
+                            modelData.core.muted = !modelData.core.muted
+                            chatroomPopup.close()
+                        }
                     }
                     IconLabelButton {
                         visible: modelData && modelData.core.unreadMessagesCount !== 0 || false
@@ -462,12 +462,12 @@ ListView {
             acceptedButtons: Qt.RightButton | Qt.LeftButton
             // focus: true
             focusPolicy: Qt.StrongFocus
-	        property bool keyboardFocus: FocusHelper.keyboardFocus
+            property bool keyboardFocus: FocusHelper.keyboardFocus
             onKeyboardFocusChanged: {
                 mainItem.currentIndex = index
             }
             //: %1 chat %2
-            Accessible.name: qsTr("focused_chat_accessible_label").arg(modelData.core.title).arg(unreadCount.unread > 0 
+            Accessible.name: qsTr("focused_chat_accessible_label").arg(modelData.core.title).arg(unreadCount.unread > 0
             //: : %1 unread messages
             ? qsTr("unread_messages_accessible_label").arg(unreadCount.unread) : "")
             onContainsMouseChanged: {

@@ -78,17 +78,12 @@ AbstractWindow {
 	function initStackViewItem() {
         if(accountProxy && accountProxy.isInitialized) {
             if (accountProxy.haveAccount) openMainPage()
-            else if (SettingsCpp.getFirstLaunch()) mainStackViewLoader.item.replace(welcomePage, StackView.Immediate)
-            else if (SettingsCpp.assistantGoDirectlyToThirdPartySipAccountLogin) mainStackViewLoader.item.replace(sipLoginPage, StackView.Immediate)
-            else mainStackViewLoader.item.replace(loginPage, StackView.Immediate)
+            else mainStackViewLoader.item.replace(sipLoginPage, StackView.Immediate)
         }
     }
 	
 	function goToLogin() {
-		if (SettingsCpp.assistantGoDirectlyToThirdPartySipAccountLogin)
-			mainStackViewLoader.item.replace(sipLoginPage)
-		else
-			mainStackViewLoader.item.replace(loginPage)
+		mainStackViewLoader.item.replace(sipLoginPage)
 	}
 
 	function scheduleMeeting(subject, addresses) {
@@ -136,7 +131,7 @@ AbstractWindow {
 		function onRegistrationStateChanged() {
 			if (LoginPageCpp.registrationState === LinphoneEnums.RegistrationState.Ok) {
 				openMainPage(true)
-				proposeH264CodecsDownload()
+				// proposeH264CodecsDownload() // Désactivé : crash "invalid comparator" lié au tri des codecs vidéo H264
 			}
 		}
 	}
@@ -211,15 +206,6 @@ AbstractWindow {
 		}
 	}
 	Component {
-		id: welcomePage
-		WelcomePage {
-			onStartButtonPressed: {
-				goToLogin() // Replacing the first item will destroy the old.
-				SettingsCpp.setFirstLaunch(false)
-			}
-		}
-	}
-	Component {
 		id: ssoPage
 		Rectangle {
 			color: DefaultStyle.grey_0
@@ -259,29 +245,13 @@ AbstractWindow {
 		}
 	}
 	Component {
-		id: loginPage
-		LoginPage {
-			objectName: "loginPage"
-			onGoBack: openMainPage()
-			onUseSIPButtonClicked: mainStackViewLoader.item.push(sipLoginPage)
-			onGoToRegister: mainStackViewLoader.item.replace(registerPage)
-            showBackButton: false
-            StackView.onActivated: if (mainWindow.accountProxy?.haveAccount) showBackButton = true
-		}
-	}
-	Component {
 		id: sipLoginPage
 		SIPLoginPage {
 			objectName: "sipLoginPage"
-			onGoBack: {
-				if(SettingsCpp.assistantGoDirectlyToThirdPartySipAccountLogin){
-					openMainPage()
-				}else
-					mainStackViewLoader.item.pop()
-			}
+			onGoBack: openMainPage()
 			onGoToRegister: mainStackViewLoader.item.replace(registerPage)
             showBackButton: false
-            StackView.onActivated: if (!SettingsCpp.assistantGoDirectlyToThirdPartySipAccountLogin || mainWindow.accountProxy?.haveAccount) showBackButton = true
+            StackView.onActivated: if (mainWindow.accountProxy?.haveAccount) showBackButton = true
 		}
 	}
 	Component {

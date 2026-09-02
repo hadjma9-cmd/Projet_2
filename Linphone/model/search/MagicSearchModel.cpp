@@ -136,6 +136,8 @@ void MagicSearchModel::updateFriendListWithFriend(const std::shared_ptr<linphone
 	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
 	auto core = CoreModel::getInstance()->getCore();
 
+	linphoneFriend->enableSubscribes(true);
+
 	if (ToolModel::friendIsInFriendList(friendList, linphoneFriend))
 		return; // Already exist. We don't need to manipulate list.
 	for (auto address : linphoneFriend->getAddresses()) {

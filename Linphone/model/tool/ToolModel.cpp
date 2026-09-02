@@ -270,39 +270,34 @@ std::shared_ptr<linphone::Friend> ToolModel::findFriendByAddress(const QString &
 std::shared_ptr<linphone::Friend>
 ToolModel::findFriendByAddress(const std::shared_ptr<const linphone::Address> &linphoneAddr) {
 	auto friendsManager = FriendsManager::getInstance();
-	// linphoneAddr->clean();
-	QString key = Utils::coreStringToAppString(linphoneAddr->asStringUriOnly());
+	auto cleanedAddr = linphoneAddr->clone();
+	cleanedAddr->clean();
+	QString key = Utils::coreStringToAppString(cleanedAddr->asStringUriOnly());
 	if (friendsManager->isInKnownFriends(key)) {
-		// qDebug() << key << "have been found in known friend, return it";
 		return friendsManager->getKnownFriendAtKey(key);
 	} else if (friendsManager->isInUnknownFriends(key)) {
-		// qDebug() << key << "have been found in unknown friend, return it";
 		return friendsManager->getUnknownFriendAtKey(key);
 	}
-	auto f = CoreModel::getInstance()->getCore()->findFriend(linphoneAddr);
+	auto f = CoreModel::getInstance()->getCore()->findFriend(cleanedAddr);
 	if (f) {
 		if (friendsManager->isInUnknownFriends(key)) {
 			friendsManager->removeUnknownFriend(key);
 		}
-		// qDebug() << "found friend, add to known map";
-		friendsManager->appendKnownFriend(linphoneAddr, f);
+		friendsManager->appendKnownFriend(cleanedAddr, f);
 	}
 	if (!f) {
 		if (friendsManager->isInOtherAddresses(key)) {
-			// qDebug() << "A magic search has already be done for address" << key << "and nothing was found,return ";
 			return nullptr;
 		}
-		friendsManager->appendOtherAddress(key);
 		if (CoreModel::getInstance()->getCore()->getRemoteContactDirectories().empty()) return nullptr;
-		qDebug() << "Couldn't find friend" << linphoneAddr->asStringUriOnly() << "in core or in maps, use magic search";
-		CoreModel::getInstance()->searchInMagicSearch(Utils::coreStringToAppString(linphoneAddr->asStringUriOnly()),
+		friendsManager->appendOtherAddress(key);
+		CoreModel::getInstance()->searchInMagicSearch(Utils::coreStringToAppString(cleanedAddr->asStringUriOnly()),
 		                                              (int)linphone::MagicSearch::Source::LdapServers |
 		                                                  (int)linphone::MagicSearch::Source::RemoteCardDAV,
 		                                              LinphoneEnums::MagicSearchAggregation::Friend, 50);
 	}
 	return f;
 }
-
 bool ToolModel::createCall(const QString &sipAddress,
                            const QVariantMap &options,
                            const QString &prepareTransfertAddress,
@@ -512,13 +507,14 @@ std::shared_ptr<linphone::FriendList> ToolModel::getFriendList(const std::string
 	auto core = CoreModel::getInstance()->getCore();
 	auto friendList = core->getFriendListByName(listName);
 	if (!friendList) {
-		friendList = core->createFriendList();
-		friendList->setDisplayName(listName);
-		if (listName == "ldap_friends") {
-			friendList->setType(linphone::FriendList::Type::ApplicationCache);
-		}
-		core->addFriendList(friendList);
-	}
+    friendList = core->createFriendList();
+    friendList->setDisplayName(listName);
+    if (listName == "ldap_friends") {
+        friendList->setType(linphone::FriendList::Type::ApplicationCache);
+    }
+    friendList->enableSubscriptions(true);   // <-- ajout
+    core->addFriendList(friendList);
+}
 	return friendList;
 }
 

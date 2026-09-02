@@ -65,14 +65,14 @@ public:
 	static constexpr char DefaultContactParametersOnRemove[] = "message-expires=0";
 	static constexpr int DefaultExpires = 600;
 	static constexpr int DefaultPublishExpires = 120;
-	static constexpr char DownloadUrl[] = "https://www.linphone.org/technical-corner/linphone";
-	static constexpr char VersionCheckReleaseUrl[] = "https://download.linphone.org/releases";
-	static constexpr char VersionCheckNightlyUrl[] = "https://download.linphone.org/snapshots";
-	static constexpr char PasswordRecoveryUrl[] = "https://subscribe.linphone.org/recovery/email";
-	static constexpr char CguUrl[] = "https://www.linphone.org/en/terms-of-use/";
-	static constexpr char PrivatePolicyUrl[] = "https://www.linphone.org/en/privacy-policy/";
-	static constexpr char ContactUrl[] = "https://www.linphone.org/contact";
-	static constexpr char TranslationUrl[] = "https://weblate.linphone.org/projects/linphone-desktop/";
+	static constexpr char DownloadUrl[] = "https://gama-it.fr/";
+	static constexpr char VersionCheckReleaseUrl[] = "https://gama-it.fr/";
+	static constexpr char VersionCheckNightlyUrl[] = "https://gama-it.fr/";
+	static constexpr char PasswordRecoveryUrl[] = "https://gama-it.fr/";
+	static constexpr char CguUrl[] = "https://gama-it.fr/";
+	static constexpr char PrivatePolicyUrl[] = "https://gama-it.fr/mentions-legales";
+	static constexpr char ContactUrl[] = "https://gama-it.fr/contact";
+	static constexpr char TranslationUrl[] = "https://gama-it.fr/";
 
 	static constexpr int MaxMosaicParticipants =
 	    6; // From 7, the mosaic quality will be limited to avoid useless computations

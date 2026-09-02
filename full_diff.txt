@@ -1,0 +1,60 @@
+diff --git a/Linphone/model/tool/ToolModel.cpp b/Linphone/model/tool/ToolModel.cpp
+index d0f8322fd..2ee575104 100644
+--- a/Linphone/model/tool/ToolModel.cpp
++++ b/Linphone/model/tool/ToolModel.cpp
+@@ -270,42 +270,34 @@ std::shared_ptr<linphone::Friend> ToolModel::findFriendByAddress(const QString &
+ std::shared_ptr<linphone::Friend>
+ ToolModel::findFriendByAddress(const std::shared_ptr<const linphone::Address> &linphoneAddr) {
+ 	auto friendsManager = FriendsManager::getInstance();
+-	// linphoneAddr->clean();
+-	QString key = Utils::coreStringToAppString(linphoneAddr->asStringUriOnly());
++	auto cleanedAddr = linphoneAddr->clone();
++	cleanedAddr->clean();
++	QString key = Utils::coreStringToAppString(cleanedAddr->asStringUriOnly());
+ 	if (friendsManager->isInKnownFriends(key)) {
+-		// qDebug() << key << "have been found in known friend, return it";
+ 		return friendsManager->getKnownFriendAtKey(key);
+ 	} else if (friendsManager->isInUnknownFriends(key)) {
+-		// qDebug() << key << "have been found in unknown friend, return it";
+ 		return friendsManager->getUnknownFriendAtKey(key);
+ 	}
+-	auto f = CoreModel::getInstance()->getCore()->findFriend(linphoneAddr);
++	auto f = CoreModel::getInstance()->getCore()->findFriend(cleanedAddr);
+ 	if (f) {
+ 		if (friendsManager->isInUnknownFriends(key)) {
+ 			friendsManager->removeUnknownFriend(key);
+ 		}
+-		// qDebug() << "found friend, add to known map";
+-		friendsManager->appendKnownFriend(linphoneAddr, f);
++		friendsManager->appendKnownFriend(cleanedAddr, f);
+ 	}
+-		if (!f) {
++	if (!f) {
+ 		if (friendsManager->isInOtherAddresses(key)) {
+-			// qDebug() << "A magic search has already be done for address" << key << "and nothing was found,return ";
+ 			return nullptr;
+ 		}
+-		// If no remote directory (LDAP/CardDAV) is configured/ready yet, do NOT cache this address as
+-		// "not found": the directories may still be loading. Caching it here would permanently prevent
+-		// any future lookup from retrying, even once the directories become available.
+ 		if (CoreModel::getInstance()->getCore()->getRemoteContactDirectories().empty()) return nullptr;
+ 		friendsManager->appendOtherAddress(key);
+-		qDebug() << "Couldn't find friend" << linphoneAddr->asStringUriOnly() << "in core or in maps, use magic search";
+-		CoreModel::getInstance()->searchInMagicSearch(Utils::coreStringToAppString(linphoneAddr->asStringUriOnly()),
++		CoreModel::getInstance()->searchInMagicSearch(Utils::coreStringToAppString(cleanedAddr->asStringUriOnly()),
+ 		                                              (int)linphone::MagicSearch::Source::LdapServers |
+ 		                                                  (int)linphone::MagicSearch::Source::RemoteCardDAV,
+ 		                                              LinphoneEnums::MagicSearchAggregation::Friend, 50);
+ 	}
+ 	return f;
+ }
+-
+ bool ToolModel::createCall(const QString &sipAddress,
+                            const QVariantMap &options,
+                            const QString &prepareTransfertAddress,
+diff --git a/external/linphone-sdk b/external/linphone-sdk
+--- a/external/linphone-sdk
++++ b/external/linphone-sdk
+@@ -1 +1 @@
+-Subproject commit 393b0a1f33dd5e34a48fd1da95b3db41aa7ac2df
++Subproject commit 393b0a1f33dd5e34a48fd1da95b3db41aa7ac2df-dirty

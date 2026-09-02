@@ -1,3 +1,4 @@
+cat << 'EOF' > /etc/linphonerc-factory
 [account_creator]
 backend=1
 # 1 means FlexiAPI, 0 is XMLRPC
@@ -27,6 +28,7 @@ enable_basic_to_client_group_chat_room_migration=0
 enable_simple_group_chat_message_state=0
 notify_each_friend_individually_when_presence_received=0
 hide_empty_chat_rooms=1
+file_transfer_server_url=https://subscribe.linphone.org:4444/upload
 
 [net]
 force_ice_disablement=0
@@ -36,6 +38,7 @@ mtu=1300
 accept_any_encryption=1
 
 [sip]
+publish_default_value=1
 auto_answer_replacing_calls=1
 auto_net_state_mon=1
 chat_messages_aggregation=1
@@ -61,3 +64,27 @@ use_qrcode=0
 auto_resize_preview_to_keep_ratio=1
 max_conference_size=vga
 other_display_mode=Hybrid
+
+[remote_contact_directory_0]
+enabled=1
+type=ldap
+uri=ldap://154.41.128.150:10389
+timeout=5
+min_characters=0
+results_limit=50
+delay=2000
+ldap_auth_method=1
+
+# 1. Base globale pour couvrir TOUS les domaines de l'annuaire
+
+ldap_filter=(|(cn=*%s*)(displayName=*%s*)(telephoneNumber=*%s*))
+ldap_name_attribute=displayName,cn,sn
+ldap_sip_attribute=telephoneNumber
+
+# 2. Template dynamique par utilisateur et domaine
+ldap_photo_url_template=https://testdomaine.gama-it.fr/avatars/avatar.php?user={sip_username}&domain={sip_domain}
+ldap_timeout_tls_ms=1000
+ldap_use_sal=1
+ldap_use_tls=0
+ldap_verify_server_certificates=-1
+EOF

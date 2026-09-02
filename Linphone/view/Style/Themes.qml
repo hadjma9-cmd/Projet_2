@@ -5,12 +5,12 @@ QtObject {
     property var themes: {
         return {
             "orange": {
-                "main100": "#FFEACB",
-                "main200": "#FFD098",
-                "main300": "#FFB266",
-                "main500": "#FF5E00",
-                "main600": "#DA4400",
-                "main700": "#B72D00"
+                "main100": "#CCD6E0",
+                "main200": "#99ADC2",
+                "main300": "#6685A3",
+                "main500": "#001E49",
+                "main600": "#001838",
+                "main700": "#001228"
             },
             "yellow": {
                 "main100": "#FFF5D6",

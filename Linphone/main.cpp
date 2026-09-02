@@ -45,20 +45,6 @@ void cleanStream() {
 
 int main(int argc, char *argv[]) {
 
-	/*
-	#if defined _WIN32
-	    // log in console only if launched from console
-	    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-	        freopen_s(&gStream, "CONOUT$", "w", stdout);
-	        freopen_s(&gStream, "CONOUT$", "w", stderr);
-	    }
-	#endif
-	*/
-
-	// auto hrCom = RoInitialize(RO_INIT_MULTITHREADED);
-	// HRESULT hrCom = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-	// qInfo() << "CoInitializeEx result:" << Qt::hex << hrCom;
-
 #if defined _WIN32
 	qInfo() << "Thread ID:" << GetCurrentThreadId();
 	APTTYPE aptBefore;
@@ -75,7 +61,6 @@ int main(int argc, char *argv[]) {
 		qWarning() << "RegisterAumidAndComServer failed:" << Qt::hex << hr;
 	}
 #endif
-
 	// Useful to share camera on Fullscreen (other context) or multiscreens
 	lDebug() << "[Main] Setting ShareOpenGLContexts";
 	QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);

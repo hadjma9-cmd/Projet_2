@@ -23,6 +23,8 @@
 
 #include "core/chat/message/EventLogGui.hpp"
 #include "core/participant/ParticipantCore.hpp"
+#include "core/friend/FriendCore.hpp"
+#include "core/friend/FriendGui.hpp"
 #include "message/ChatMessageGui.hpp"
 #include "model/chat/ChatModel.hpp"
 #include "model/search/MagicSearchModel.hpp"
@@ -69,6 +71,10 @@ public:
 	Q_PROPERTY(QStringList participantsAddresses READ getParticipantsAddresses WRITE lSetParticipantsAddresses NOTIFY
 	               participantsChanged)
 	Q_PROPERTY(QList<QSharedPointer<ChatMessageContentCore>> fileList READ getFileList NOTIFY fileListChanged)
+	Q_PROPERTY(FriendGui *friendGui READ getFriendGui NOTIFY friendGuiChanged)
+	Q_PROPERTY(QString debugFriendInfo READ getDebugFriendInfo NOTIFY debugFriendInfoChanged)
+
+	FriendGui *getFriendGui() const;
 
 	// Should be call from model Thread. Will be automatically in App thread after initialization
 	static QSharedPointer<ChatCore> create(const std::shared_ptr<linphone::ChatRoom> &chatRoom);
@@ -92,6 +98,8 @@ public:
 	int getEphemeralLifetime() const;
 
 	QString getIdentifier() const;
+
+	QString getDebugFriendInfo() const;
 
 	QString getSendingText() const;
 	void setSendingText(const QString &text);
@@ -195,6 +203,8 @@ signals:
 	void lRemoveParticipant(QString sipAddress);
 	void lSetParticipantsAddresses(QStringList addresses);
 	void lToggleParticipantAdminStatus(QString sipAddress);
+	void friendGuiChanged();
+	void debugFriendInfoChanged();
 
 private:
 	QString id;
@@ -227,6 +237,8 @@ private:
 	std::shared_ptr<ChatModel> mChatModel;
 	QSharedPointer<ChatMessageCore> mLastMessage;
 	std::shared_ptr<FriendModel> mFriendModel;
+	QSharedPointer<FriendCore> mFriendCore;
+	QString mDebugFriendInfo = "updateInfo never called";
 	QSharedPointer<SafeConnection<ChatCore, ChatModel>> mChatModelConnection;
 	QSharedPointer<SafeConnection<ChatCore, CoreModel>> mCoreModelConnection;
 

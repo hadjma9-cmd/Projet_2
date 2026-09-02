@@ -57,6 +57,9 @@ if(POLICY CMP0141)
 endif()
 
 project(linphoneqt)
+# Ajout du chemin des modules QML Linphone pour Qt Creator
+set(QML_IMPORT_PATH "${CMAKE_SOURCE_DIR}/build/Linphone")
+set(QML2_IMPORT_PATH "${CMAKE_SOURCE_DIR}/build/Linphone")
 
 include(GNUInstallDirs)
 include(CheckCXXCompilerFlag)
@@ -71,8 +74,8 @@ endif()
 
 set(CMAKE_INSTALL_PREFIX "${APPLICATION_OUTPUT_DIR}")
 
-set(LINPHONEAPP_APPLICATION_NAME "Linphone" CACHE STRING "Application name" )
-set(LINPHONEAPP_EXECUTABLE_NAME "linphone" CACHE STRING "Executable name" )
+set(LINPHONEAPP_APPLICATION_NAME "Gamaphone" CACHE STRING "Application name" )
+set(LINPHONEAPP_EXECUTABLE_NAME "gamaphone" CACHE STRING "Executable name" )
 
 # Include application_info.cmake here as the LINPHONEAPP_APPLICATION_NAME variable must be known as it is set to the APPLICATION_NAME variable.
 include(Linphone/application_info.cmake)

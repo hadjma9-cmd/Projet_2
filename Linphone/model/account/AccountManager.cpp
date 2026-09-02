@@ -73,6 +73,7 @@ bool AccountManager::login(QString username,
 	                            : "use-other-sip-account.rc";
 	auto account = createAccount(assistantFile);
 	auto params = account->getParams()->clone();
+	params->enablePublish(true);
 	// Sip address.
 	auto identity = params->getIdentityAddress()->clone();
 	username = Utils::getUsername(username);

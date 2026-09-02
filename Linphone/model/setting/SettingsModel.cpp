@@ -1158,7 +1158,7 @@ DEFINE_GETSET_CONFIG(SettingsModel,
 						syncLdapContacts,
 						SyncLdapContacts,
 						"sync_ldap_contacts",
-						false)
+						true)
 DEFINE_GETSET_CONFIG_STRING(SettingsModel,
 							configLocale,
 							ConfigLocale,
