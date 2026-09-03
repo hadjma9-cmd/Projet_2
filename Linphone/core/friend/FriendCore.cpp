@@ -50,6 +50,12 @@ FriendCore::FriendCore(const std::shared_ptr<linphone::Friend> &contact, bool is
 		mFriendModel->setSelf(mFriendModel);
 		auto presence = mFriendModel->getPresence(contact);
 		auto note = mFriendModel->getPresenceNote(contact);
+
+		lDebug() << "[FriendCore] INITIAL PRESENCE:"
+         		 << "address=" << contact->getAddress()->asStringUriOnly()
+         		 << "presence=" << static_cast<int>(presence)
+         		 << "note=" << note;
+
 		App::postCoreAsync([this, presence, note]() { setPresence(presence, note); });
 		mPictureUri = Utils::coreStringToAppString(contact->getPhoto());
 		mFullName = mFriendModel->getFullName();
@@ -745,6 +751,10 @@ std::shared_ptr<FriendModel> FriendCore::getModel() {
 }
 
 void FriendCore::setPresence(LinphoneEnums::Presence presence, QString presenceNote) {
+		lDebug() << "[FriendCore] SET PRESENCE:"
+	         	 << "presence=" << static_cast<int>(presence)
+	        	 << "note=" << presenceNote;
+
 	mustBeInMainThread(log().arg(Q_FUNC_INFO));
 	bool notify = false;
 	if (presence != mPresence) {

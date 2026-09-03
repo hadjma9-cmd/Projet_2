@@ -118,19 +118,13 @@ FocusScope {
                             onPressed: mainItem.backButtonPressed()
                         }
                         Avatar {
-                            contact: mainItem.chat?.core.friendGui || null
+                            property var contactObj: mainItem.chat ? UtilsCpp.findFriendByAddress(mainItem.chat?.core.peerAddress) : null
+                            contact: contactObj?.value || null
                             displayNameVal: mainItem.chat?.core.avatarUri
                             secured: mainItem.chat && mainItem.chat.core.isSecured
                             Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)
                             Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
                         }
-
-                        Text {
-                            text: "DEBUG: " + (mainItem.chat?.core.debugFriendInfo || "no chat")
-                            color: "red"
-                            font.pixelSize: 14
-                        }
-
                         ColumnLayout {
                             Text {
                                 Layout.fillWidth: true

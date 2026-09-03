@@ -12,14 +12,13 @@ ColumnLayout {
 	id: mainItem
     spacing: Utils.getSizeWithScreenRatio(30)
 
-	property FriendGui contact
-
 	property alias button: rightButton
 	property alias content: detailLayout.data
 	property alias bannerContent: bannerLayout.data
 	property alias secondLineContent: verticalLayoutSecondLine.data
     property real minimumWidthForSwitchintToRowLayout: Utils.getSizeWithScreenRatio(756)
     property var useVerticalLayout: width < minimumWidthForSwitchintToRowLayout
+	property FriendGui contact
 
 	GridLayout {
         Layout.leftMargin: Utils.getSizeWithScreenRatio(64)

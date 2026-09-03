@@ -22,13 +22,13 @@
 #include "core/App.hpp"
 #include "core/chat/message/content/ChatMessageContentGui.hpp"
 #include "core/friend/FriendCore.hpp"
+#include "core/friend/FriendGui.hpp"
 #include "core/setting/SettingsCore.hpp"
 #include "model/chat/message/EventLogModel.hpp"
 #include "model/core/CoreModel.hpp"
 #include "model/friend/FriendModel.hpp"
 #include "model/tool/ToolModel.hpp"
 #include "tool/Utils.hpp"
-#include "core/friend/FriendGui.hpp"
 
 #include <QQuickWindow>
 
@@ -44,7 +44,7 @@ QSharedPointer<ChatCore> ChatCore::create(const std::shared_ptr<linphone::ChatRo
 }
 
 FriendGui *ChatCore::getFriendGui() const {
-    return mFriendCore ? new FriendGui(mFriendCore) : nullptr;
+	return mFriendCore ? new FriendGui(mFriendCore) : nullptr;
 }
 
 ChatCore::ChatCore(const std::shared_ptr<linphone::ChatRoom> &chatRoom) : QObject(nullptr) {
@@ -457,13 +457,32 @@ void ChatCore::setSelf(const QSharedPointer<ChatCore> &me) {
 	});
 
 	mCoreModelConnection = SafeConnection<ChatCore, CoreModel>::create(me, CoreModel::getInstance());
-	if (!ToolModel::findFriendByAddress(mParticipantAddress))
-		mCoreModelConnection->makeConnectToModel(&CoreModel::friendCreated,
-		                                         [this](std::shared_ptr<linphone::Friend> f) { updateInfo(f); });
-	mCoreModelConnection->makeConnectToModel(&CoreModel::friendUpdated,
-	                                         [this](std::shared_ptr<linphone::Friend> f) { updateInfo(f); });
-	mCoreModelConnection->makeConnectToModel(&CoreModel::friendRemoved,
-	                                         [this](std::shared_ptr<linphone::Friend> f) { updateInfo(f, true); });
+
+auto existingFriend = ToolModel::findFriendByAddress(mParticipantAddress);
+
+if (existingFriend) {
+	mCoreModelConnection->invokeToModel([this, existingFriend]() {
+		updateInfo(existingFriend);
+	});
+} else {
+	mCoreModelConnection->makeConnectToModel(
+	    &CoreModel::friendCreated,
+	    [this](std::shared_ptr<linphone::Friend> f) {
+		    updateInfo(f);
+	    });
+}
+
+mCoreModelConnection->makeConnectToModel(
+    &CoreModel::friendUpdated,
+    [this](std::shared_ptr<linphone::Friend> f) {
+	    updateInfo(f);
+    });
+
+mCoreModelConnection->makeConnectToModel(
+    &CoreModel::friendRemoved,
+    [this](std::shared_ptr<linphone::Friend> f) {
+	    updateInfo(f, true);
+    });
 }
 
 QDateTime ChatCore::getLastUpdatedTime() const {
@@ -479,10 +498,6 @@ void ChatCore::setLastUpdatedTime(QDateTime time) {
 
 QString ChatCore::getTitle() const {
 	return mTitle;
-}
-
-QString ChatCore::getDebugFriendInfo() const {
-    return mDebugFriendInfo;
 }
 
 void ChatCore::setTitle(QString title) {
@@ -710,28 +725,36 @@ QString ChatCore::getLocalAddress() const {
 }
 
 void ChatCore::updateInfo(const std::shared_ptr<linphone::Friend> &updatedFriend, bool isRemoval) {
-    mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
-    auto fAddress = ToolModel::interpretUrl(mParticipantAddress);
-    bool isThisFriend = mFriendModel && updatedFriend == mFriendModel->getFriend();
-    if (!isThisFriend)
-        for (auto f : updatedFriend->getAddresses()) {
-            if (f->weakEqual(fAddress)) {
-                isThisFriend = true;
-                break;
-            }
-        }
+	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
 
-    // DEBUG
-    QString debugMsg = QString("updateInfo called, mParticipantAddress=%1, isThisFriend=%2, isRemoval=%3")
-                            .arg(mParticipantAddress)
-                            .arg(isThisFriend)
-                            .arg(isRemoval);
-    mChatModelConnection->invokeToCore([this, debugMsg] {
-        mDebugFriendInfo = debugMsg;
-        emit debugFriendInfoChanged();
-    });
-    // FIN DEBUG
-    if (isThisFriend) {
+	if (!updatedFriend) {
+		mChatModelConnection->invokeToCore([this] {
+			mDebugFriendInfo = "updateInfo called with updatedFriend=NULL";
+			emit debugFriendInfoChanged();
+		});
+		return;
+	}
+
+	auto fAddress = ToolModel::interpretUrl(mParticipantAddress);
+	bool isThisFriend = mFriendModel && updatedFriend == mFriendModel->getFriend();
+	if (!isThisFriend)
+		for (auto f : updatedFriend->getAddresses()) {
+			if (f->weakEqual(fAddress)) {
+				isThisFriend = true;
+				break;
+			}
+		}
+
+	QString debugMsg = QString("updateInfo: mParticipantAddress=%1 isThisFriend=%2 isRemoval=%3")
+	                        .arg(mParticipantAddress)
+	                        .arg(isThisFriend)
+	                        .arg(isRemoval);
+	mChatModelConnection->invokeToCore([this, debugMsg] {
+		mDebugFriendInfo = debugMsg;
+		emit debugFriendInfoChanged();
+	});
+
+	if (isThisFriend) {
 		if (isRemoval) {
 			mFriendModel = nullptr;
 			mFriendCore = nullptr;
@@ -778,4 +801,8 @@ void ChatCore::updateInfo(const std::shared_ptr<linphone::Friend> &updatedFriend
 			}
 		}
 	}
+}
+
+QString ChatCore::getDebugFriendInfo() const {
+	return mDebugFriendInfo;
 }
