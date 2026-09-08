@@ -97,15 +97,24 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 				    auto *contacts = new QList<QSharedPointer<FriendCore>>();
 				    auto ldapContacts = ToolModel::getLdapFriendList();
 				    auto core = CoreModel::getInstance()->getCore();
-				    auto userAddress = core->getDefaultAccount() && core->getDefaultAccount()->getParams()
-				                           ? core->getDefaultAccount()->getParams()->getIdentityAddress()
-				                           : nullptr;
+				    // When mShowMe is false, hide from the list the SIP address(es) of the local
+				    // account(s) currently signed in on this profile: each user must not see his
+				    // own SIP account (but still sees everyone else).
+				    auto isOwnAccountAddress = [core](const std::shared_ptr<const linphone::Address> &addr) -> bool {
+					    if (!addr) return false;
+					    for (auto &account : core->getAccountList()) {
+						    auto params = account->getParams();
+						    auto identity = params ? params->getIdentityAddress() : nullptr;
+						    if (identity && identity->weakEqual(addr)) return true;
+					    }
+					    return false;
+				    };
 				    for (auto it : results) {
 					    QSharedPointer<FriendCore> contact;
 					    auto linphoneFriend = it->getFriend();
 					    bool isStored = false;
 					    if (linphoneFriend) {
-						    if (!mShowMe && userAddress && userAddress->weakEqual(linphoneFriend->getAddress())) {
+						    if (!mShowMe && isOwnAccountAddress(linphoneFriend->getAddress())) {
 							    lWarning() << log().arg("do not show my own address in this contact list");
 							    continue;
 						    }
@@ -114,7 +123,7 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 						    contact = FriendCore::create(linphoneFriend, isStored, it->getSourceFlags());
 						    contacts->append(contact);
 					    } else if (auto address = it->getAddress()) {
-						    if (!mShowMe && userAddress && userAddress->weakEqual(address)) {
+						    if (!mShowMe && isOwnAccountAddress(address)) {
 							    lWarning() << log().arg("do not show my own address in this contact list");
 							    continue;
 						    }

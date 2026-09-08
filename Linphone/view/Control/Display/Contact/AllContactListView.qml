@@ -211,6 +211,7 @@ Flickable {
     property MagicSearchProxy mainModel: MagicSearchProxy {
         id: magicSearchProxy
         searchText: mainItem.searchText
+        showMe: mainItem.showMe
         aggregationFlag: LinphoneEnums.MagicSearchAggregation.Friend
         sourceFlags: mainItem.sourceFlags
         onModelReset: {

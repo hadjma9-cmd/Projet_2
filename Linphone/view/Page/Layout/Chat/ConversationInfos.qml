@@ -13,7 +13,9 @@ import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 ColumnLayout {
 	id: mainItem
 	property ChatGui chatGui
-	property var contact: mainItem.chatGui?.core.friendGui || null
+	property var contactObj: mainItem.chatGui ?
+	UtilsCpp.findFriendByAddress(mainItem.chatGui.core.peerAddress) : null
+	property var contact: contactObj?.value || null
 	property bool isAppFriend: contact && contact.core.isAppFriend
 	property bool isGroup: chatGui && chatGui.core.isGroupChat
 	spacing: 0
@@ -23,16 +25,6 @@ ColumnLayout {
 
 	signal oneOneCall(bool video)
 	signal groupCall()
-
-	Component.onCompleted: {
-		console.log("========== ConversationInfos ==========")
-		console.log("peerAddress =", mainItem.chatGui?.core?.peerAddress)
-		console.log("contactObj =", contactObj)
-		console.log("contact =", contact)
-		console.log("presenceStatus =", contact?.core?.presenceStatus)
-		console.log("presenceColor =", contact?.core?.presenceColor)
-		console.log("presenceIcon =", contact?.core?.presenceIcon)
-	}
 
 	Avatar {
 		Layout.alignment: Qt.AlignHCenter

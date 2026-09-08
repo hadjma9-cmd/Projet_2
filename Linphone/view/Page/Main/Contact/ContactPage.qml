@@ -314,6 +314,7 @@ AbstractMainPage {
                     Layout.rightMargin: Utils.getSizeWithScreenRatio(8)
                     searchBarText: searchBar.text
                     hideSuggestions: true
+                    showMe: false // ne pas afficher son propre compte SIP dans la liste des contacts
                     sourceFlags: LinphoneEnums.MagicSearchSource.Friends
                                  | LinphoneEnums.MagicSearchSource.FavoriteFriends
                                  | LinphoneEnums.MagicSearchSource.LdapServers

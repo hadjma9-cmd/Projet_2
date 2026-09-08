@@ -176,7 +176,9 @@ ListView {
             anchors.bottomMargin: Utils.getSizeWithScreenRatio(9)
             spacing: Utils.getSizeWithScreenRatio(10)
             Avatar {
-                contact: modelData?.core.friendGui || null
+                property var contactObj: modelData ?
+                UtilsCpp.findFriendByAddress(modelData.core.peerAddress) : null
+                contact: contactObj?.value || null
                 displayNameVal: modelData && modelData.core.avatarUri || ""
                 secured: modelData?.core.isSecured || false
                 displayPresence: true

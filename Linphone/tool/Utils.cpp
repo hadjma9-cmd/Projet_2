@@ -494,8 +494,26 @@ VariantObject *Utils::findFriendByAddress(const QString &address) {
 	VariantObject *data = new VariantObject("findFriendByAddress");
 	if (!data) return nullptr;
 	data->makeRequest([address]() {
-		if (CoreModel::getInstance()->getCore()->getGlobalState() != linphone::GlobalState::On) return QVariant();
+		auto core = CoreModel::getInstance()->getCore();
+		if (core->getGlobalState() != linphone::GlobalState::On) return QVariant();
 		auto linFriend = ToolModel::findFriendByAddress(address);
+		// core->findFriend() may return a Friend instance without a presence model (e.g. one
+		// auto-created in the default list), while the instance subscribed to presence (the
+		// app_friends list, the one shown in the Contacts tab) is a different object that
+		// carries the presence. Prefer whichever instance actually has a presence model so the
+		// conversation avatar shows the same presence badge as the Contacts tab.
+		if (linFriend && !linFriend->getPresenceModel()) {
+			auto addr = ToolModel::interpretUrl(address);
+			if (addr) {
+				for (auto &list : core->getFriendsLists()) {
+					auto sameFriend = list->findFriendByAddress(addr);
+					if (sameFriend && sameFriend->getPresenceModel()) {
+						linFriend = sameFriend;
+						break;
+					}
+				}
+			}
+		}
 		if (!linFriend) return QVariant();
 		auto friendCore = FriendCore::create(linFriend);
 		return QVariant::fromValue(new FriendGui(friendCore));

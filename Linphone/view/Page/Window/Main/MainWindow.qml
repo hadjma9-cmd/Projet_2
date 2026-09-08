@@ -131,7 +131,9 @@ AbstractWindow {
 		function onRegistrationStateChanged() {
 			if (LoginPageCpp.registrationState === LinphoneEnums.RegistrationState.Ok) {
 				openMainPage(true)
-				// proposeH264CodecsDownload() // Désactivé : crash "invalid comparator" lié au tri des codecs vidéo H264
+				// proposeH264CodecsDownload() est déclarée sur le StackView de mainStackViewComp :
+				// elle n'est pas dans la portée de ce bloc Connections, il faut passer par le Loader.
+				mainStackViewLoader.item?.proposeH264CodecsDownload()
 			}
 		}
 	}

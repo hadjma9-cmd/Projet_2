@@ -204,12 +204,18 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 	if (FAILED(hr)) lWarning() << "puting tag on toast failed";
 
 	connect(call->mCore.get(), &CallCore::stateChanged, this, [this, call, notifier, toast] {
-		if (call->mCore->getState() == LinphoneEnums::CallState::End ||
-		    call->mCore->getState() == LinphoneEnums::CallState::Error ||
-		    call->mCore->getState() == LinphoneEnums::CallState::StreamsRunning) {
+		auto state = call->mCore->getState();
+		if (state == LinphoneEnums::CallState::End || state == LinphoneEnums::CallState::Error ||
+		    state == LinphoneEnums::CallState::StreamsRunning) {
 			qDebug() << "Call ended, answered or error, remove toast";
 			auto callId = call->mCore->getCallId();
-			call->deleteLater();
+			disconnect(call->mCore.get(), &CallCore::stateChanged, this, nullptr);
+			// Only delete `call` when the call was never answered (missed / declined).
+			// On accept it is handed to CallsWindow (Utils::openCallsWindow) and becomes
+			// mainWindow.call; deleting it on StreamsRunning nulls mainWindow.call mid-call
+			// (broken in-call UI, hangup stops propagating). Once in QML it is
+			// JavaScript-owned and collected when the window releases it.
+			if (state != LinphoneEnums::CallState::StreamsRunning) call->deleteLater();
 
 			std::unique_ptr<DesktopNotificationHistoryCompat> history;
 			DesktopNotificationManagerCompat::get_History(&history);

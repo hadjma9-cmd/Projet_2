@@ -55,7 +55,16 @@ if (NOT "${CMAKE_INSTALL_PREFIX}" MATCHES .*/_CPack_Packages/.*)
 		endif()
 	endif()
 	if(DO_GENERATOR)
-		execute_process( COMMAND ${CMAKE_CPACK_COMMAND} -G @CPACK_GENERATOR@ -C @CMAKE_BUILD_TYPE@ RESULT_VARIABLE CPACK_COMMAND_RESULT)
+		# Multi-config generators (Visual Studio) leave CMAKE_BUILD_TYPE empty, which
+		# produced "cpack -C " (no value) -> "Invalid value used with -C". Fall back to Release.
+		set(_CPACK_CONFIG "@CMAKE_BUILD_TYPE@")
+		if(_CPACK_CONFIG STREQUAL "")
+			set(_CPACK_CONFIG "Release")
+		endif()
+		# cpack ne trouve CPackConfig.cmake que dans son repertoire courant. Sans
+		# WORKING_DIRECTORY, un "cmake --install" lance hors de build/ echouait avec
+		# "CPack project name not specified".
+		execute_process( COMMAND ${CMAKE_CPACK_COMMAND} -G @CPACK_GENERATOR@ -C ${_CPACK_CONFIG} WORKING_DIRECTORY "@CMAKE_BINARY_DIR@" RESULT_VARIABLE CPACK_COMMAND_RESULT)
 		if(CPACK_COMMAND_RESULT)
 			message(FATAL_ERROR "Failed to create @CPACK_GENERATOR@ package! ${CPACK_COMMAND_RESULT}")
 		endif()

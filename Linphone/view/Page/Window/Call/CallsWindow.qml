@@ -44,6 +44,15 @@ AbstractWindow {
     property Item firstButtonInBottomTab : mainWindow.startingCall ? endCallButton : (videoCameraButton.visible && videoCameraButton.enabled ? videoCameraButton : audioMicrophoneButton)
     property Item lastButtonInBottomTab : mainWindow.startingCall ? Utils.getLastFocusableItemInItem(controlCallButtons) : endCallButton
 
+    // The incoming-call toast notification owns the CallGui it hands to this window, and
+    // destroys it when the call reaches StreamsRunning (WindowsNotificationBackend.cpp).
+    // That nulls mainWindow.call mid-call. Recover it from the calls model, which keeps a
+    // valid CallGui for as long as the call exists.
+    onCallChanged: {
+        if (!call && callsModel.haveCall && callsModel.currentCall)
+            mainWindow.call = callsModel.currentCall
+    }
+
     onCallStateChanged: {
         if (callState === LinphoneEnums.CallState.Connected) {
             if (middleItemStackView.currentItem.objectName != "inCallItem") {
@@ -130,11 +139,14 @@ AbstractWindow {
     }
 
     function endCall(callToFinish) {
-        if (callToFinish)
-            callToFinish.core.lTerminate()
-        else {
-            if (!callsModel.haveCall) UtilsCpp.closeCallsWindow()
-        }
+        // mainWindow.call can transiently become null (the incoming-call toast destroys
+        // the CallGui it handed us). Fall back to the calls model so the hangup button
+        // always terminates the live call instead of silently leaving it running.
+        var c = callToFinish || mainWindow.call || callsModel.currentCall
+        if (c)
+            c.core.lTerminate()
+        else if (!callsModel.haveCall)
+            UtilsCpp.closeCallsWindow()
         // var mainWin = UtilsCpp.getMainWindow()
         // mainWin.goToCallHistory()
     }
