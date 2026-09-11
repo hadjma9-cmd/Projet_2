@@ -111,6 +111,14 @@ Flickable {
         return null
     }
 
+    // Relance la recherche courante sans en changer le texte. Les sous-listes (favoris,
+    // contacts, suggestions) partagent mainModel comme parentProxy : un seul appel les
+    // rafraichit toutes. Meme mecanisme qu'upstream emploie au passage de minuit.
+    property bool silentRefresh: false
+    function refresh() {
+        silentRefresh = true
+        mainModel.forceUpdate()
+    }
     function resetSelections() {
         mainItem.highlightedContact = null
         favoritesList.currentIndex = -1
@@ -219,7 +227,10 @@ Flickable {
         }
         onResultsProcessed: {
             mainItem.loading = false
-            mainItem.contentY = 0
+            // Remonter en haut sert quand la recherche change ; lors d'une relance silencieuse
+            // (retour sur l'onglet) ce serait perdre la position de defilement.
+            if (!mainItem.silentRefresh) mainItem.contentY = 0
+            mainItem.silentRefresh = false
         }
 
         onInitialized: {
@@ -263,7 +274,9 @@ Flickable {
 
         BusyIndicator {
             id: busyIndicator
-            visible: mainItem.loading
+            // Sablier seulement quand il n'y a encore rien a montrer : une mise a jour ne doit
+            // pas effacer une liste deja affichee pour la redessiner.
+            visible: mainItem.loading && !mainItem.haveContacts
             width: mainItem.busyIndicatorSize
             height: mainItem.busyIndicatorSize
             Layout.preferredWidth: mainItem.busyIndicatorSize

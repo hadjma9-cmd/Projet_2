@@ -68,12 +68,6 @@ ColumnLayout {
 					}
 				}
 			}
-			PresenceNoteLayout {
-				visible: contact?.core.presenceNote.length > 0 && mainItem.useVerticalLayout
-				friendGui: contact
-				Layout.preferredWidth: Utils.getSizeWithScreenRatio(412)
-				Layout.preferredHeight: Utils.getSizeWithScreenRatio(85)
-			}
 		}
 		Item {
 			id: verticalLayoutSecondLine
@@ -88,18 +82,9 @@ ColumnLayout {
 			style: ButtonStyle.main
 		}
 	}
-	Rectangle {
-		Layout.fillWidth:true
-		Layout.preferredHeight: Utils.getSizeWithScreenRatio(79)
-		color: 'transparent'
-		visible: contact && contact.core.presenceNote.length > 0 && !mainItem.useVerticalLayout
-		PresenceNoteLayout {
-			anchors.centerIn: parent
-			friendGui: contact
-			width: Utils.getSizeWithScreenRatio(412)
-			height: Utils.getSizeWithScreenRatio(85)
-		}
-	}
+	// L'encadre de note a ete retire : la note s'affiche desormais sous le nom, dans le
+	// bandeau d'identite (ContactPage.qml), sans intitule. Un encadre borde avec titre et
+	// icone pour porter une phrase de cinq mots pesait plus lourd que son contenu.
 	StackLayout {
 		id: detailLayout
 		Layout.alignment: Qt.AlignCenter

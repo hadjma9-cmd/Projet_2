@@ -192,12 +192,13 @@ public:
 	static constexpr char VcardScheme[] = EXECUTABLE_NAME "-desktop:/";
 	static constexpr int CbsCallInterval = 20;
 	static constexpr char RcVersionName[] = "rc_version";
-	static constexpr int RcVersionCurrent = 7; // 2 = Conference URI
-	                                           // 3 = CPIM on basic chat rooms
+	static constexpr int RcVersionCurrent = 8; // 2 = Conference URI
+	                                           // 3 = CPIM on basic chat rooms (linphone.org accounts only)
 	                                           // 4 = RTP bundle mode
 	                                           // 5 = Video Conference URI
 	                                           // 6 = 5.2.6 Publish expires
 	                                           // 7 = 6.0.0 Lime algo + Video Policy + Routes + Log upload URL
+	                                           // 8 = CPIM on basic chat rooms for every account
 	static constexpr char DownloadDefaultFileName[] = "download";
 
 //--------------------------------------------------------------------------------

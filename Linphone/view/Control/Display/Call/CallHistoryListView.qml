@@ -123,7 +123,9 @@ ListView {
 
     BusyIndicator {
         anchors.horizontalCenter: mainItem.horizontalCenter
-        visible: mainItem.loading
+        // Sablier seulement quand il n'y a encore rien a montrer : une mise a jour ne doit
+        // pas effacer une liste deja affichee pour la redessiner.
+        visible: mainItem.loading && mainItem.count === 0
         height: visible ? mainItem.busyIndicatorSize : 0
         width: mainItem.busyIndicatorSize
         indicatorHeight: mainItem.busyIndicatorSize

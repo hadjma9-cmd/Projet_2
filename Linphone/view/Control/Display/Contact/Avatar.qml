@@ -34,11 +34,19 @@ Loader{
 			: displayNameObj
 				? displayNameObj.value
 			: ""
-	property bool haveAvatar: account?.core
+	// Source unique de l'avatar, pour que l'image affichee et le test haveAvatar ne
+	// puissent pas diverger.
+	property string avatarUri: (account?.core
 		? account.core.pictureUri
-		: contact 
+		: contact
 			? contact.core.pictureUri
-			: computedAvatarUri.length != 0
+			: computedAvatarUri) || ""
+	// L'avatar peut etre une URL distante (annuaire) qui renvoie 404 quand l'utilisateur
+	// n'a pas de photo. Sans ce drapeau, haveAvatar resterait vrai et on afficherait une
+	// image vide au lieu des initiales.
+	property bool avatarLoadFailed: false
+	onAvatarUriChanged: avatarLoadFailed = false
+	property bool haveAvatar: avatarUri.length !== 0 && !avatarLoadFailed
 	property var avatarObj: UtilsCpp.findAvatarByAddress(_address)
 	property string computedAvatarUri: avatarObj ? avatarObj.value : ''
 
@@ -60,7 +68,12 @@ Loader{
 	property bool securityBreach: securityLevel === LinphoneEnums.SecurityLevel.Unsafe
 	property bool displayPresence: true
 
-	asynchronous: true
+	// Construction synchrone : en asynchrone, le composant s'instancie en arriere-plan et
+	// certaines liaisons s'evaluent avant que le contact ne soit resolu (findFriendByAddress
+	// repond de facon differee). La pastille de presence restait alors vide jusqu'a ce qu'un
+	// changement d'onglet reconstruise la vue. ChatListView contournait deja le probleme en
+	// forcant asynchronous: false sur ses propres avatars.
+	asynchronous: false
 	sourceComponent: Component{
 		Item {
 			anchors.fill: parent
@@ -112,9 +125,13 @@ Loader{
 					visible: mainItem.displayPresence
 					width: stackView.width/4.5
 					height: width
-					sourceSize.width: width
-    				sourceSize.height: width
-					smooth: false
+					sourceSize.width: Math.ceil(width)
+    				sourceSize.height: Math.ceil(width)
+					// width vaut stackView.width/4.5, donc fractionnaire : sans arrondi ni
+					// filtrage, l'icone etait rasterisee a une taille tronquee puis mise a
+					// l'echelle, d'ou une pastille pixellisee.
+					smooth: true
+					mipmap: true
 					anchors.bottom: parent.bottom
 					anchors.right: parent.right
 					anchors.rightMargin: stackView.width / 15
@@ -204,11 +221,12 @@ Loader{
 						sourceSize.height: avatarItem.height
 						fillMode: Image.PreserveAspectCrop
 						anchors.centerIn: parent
-						source: mainItem.account
-							? mainItem.account.core.pictureUri 
-							: mainItem.contact
-								? mainItem.contact.core.pictureUri
-								: computedAvatarUri
+						source: mainItem.avatarUri
+						// L'avatar peut etre une URL distante dont le contenu change sans que l'URL
+						// change. Le cache memoire de Qt, indexe par URL, servirait indefiniment
+						// l'ancienne image : on le desactive pour laisser jouer les en-tetes HTTP.
+						cache: false
+						onStatusChanged: if (status === Image.Error) mainItem.avatarLoadFailed = true
 						mipmap: true
 						layer.enabled: true
 					}

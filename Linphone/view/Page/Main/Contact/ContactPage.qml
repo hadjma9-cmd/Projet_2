@@ -31,6 +31,32 @@ AbstractMainPage {
                                     || rightPanelStackView.currentItem.objectName
                                     != "contactEdition"
     property FriendGui selectedContact
+    // Un contact d'annuaire (LDAP) est en lecture seule : ni edition, ni favori, ni suppression.
+    property bool contactEditable: selectedContact && selectedContact.core.isStored
+                                   && !selectedContact.core.readOnly
+    // Partage vCard, appele depuis deux endroits : la section « Autres actions » pour un contact
+    // local, et une ligne discrete pour un contact d'annuaire, qui n'a que cette action.
+    function shareContact() {
+        if (!selectedContact) return
+        var vcard = selectedContact.core.getVCard()
+        var username = selectedContact.core.givenName + selectedContact.core.familyName
+        var filepath = UtilsCpp.createVCardFile(username, vcard)
+        if (filepath == "")
+            UtilsCpp.showInformationPopup(qsTr("information_popup_error_title"),
+                                          //: "La création du fichier vcard a échoué"
+                                          qsTr("contact_details_share_error_mesage"),
+                                          false)
+        else
+            mainWindow.showInformationPopup(
+                        //: "VCard créée"
+                        qsTr("contact_details_share_success_title"),
+                        //: "VCard du contact enregistrée dans %1"
+                        qsTr("contact_details_share_success_mesage").arg(filepath))
+        UtilsCpp.shareByEmail(
+                    //: "Partage de contact"
+                    qsTr("contact_details_share_email_title"),
+                    vcard, filepath)
+    }
     property string initialFriendToDisplay
     onInitialFriendToDisplayChanged: {
         if (initialFriendToDisplay != '' && contactList.selectContact(initialFriendToDisplay) != -1)
@@ -42,6 +68,13 @@ AbstractMainPage {
     onVisibleChanged: if (!visible) {
         rightPanelStackView.clear()
         contactList.resetSelections()
+    } else {
+        // La page n'est plus reconstruite a chaque changement d'onglet (MainLayout.qml).
+        // C'est cette reconstruction qui relancait jusqu'ici la recherche dans l'annuaire :
+        // sans elle, un contact supprime, ou ajoute directement dans le LDAP, n'apparaitrait
+        // qu'a la recherche suivante. Les autres onglets n'en ont pas besoin, leurs listes
+        // etant alimentees en continu par les signaux du SDK.
+        contactList.refresh()
     }
     function goToContactDetails(focusEditButton=false) {
         if (selectedContact) {
@@ -414,42 +447,98 @@ AbstractMainPage {
                 property var computedContactNameObj: UtilsCpp.getDisplayName(contactAddress)
                 property string computedContactName: computedContactNameObj ? computedContactNameObj.value : ""
                 property string contactName: contact ? contact.core.fullName : computedContactName
+
+                // --- Numeros et adresses du contact ------------------------------------
+                // Places ici plutot que dans la section Coordonnees : l'en-tete (bannerContent)
+                // et le contenu doivent tous deux y acceder.
+                //
+                // Adresse SIP et telephone portent souvent le meme numero : sip:222@domaine d'un
+                // cote, 222 de l'autre, chacun avec son bouton d'appel. On ne garde en tete que ce
+                // qui sert a joindre la personne ; l'URI rejoint les details techniques.
+                property var allContactEntries: contact
+                    ? UtilsCpp.append(contact.core.addresses, contact.core.phoneNumbers)
+                    : []
+                function splitContactEntries(entries, wantTechnical) {
+                    var phones = []
+                    for (var i = 0; i < entries.length; ++i) {
+                        var addr = String(entries[i].address)
+                        if (addr.indexOf("sip:") !== 0) phones.push(addr)
+                    }
+                    var out = []
+                    for (var j = 0; j < entries.length; ++j) {
+                        var a = String(entries[j].address)
+                        var redundant = a.indexOf("sip:") === 0
+                                        && phones.indexOf(UtilsCpp.getUsername(a)) !== -1
+                        if (redundant === wantTechnical) out.push(entries[j])
+                    }
+                    return out
+                }
+                property var primaryEntries: splitContactEntries(allContactEntries, false)
+                property var technicalEntries: splitContactEntries(allContactEntries, true)
+
+                // Un numero court est un poste interne du PBX, pas un telephone : « 222 » n'a
+                // rien d'un numero qu'on compose depuis l'exterieur.
+                function isExtension(value) {
+                    var v = String(value)
+                    return v.indexOf("sip:") !== 0 && /^[0-9]{1,5}$/.test(v.replace(/[^0-9]/g, ""))
+                }
+                function numberLabel(value, fallback) {
+                    //: "Poste"
+                    return isExtension(value) ? qsTr("contact_details_extension_label") : fallback
+                }
+                // Un numero francais se lit par paires. On ne formate que ce qui en est un -- dix
+                // chiffres commencant par 0 : un poste (1000, 222) ou un numero international garde
+                // sa forme, decouper « 1000 » en « 10 00 » n'aiderait personne.
+                function formatContactValue(value) {
+                    var v = String(value)
+                    if (v.indexOf("sip:") === 0) return v
+                    var digits = v.replace(/[^0-9]/g, "")
+                    if (/^0[0-9]{9}$/.test(digits))
+                        return digits.replace(/([0-9]{2})(?=[0-9])/g, "$1 ")
+                    return v
+                }
+                // Le numero mis en avant dans l'en-tete : le premier moyen de joindre la personne.
+                property var headerEntry: primaryEntries.length > 0 ? primaryEntries[0] : null
+                // L'en-tete est l'identite, pas le detail technique : pour une adresse SIP on n'y
+                // montre que le nom d'utilisateur, l'URI complete restant dans les details.
+                property string headerNumber: headerEntry
+                    ? formatContactValue(String(headerEntry.address).indexOf("sip:") === 0
+                                         ? UtilsCpp.getUsername(headerEntry.address)
+                                         : headerEntry.address)
+                    : ""
+                // Trois vrais boutons sous l'identite, plutot que des pastilles dans le coin :
+                // on ouvre une fiche pour joindre quelqu'un. L'appel, raison d'etre d'un logiciel
+                // de telephonie, est l'action principale et prend plus de place.
                 component ActionsButtons: RowLayout {
-                    spacing: Utils.getSizeWithScreenRatio(58)
-                    LabelButton {
-                        button.icon.source: AppIcons.phone
+                    spacing: Utils.getSizeWithScreenRatio(12)
+                    MediumButton {
+                        Layout.fillWidth: true
+                        Layout.horizontalStretchFactor: 3
+                        style: ButtonStyle.main
+                        icon.source: AppIcons.phone
                         //: "Appel"
-                        label: qsTr("contact_call_action")
-                        width: Utils.getSizeWithScreenRatio(56)
-                        height: Utils.getSizeWithScreenRatio(56)
-                        button.icon.width: Utils.getSizeWithScreenRatio(24)
-                        button.icon.height: Utils.getSizeWithScreenRatio(24)
-                        button.onClicked: mainWindow.startCallWithContact(contactDetail.contact, false, mainItem)
+                        text: qsTr("contact_call_action")
+                        onClicked: mainWindow.startCallWithContact(contactDetail.contact, false, mainItem)
                     }
-                    LabelButton {
-                        button.icon.source: AppIcons.chatTeardropText
+                    MediumButton {
+                        Layout.fillWidth: true
+                        Layout.horizontalStretchFactor: 2
                         visible: !SettingsCpp.disableChatFeature
+                        style: ButtonStyle.secondary
+                        icon.source: AppIcons.chatTeardropText
                         //: "Message"
-                        label: qsTr("contact_message_action")
-                        width: Utils.getSizeWithScreenRatio(56)
-                        height: Utils.getSizeWithScreenRatio(56)
-                        button.icon.width: Utils.getSizeWithScreenRatio(24)
-                        button.icon.height: Utils.getSizeWithScreenRatio(24)
-                        button.onClicked: {
-                            console.debug("[ContactLayout.qml] Open conversation")
-                            mainWindow.sendMessageToContact(contactDetail.contact)
-                        }
+                        text: qsTr("contact_message_action")
+                        onClicked: mainWindow.sendMessageToContact(contactDetail.contact)
                     }
-                    LabelButton {
+                    MediumButton {
+                        Layout.fillWidth: true
+                        Layout.horizontalStretchFactor: 2
                         visible: SettingsCpp.videoEnabled
-                        button.icon.source: AppIcons.videoCamera
+                        style: ButtonStyle.secondary
+                        icon.source: AppIcons.videoCamera
                         //: "Appel vidéo"
-                        label: qsTr("contact_video_call_action")
-                        width: Utils.getSizeWithScreenRatio(56)
-                        height: Utils.getSizeWithScreenRatio(56)
-                        button.icon.width: Utils.getSizeWithScreenRatio(24)
-                        button.icon.height: Utils.getSizeWithScreenRatio(24)
-                        button.onClicked: mainWindow.startCallWithContact(contactDetail.contact, true, mainItem)
+                        text: qsTr("contact_video_call_action")
+                        onClicked: mainWindow.startCallWithContact(contactDetail.contact, true, mainItem)
                     }
                 }
                 bannerContent: [
@@ -474,12 +563,47 @@ AbstractMainPage {
                             color: contactDetail.contact ? contactDetail.contact.core.presenceColor : 'transparent'
                             font.pixelSize: Utils.getSizeWithScreenRatio(14)
                         }
-                    },
-                    ActionsButtons {
-                        visible: !contactDetail.useVerticalLayout
+                        Text {
+                            // Note de presence, sans libelle : on est sous le nom de la personne,
+                            // le contexte suffit a dire que ces mots sont les siens. Un intitule
+                            // entrerait en plus en collision avec le bouton « Message » voisin.
+                            // Les notes generees par le serveur sont ecartees en amont, dans
+                            // FriendCore::setPresence().
+                            visible: text.length > 0
+                            horizontalAlignment: Text.AlignLeft
+                            Layout.fillWidth: true
+                            Layout.topMargin: Utils.getSizeWithScreenRatio(3)
+                            text: contactDetail.contact ? contactDetail.contact.core.presenceNote : ""
+                            color: DefaultStyle.main2_600
+                            font.pixelSize: Utils.getSizeWithScreenRatio(13)
+                            font.italic: true
+                            wrapMode: Text.Wrap
+                            maximumLineCount: 2
+                            elide: Text.ElideRight
+                        }
+                        RowLayout {
+                            // Le poste fait partie de l'identite : il rejoint le nom, l'etat et la
+                            // note. La carte Coordonnees ne s'affiche plus pour un seul numero.
+                            visible: contactDetail.headerNumber.length > 0
+                            Layout.topMargin: Utils.getSizeWithScreenRatio(4)
+                            spacing: Utils.getSizeWithScreenRatio(6)
+                            Text {
+                                text: contactDetail.headerEntry
+                                      ? contactDetail.numberLabel(contactDetail.headerNumber,
+                                                                  contactDetail.headerEntry.label)
+                                      : ""
+                                color: DefaultStyle.main2_500_main
+                                font.pixelSize: Utils.getSizeWithScreenRatio(13)
+                            }
+                            Text {
+                                text: contactDetail.headerNumber
+                                color: DefaultStyle.main2_700
+                                font.pixelSize: Utils.getSizeWithScreenRatio(13)
+                                font.weight: Font.DemiBold
+                            }
+                        }
                     }
                 ]
-                secondLineContent: ActionsButtons {}
                 content: Flickable {
                     id: contactDetailFlickable
                     contentWidth: parent.width
@@ -496,12 +620,18 @@ AbstractMainPage {
                         spacing: Utils.getSizeWithScreenRatio(32)
                         anchors.left: parent.left
                         anchors.right: parent.right
+                        ActionsButtons {
+                            Layout.fillWidth: true
+                        }
                         ColumnLayout {
                             spacing: Utils.getSizeWithScreenRatio(15)
                             Layout.fillWidth: true
                             ContactDetailLayout {
                                 id: infoLayout
                                 Layout.fillWidth: true
+                                // Un seul numero est deja affiche dans l'en-tete : une carte entiere,
+                                // titre compris, pour le repeter n'apporterait rien.
+                                visible: contactDetail.primaryEntries.length > 1
                                 //: "Coordonnées"
                                 label: qsTr("contact_details_numbers_and_addresses_title")
                                 content: ListView {
@@ -512,7 +642,7 @@ AbstractMainPage {
                                     clip: true
                                     spacing: Utils.getSizeWithScreenRatio(9)
                                     model: VariantList {
-                                        model: (mainItem.selectedContact ? UtilsCpp.append(mainItem.selectedContact.core.addresses, mainItem.selectedContact.core.phoneNumbers) : [])
+                                        model: contactDetail.primaryEntries
                                     }
                                     delegate: Item {
                                         property var listViewModelData: modelData
@@ -532,7 +662,8 @@ AbstractMainPage {
                                                     Layout.fillWidth: true
                                                     Text {
                                                         Layout.fillWidth: true
-                                                        text: listViewModelData.label
+                                                        text: contactDetail.numberLabel(listViewModelData.address,
+                                                                                        listViewModelData.label)
                                                         font {
                                                             pixelSize: Typography.p2.pixelSize
                                                             weight: Typography.p2.weight
@@ -541,7 +672,10 @@ AbstractMainPage {
                                                     Text {
                                                         Layout.fillWidth: true
                                                         property string _text: listViewModelData.address
-                                                        text: SettingsCpp.hideSipAddresses ? UtilsCpp.getUsername(_text) : _text
+                                                        text: contactDetail.formatContactValue(
+                                                                  SettingsCpp.hideSipAddresses
+                                                                  ? UtilsCpp.getUsername(_text)
+                                                                  : _text)
                                                         font {
                                                             pixelSize: Typography.p1.pixelSize
                                                             weight: Typography.p1.weight
@@ -637,21 +771,24 @@ AbstractMainPage {
                             //: "Medias & documents"
                             label: qsTr("contact_details_medias_and_documents_title")
                             Layout.fillWidth: true
-                            content: ColumnLayout {
+                            content: RowLayout {
+                                // Deux tuiles cote a cote plutot que deux lignes avec chevron et
+                                // separateur : meme acces, moitie moins de hauteur.
                                 spacing: Utils.getSizeWithScreenRatio(10)
                                 Button {
                                     Layout.fillWidth: true
                                     style: ButtonStyle.noBackground
                                     contentItem: RowLayout {
+                                        spacing: Utils.getSizeWithScreenRatio(10)
                                         EffectImage {
-                                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(24)
-                                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(24)
+                                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(22)
+                                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(22)
                                             imageSource: AppIcons.shareNetwork
                                             colorizationColor: DefaultStyle.main2_600
                                         }
                                         Text {
-                                            //: "Show shared medias"
-                                            text: qsTr("contact_details_medias_subtitle")
+                                            //: "Médias"
+                                            text: qsTr("contact_details_medias_tile")
                                             font {
                                                 pixelSize: Typography.p1.pixelSize
                                                 weight: Typography.p1.weight
@@ -659,12 +796,6 @@ AbstractMainPage {
                                         }
                                         Item {
                                             Layout.fillWidth: true
-                                        }
-                                        EffectImage {
-                                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(24)
-                                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(24)
-                                            imageSource: AppIcons.rightArrow
-                                            colorizationColor: DefaultStyle.main2_600
                                         }
                                     }
                                     onClicked: {
@@ -674,23 +805,24 @@ AbstractMainPage {
                                     Accessible.name: qsTr("contact_details_medias_subtitle")
                                 }
                                 Rectangle {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
+                                    Layout.preferredWidth: Utils.getSizeWithScreenRatio(1)
+                                    Layout.fillHeight: true
                                     color: DefaultStyle.main2_200
                                 }
                                 Button {
                                     Layout.fillWidth: true
                                     style: ButtonStyle.noBackground
                                     contentItem: RowLayout {
+                                        spacing: Utils.getSizeWithScreenRatio(10)
                                         EffectImage {
-                                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(24)
-                                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(24)
+                                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(22)
+                                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(22)
                                             imageSource: AppIcons.pdf
                                             colorizationColor: DefaultStyle.main2_600
                                         }
                                         Text {
-                                            //: "Show shared documents"
-                                            text: qsTr("contact_details_documents_subtitle")
+                                            //: "Documents"
+                                            text: qsTr("contact_details_documents_tile")
                                             font {
                                                 pixelSize: Typography.p1.pixelSize
                                                 weight: Typography.p1.weight
@@ -698,12 +830,6 @@ AbstractMainPage {
                                         }
                                         Item {
                                             Layout.fillWidth: true
-                                        }
-                                        EffectImage {
-                                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(24)
-                                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(24)
-                                            imageSource: AppIcons.rightArrow
-                                            colorizationColor: DefaultStyle.main2_600
                                         }
                                     }
                                     onClicked: {
@@ -716,6 +842,12 @@ AbstractMainPage {
                         }
                         ContactDetailLayout {
                             Layout.fillWidth: true
+                            // Liste les appareils verifies pour le chiffrement de bout en bout. Sans
+                            // appareil elle n'afficherait que « Aucun appareil » : on la masque, en
+                            // laissant la porte ouverte si le chiffrement est active un jour.
+                            visible: mainItem.selectedContact
+                                     ? mainItem.selectedContact.core.devices.length > 0
+                                     : false
                             //: "Confiance"
                             label: qsTr("contact_details_trust_title")
                             icon: AppIcons.question
@@ -809,27 +941,14 @@ AbstractMainPage {
                         }
                         ContactDetailLayout {
                             Layout.fillWidth: true
+                            // Reservee aux contacts locaux. Pour un contact d'annuaire elle ne
+                            // contiendrait que « Partager » : une section entiere pour un bouton.
+                            visible: mainItem.contactEditable
                             //: "Autres actions"
                             label: qsTr("contact_details_actions_title")
                             content: ColumnLayout {
                                 spacing: Utils.getSizeWithScreenRatio(10)
-                                ColumnLayout {
-                                    visible: mainItem.selectedContact && mainItem.selectedContact.core.isStored && !mainItem.selectedContact.core.readOnly
-                                    IconLabelButton {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
-                                        icon.source: AppIcons.pencil
-                                        //: "Éditer"
-                                        text: qsTr("contact_details_edit")
-                                        onClicked: mainItem.editContact(mainItem.selectedContact)
-                                        style: ButtonStyle.noBackground
-                                    }
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
-                                        color: DefaultStyle.main2_200
-                                    }
-                                }
+                                // « Éditer » retire : il doublonnait le bouton « Modifier » de l'en-tete.
                                 ColumnLayout {
                                     visible: mainItem.selectedContact && mainItem.selectedContact.core.isStored && !mainItem.selectedContact.core.readOnly
                                     IconLabelButton {
@@ -861,31 +980,7 @@ AbstractMainPage {
                                     //: "Partager"
                                     text: qsTr("contact_details_share")
                                     style: ButtonStyle.noBackground
-                                    onClicked: {
-                                        if (mainItem.selectedContact) {
-                                            var vcard = mainItem.selectedContact.core.getVCard()
-                                            var username = mainItem.selectedContact.core.givenName
-                                                    + mainItem.selectedContact.core.familyName
-                                            var filepath = UtilsCpp.createVCardFile(
-                                                        username, vcard)
-                                            if (filepath == "")
-                                                UtilsCpp.showInformationPopup(
-                                                            qsTr("information_popup_error_title"),
-                                                            //: "La création du fichier vcard a échoué"
-                                                            qsTr("contact_details_share_error_mesage"),
-                                                            false)
-                                            else
-                                                mainWindow.showInformationPopup(
-                                                            //: "VCard créée"
-                                                            qsTr("contact_details_share_success_title"),
-                                                            //: "VCard du contact enregistrée dans %1"
-                                                            qsTr("contact_details_share_success_mesage").arg(filepath))
-                                            UtilsCpp.shareByEmail(
-                                                        //: "Partage de contact"
-                                                        qsTr("contact_details_share_email_title"),
-                                                        vcard, filepath)
-                                        }
-                                    }
+                                    onClicked: mainItem.shareContact()
                                 }
                                 // IconLabelButton {
                                 // 	Layout.fillWidth: true
@@ -928,6 +1023,60 @@ AbstractMainPage {
                                             mainItem.deleteContact(mainItem.selectedContact)
                                         }
                                         style: ButtonStyle.noBackgroundRed
+                                    }
+                                }
+                            }
+                        }
+                        IconLabelButton {
+                            // Contact d'annuaire : « Partager » est sa seule action, affichee en
+                            // ligne discrete plutot que dans une section a elle seule.
+                            visible: mainItem.selectedContact && !mainItem.contactEditable
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
+                            icon.source: AppIcons.shareNetwork
+                            //: "Partager"
+                            text: qsTr("contact_details_share")
+                            style: ButtonStyle.noBackground
+                            onClicked: mainItem.shareContact()
+                        }
+                        // En dernier : l'acces technique reste le plus discret, apres l'action
+                        // destructrice « Supprimer » qui ferme habituellement une fiche.
+                        ContactDetailLayout {
+                            id: technicalLayout
+                            Layout.fillWidth: true
+                            // Repliee par defaut, comme toute section de cette page : l'URI
+                            // n'interesse que le diagnostic, pas l'usage courant.
+                            visible: contactDetail.technicalEntries.length > 0
+                            //: "Détails techniques"
+                            label: qsTr("contact_details_technical_title")
+                            content: ListView {
+                                id: techList
+                                height: contentHeight
+                                implicitHeight: contentHeight
+                                width: parent.width
+                                clip: true
+                                spacing: Utils.getSizeWithScreenRatio(9)
+                                model: VariantList {
+                                    model: contactDetail.technicalEntries
+                                }
+                                delegate: ColumnLayout {
+                                    property var listViewModelData: modelData
+                                    width: techList.width
+                                    spacing: 0
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: listViewModelData.label
+                                        font {
+                                            pixelSize: Typography.p2.pixelSize
+                                            weight: Typography.p2.weight
+                                        }
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: listViewModelData.address
+                                        wrapMode: Text.WrapAnywhere
+                                        color: DefaultStyle.main2_600
+                                        font.pixelSize: Typography.p1.pixelSize
                                     }
                                 }
                             }

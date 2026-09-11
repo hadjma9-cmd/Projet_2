@@ -27,6 +27,7 @@
 #include "tool/UriTools.hpp"
 #include "tool/Utils.hpp"
 #include <QDebug>
+#include <QUrl>
 #include <QDirIterator>
 #include <QLibrary>
 #include <QTest>
@@ -79,6 +80,30 @@ std::shared_ptr<linphone::AudioDevice> ToolModel::findAudioDevice(const QString 
 		return *audioDevice;
 	}
 	return nullptr;
+}
+
+// Un annuaire distant peut fournir l'URL de la photo d'un contact via la cle
+// ldap_photo_url_template, par exemple :
+//   https://host/avatars/avatar.php?user={sip_username}&domain={sip_domain}
+// Cette cle n'est pas standard : liblinphone ne l'interprete pas et l'app ne la lisait
+// nulle part, la configuration restait donc lettre morte. On la resout ici pour alimenter
+// l'avatar des contacts issus de l'annuaire.
+QString ToolModel::getRemoteAvatarUrl(const std::shared_ptr<const linphone::Address> &address) {
+	mustBeInLinphoneThread(sLog().arg(Q_FUNC_INFO));
+	if (!address) return QString();
+	auto username = Utils::coreStringToAppString(address->getUsername());
+	auto domain = Utils::coreStringToAppString(address->getDomain());
+	if (username.isEmpty() || domain.isEmpty()) return QString();
+	auto config = CoreModel::getInstance()->getCore()->getConfig();
+	// Plusieurs annuaires peuvent etre declares ; on prend le premier qui porte un modele.
+	for (int i = 0; i < 10; ++i) {
+		auto section = std::string("remote_contact_directory_") + std::to_string(i);
+		auto tpl = Utils::coreStringToAppString(config->getString(section, "ldap_photo_url_template", ""));
+		if (tpl.isEmpty()) continue;
+		return tpl.replace("{sip_username}", QString::fromUtf8(QUrl::toPercentEncoding(username)))
+		    .replace("{sip_domain}", QString::fromUtf8(QUrl::toPercentEncoding(domain)));
+	}
+	return QString();
 }
 
 QString ToolModel::getDisplayName(const std::shared_ptr<const linphone::Address> &address) {

@@ -27,6 +27,12 @@
 #include "tool/Utils.hpp"
 #include "tool/providers/AvatarProvider.hpp"
 #include <QDebug>
+#include <QImage>
+#include <QBuffer>
+#include <QNetworkReply>
+#include <QNetworkAccessManager>
+#include <QHttpMultiPart>
+#include <QFile>
 #include <QUrl>
 
 DEFINE_ABSTRACT_OBJECT(AccountModel)
@@ -36,6 +42,18 @@ AccountModel::AccountModel(const std::shared_ptr<linphone::Account> &account, QO
 	mustBeInLinphoneThread(getClassName());
 	connect(CoreModel::getInstance().get(), &CoreModel::defaultAccountChanged, this,
 	        &AccountModel::onDefaultAccountChanged);
+
+	// Un abonnement de presence peut mourir sans que rien ne le retablisse : le serveur
+	// abandonne parfois l'ecriture qui l'enregistre (base interne SQLite, un seul ecrivain),
+	// puis notifie sur un dialogue que le client a oublie ou refuse un rafraichissement qu'il
+	// ne reconnait plus. La presence du contact reste alors figee indefiniment.
+	// On reconstruit donc les abonnements periodiquement, ce que faisait manuellement la
+	// definition d'un statut personnalise via setPresence().
+	mPresenceSubscriptionTimer.setInterval(10 * 60 * 1000);
+	connect(&mPresenceSubscriptionTimer, &QTimer::timeout, this, [this]() {
+		if (mMonitor && mMonitor->getState() == linphone::RegistrationState::Ok) refreshPresenceSubscriptions();
+	});
+	mPresenceSubscriptionTimer.start();
 
 	// Hack because Account doesn't provide callbacks on updated data
 	connect(this, &AccountModel::defaultAccountChanged, this, [this]() {
@@ -87,8 +105,21 @@ void AccountModel::onRegistrationStateChanged(const std::shared_ptr<linphone::Ac
 		// Force refreshing notifications when account is connected to retrieve
 		// messages received while account was disconnected
 		refreshUnreadNotifications();
+		refreshPresenceSubscriptions();
 	}
 	emit registrationStateChanged(account, state, message);
+}
+
+void AccountModel::refreshPresenceSubscriptions() {
+	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
+	// Le cycle desactive/reactive force la creation de dialogues SUBSCRIBE neufs.
+	// updateSubscriptions() ne suffirait pas : il rafraichit les dialogues existants, or
+	// ceux que le serveur a oublies repondent 481 et resteraient morts.
+	lInfo() << log().arg("Rebuilding presence subscriptions");
+	for (auto &friendList : CoreModel::getInstance()->getCore()->getFriendsLists()) {
+		friendList->enableSubscriptions(false);
+		friendList->enableSubscriptions(true);
+	}
 }
 
 void AccountModel::onConferenceInformationUpdated(const std::shared_ptr<linphone::Account> &account,
@@ -127,10 +158,68 @@ void AccountModel::setPictureUri(QString uri) {
 	}
 	params->setPictureUri(Utils::appStringToCoreString(uri));
 	mMonitor->setParams(params);
+	// Publier la photo pour que les autres postes la voient. On reutilise
+	// ldap_photo_url_template : avatar.php lit ses parametres via $_REQUEST, la meme URL
+	// sert donc en GET (lecture) et en POST (envoi).
+	uploadAvatarToRemoteDirectory(uri);
 	// Hack because Account doesn't provide callbacks on updated data
 	// emit pictureUriChanged(uri);
 	auto core = CoreModel::getInstance()->getCore();
 	emit CoreModel::getInstance()->defaultAccountChanged(core, core->getDefaultAccount());
+}
+
+void AccountModel::uploadAvatarToRemoteDirectory(const QString &uri) {
+	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
+	auto params = mMonitor->getParams();
+	auto url = ToolModel::getRemoteAvatarUrl(params ? params->getIdentityAddress() : nullptr);
+	if (url.isEmpty()) return; // aucun annuaire distant configure
+
+	// L'URI peut etre un chemin de provider QML (image://<id>/<fichier>) ou une URL file://
+	QString localPath = uri;
+	const QString appPrefix = QStringLiteral("image://%1/").arg(AvatarProvider::ProviderId);
+	if (localPath.startsWith(appPrefix)) localPath = Paths::getAvatarsDirPath() + localPath.mid(appPrefix.length());
+	else if (localPath.startsWith("file://")) localPath = QUrl(localPath).toLocalFile();
+
+	// Normaliser avant l'envoi. Le fichier choisi par l'utilisateur garde son format
+	// d'origine (createAvatar() conserve l'extension), or le serveur le stocke sous
+	// <user>.jpg et le sert en image/jpeg : un BMP ou un PNG s'y retrouvait mal declare
+	// et n'etait pas affichable. On convertit donc reellement en JPEG.
+	QImage image(localPath);
+	if (image.isNull()) {
+		lWarning() << log().arg("Cannot decode avatar image: ") << localPath;
+		return;
+	}
+	// Un avatar s'affiche petit et sera retelecharge par tous les postes : inutile d'y
+	// transporter la resolution d'origine.
+	if (image.width() > 256 || image.height() > 256)
+		image = image.scaled(256, 256, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+	QByteArray jpeg;
+	QBuffer buffer(&jpeg);
+	buffer.open(QIODevice::WriteOnly);
+	if (!image.save(&buffer, "JPEG", 85)) {
+		lWarning() << log().arg("Cannot encode avatar to JPEG");
+		return;
+	}
+	buffer.close();
+
+	auto multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+	QHttpPart imagePart;
+	imagePart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("image/jpeg"));
+	imagePart.setHeader(QNetworkRequest::ContentDispositionHeader,
+	                    QVariant("form-data; name=\"avatar\"; filename=\"avatar.jpg\""));
+	imagePart.setBody(jpeg);
+	multiPart->append(imagePart);
+
+	auto manager = new QNetworkAccessManager(this);
+	auto reply = manager->post(QNetworkRequest(QUrl(url)), multiPart);
+	multiPart->setParent(reply);
+	connect(reply, &QNetworkReply::finished, this, [this, reply, manager, url]() {
+		if (reply->error() != QNetworkReply::NoError)
+			lWarning() << log().arg("Avatar upload failed: ") << reply->errorString();
+		else lInfo() << log().arg("Avatar uploaded to ") << url;
+		reply->deleteLater();
+		manager->deleteLater();
+	});
 }
 
 void AccountModel::onDefaultAccountChanged() {
@@ -556,10 +645,13 @@ void AccountModel::setPresence(LinphoneEnums::Presence presence,
 
 	auto accountSection = ToolModel::configAccountSection(mMonitor);
 
-	if (!resetToAuto && !userInitiated &&
-	    !core->getConfig()->getString(accountSection, "explicit_presence", "").empty()) {
-		lDebug() << log().arg("Ignoring automatic presence update, as user already set a presence explicitely : ")
-		         << Utils::coreStringToAppString(core->getConfig()->getString(accountSection, "explicit_presence", ""));
+	// Presence strictement manuelle : les mises a jour automatiques (inactivite dans
+	// App.cpp, etat d'appel dans AccountCore/CoreModel) ne doivent jamais s'appliquer.
+	// Seul un choix explicite de l'utilisateur, ou une remise a l'automatique, passe.
+	// Auparavant elles n'etaient bloquees que si explicit_presence etait deja renseigne,
+	// donc l'etat pouvait basculer tout seul tant que l'utilisateur n'avait rien choisi.
+	if (!resetToAuto && !userInitiated) {
+		lDebug() << log().arg("Ignoring automatic presence update (manual presence only)");
 		return;
 	}
 

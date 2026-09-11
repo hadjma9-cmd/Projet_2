@@ -353,6 +353,15 @@ void CoreModel::migrate() {
 			newParams->setLimeAlgo("c25519");
 			lInfo() << log().arg("Migrating") << accountIdentity << "for version 7. lime algo = c25519";
 		}
+		if (rcVersion < 8) {
+			// La migration de la version 3 est enfermee dans le test getDomain() == LinphoneDomain,
+			// donc les comptes SIP tiers n'ont jamais eu CPIM. Sans lui, un salon basique ne peut pas
+			// porter la reference du message vise par une reaction : liblinphone retombe sur un
+			// text/plain et l'emoji part comme un message ordinaire.
+			newParams->enableCpimInBasicChatRoom(true);
+			lInfo() << log().arg("Migrating") << accountIdentity
+			        << "for version 8. Enable Cpim in basic chat rooms";
+		}
 		account->setParams(newParams);
 	}
 

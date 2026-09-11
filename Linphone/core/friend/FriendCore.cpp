@@ -19,6 +19,8 @@
  */
 
 #include "FriendCore.hpp"
+
+#include <QRegularExpression>
 #include "core/App.hpp"
 #include "model/tool/ToolModel.hpp"
 #include "tool/Utils.hpp"
@@ -84,6 +86,10 @@ FriendCore::FriendCore(const std::shared_ptr<linphone::Friend> &contact, bool is
 		}
 		mDefaultAddress = defaultAddress ? Utils::coreStringToAppString(defaultAddress->asStringUriOnly()) : QString();
 		mDefaultFullAddress = defaultAddress ? Utils::coreStringToAppString(defaultAddress->asString()) : QString();
+		// Pas de photo dans la fiche : se rabattre sur celle publiee par l'annuaire distant.
+		// L'URL peut renvoyer 404 si l'utilisateur n'en a pas ; Avatar.qml retombe alors sur
+		// les initiales en surveillant le statut de chargement de l'image.
+		if (mPictureUri.isEmpty()) mPictureUri = ToolModel::getRemoteAvatarUrl(defaultAddress);
 		// lDebug() << mDefaultAddress << " / " << mDefaultFullAddress;
 		auto phoneNumbers = contact->getPhoneNumbersWithLabel();
 		for (auto &phoneNumber : phoneNumbers) {
@@ -750,14 +756,33 @@ std::shared_ptr<FriendModel> FriendCore::getModel() {
 	return mFriendModel;
 }
 
-void FriendCore::setPresence(LinphoneEnums::Presence presence, QString presenceNote) {
-		lDebug() << "[FriendCore] SET PRESENCE:"
-	         	 << "presence=" << static_cast<int>(presence)
-	        	 << "note=" << presenceNote;
+// FreeSWITCH se sert du champ <note> des notifications de presence pour decrire l'etat
+// technique du poste : sur 6 218 notes recues en deux jours, 6 035 etaient de cette nature.
+// Affichees telles quelles, elles se presentent comme des phrases ecrites par le contact --
+// « Unregistered » sous le nom de quelqu'un. On ne garde donc que ce qui ressemble a un vrai
+// message. L'etat, lui, est deja porte par la pastille et par la ligne de statut.
+static bool isServerGeneratedNote(const QString &note) {
+	static const QStringList exactValues = {"unregistered", "registered",  "available", "unavailable",
+	                                        "offline",      "idle",        "busy",      "away",
+	                                        "on the phone", "in a meeting"};
+	if (exactValues.contains(note.trimmed().toLower())) return true;
+	// Etats d'appel, suivis du numero du correspondant : « Talk 222 », « Ring 1000 »...
+	static const QRegularExpression callState(QStringLiteral("^(talk|ring|call|hold|early|proceeding)\\s+\\S+$"),
+	                                          QRegularExpression::CaseInsensitiveOption);
+	return callState.match(note.trimmed()).hasMatch();
+}
 
+void FriendCore::setPresence(LinphoneEnums::Presence presence, QString presenceNote) {
 	mustBeInMainThread(log().arg(Q_FUNC_INFO));
+	if (isServerGeneratedNote(presenceNote)) presenceNote.clear();
 	bool notify = false;
-	if (presence != mPresence) {
+	// Un etat indetermine n'est pas une information, c'est son absence. Beaucoup de
+	// notifications en portent un, et les accepter effacait la presence deja connue :
+	// l'icone d'Undefined etant vide, la pastille disparaissait alors qu'aucun nouveau
+	// statut n'avait ete publie -- il fallait changer d'onglet pour que l'objet soit
+	// reconstruit depuis le cache du SDK, qui avait garde la vraie valeur.
+	// On conserve donc la derniere valeur connue jusqu'a ce qu'un etat reel arrive.
+	if (presence != LinphoneEnums::Presence::Undefined && presence != mPresence) {
 		mPresence = presence;
 		notify = true;
 	}

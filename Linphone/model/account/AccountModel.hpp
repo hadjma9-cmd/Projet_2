@@ -21,6 +21,7 @@
 #ifndef ACCOUNT_MODEL_H_
 #define ACCOUNT_MODEL_H_
 
+#include <QTimer>
 #include "model/listener/Listener.hpp"
 #include "tool/AbstractObject.hpp"
 
@@ -43,6 +44,8 @@ public:
 	std::string getConfigAccountUiSection();
 
 	void setPictureUri(QString uri);
+	void uploadAvatarToRemoteDirectory(const QString &uri);
+	void refreshPresenceSubscriptions();
 	void setDefault();
 	void removeAccount();
 	std::shared_ptr<linphone::Account> getAccount() const;
@@ -150,6 +153,7 @@ private:
 	static void removeUserData(const std::shared_ptr<linphone::Account> &account);
 
 	bool mToRemove = false;
+	QTimer mPresenceSubscriptionTimer;
 
 	DECLARE_ABSTRACT_OBJECT
 };

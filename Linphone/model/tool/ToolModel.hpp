@@ -47,6 +47,7 @@ public:
 	static bool isLocal(const std::shared_ptr<linphone::Conference> &conference,
 	                    const std::shared_ptr<const linphone::ParticipantDevice> &device);
 
+	static QString getRemoteAvatarUrl(const std::shared_ptr<const linphone::Address> &address);
 	static QString getDisplayName(const std::shared_ptr<const linphone::Address> &address);
 	static QString getDisplayName(QString address);
 

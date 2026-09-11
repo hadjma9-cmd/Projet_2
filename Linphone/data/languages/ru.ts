@@ -2947,6 +2947,30 @@ Error</extracomment>
         <translation>Контактная информация</translation>
     </message>
     <message>
+        <location filename="../../view/Page/Main/Contact/ContactPage.qml" line="0"/>
+        <source>contact_details_technical_title</source>
+        <extracomment>&quot;Détails techniques&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Main/Contact/ContactPage.qml" line="0"/>
+        <source>contact_details_extension_label</source>
+        <extracomment>&quot;Poste&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Main/Contact/ContactPage.qml" line="0"/>
+        <source>contact_details_medias_tile</source>
+        <extracomment>&quot;Médias&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Main/Contact/ContactPage.qml" line="0"/>
+        <source>contact_details_documents_tile</source>
+        <extracomment>&quot;Documents&quot;</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../../view/Page/Main/Contact/ContactPage.qml" line="524"/>
         <source>call_adress_accessible_name</source>
         <extracomment>Call address %1</extracomment>

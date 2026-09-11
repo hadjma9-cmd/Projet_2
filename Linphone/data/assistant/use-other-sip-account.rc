@@ -6,6 +6,12 @@
   </section>
   <section name="proxy_default_values">
     <entry name="avpf" overwrite="true">0</entry>
+    <!-- Sans CPIM, un salon basique ne peut pas transporter la reference du message
+         vise par une reaction : le SDK se rabat sur un text/plain et l'emoji est
+         envoye comme un message ordinaire. Les .rc des comptes linphone.org
+         l'activent deja. La migration rcVersion < 8 de CoreModel rattrape les comptes
+         deja crees ; cette entree couvre les comptes crees a partir de maintenant. -->
+    <entry name="cpim_in_basic_chat_rooms_enabled" overwrite="true">1</entry>
     <entry name="dial_escape_plus" overwrite="true">0</entry>
     <entry name="publish" overwrite="true">0</entry>
     <entry name="quality_reporting_collector" overwrite="true"></entry>

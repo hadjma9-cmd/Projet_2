@@ -660,7 +660,13 @@ Item {
                             }
                         }
                         Loader {
-                            active: mainStackLayout.currentIndex === 0
+                            // Une fois chargee, la page reste en memoire. Auparavant chaque changement
+                            // d'onglet detruisait la page quittee et reconstruisait l'autre de zero --
+                            // historique, recherche dans l'annuaire, avatars -- d'ou le temps de
+                            // chargement a chaque clic. StackLayout n'affiche de toute facon que
+                            // l'onglet courant : les autres restent invisibles.
+                            property bool keptAlive: false
+                            active: keptAlive || mainStackLayout.currentIndex === 0
                             sourceComponent: CallPage {
                                 id: callPage
                                 Connections {
@@ -692,12 +698,20 @@ Item {
                                 }
                             }
                             onLoaded: {
+                                keptAlive = true
                                 if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
+                                focusPageOnNextLoad = false
+                            }
+                            // La page n'etant plus reconstruite, onLoaded ne se declenche qu'une fois :
+                            // le focus clavier est donc repose quand elle redevient l'onglet courant.
+                            onVisibleChanged: if (visible && item && focusPageOnNextLoad) {
+                                item.forceActiveFocus(Qt.TabFocusReason)
                                 focusPageOnNextLoad = false
                             }
                         }
                         Loader {
-                            active: mainStackLayout.currentIndex === 1
+                            property bool keptAlive: false
+                            active: keptAlive || mainStackLayout.currentIndex === 1
                             sourceComponent: ContactPage {
                                 id: contactPage
                                 Connections {
@@ -711,12 +725,20 @@ Item {
                                 }
                             }
                             onLoaded: {
+                                keptAlive = true
                                 if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
+                                focusPageOnNextLoad = false
+                            }
+                            // La page n'etant plus reconstruite, onLoaded ne se declenche qu'une fois :
+                            // le focus clavier est donc repose quand elle redevient l'onglet courant.
+                            onVisibleChanged: if (visible && item && focusPageOnNextLoad) {
+                                item.forceActiveFocus(Qt.TabFocusReason)
                                 focusPageOnNextLoad = false
                             }
                         }
                         Loader {
-                            active: mainStackLayout.currentIndex === 2
+                            property bool keptAlive: false
+                            active: keptAlive || mainStackLayout.currentIndex === 2
                             sourceComponent: ChatPage {
                                 id: chatPage
                                 Connections {
@@ -737,13 +759,21 @@ Item {
                                 }
                             }
                             onLoaded: {
+                                keptAlive = true
                                 if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
+                                focusPageOnNextLoad = false
+                            }
+                            // La page n'etant plus reconstruite, onLoaded ne se declenche qu'une fois :
+                            // le focus clavier est donc repose quand elle redevient l'onglet courant.
+                            onVisibleChanged: if (visible && item && focusPageOnNextLoad) {
+                                item.forceActiveFocus(Qt.TabFocusReason)
                                 focusPageOnNextLoad = false
                             }
                         }
 
                         Loader {
-                            active: mainStackLayout.currentIndex === 3
+                            property bool keptAlive: false
+                            active: keptAlive || mainStackLayout.currentIndex === 3
                             sourceComponent: Component {
                                 id: meetingComp
                                 MeetingPage {
@@ -757,7 +787,14 @@ Item {
                                 }
                             }
                             onLoaded: {
+                                keptAlive = true
                                 if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
+                                focusPageOnNextLoad = false
+                            }
+                            // La page n'etant plus reconstruite, onLoaded ne se declenche qu'une fois :
+                            // le focus clavier est donc repose quand elle redevient l'onglet courant.
+                            onVisibleChanged: if (visible && item && focusPageOnNextLoad) {
+                                item.forceActiveFocus(Qt.TabFocusReason)
                                 focusPageOnNextLoad = false
                             }
                         }
