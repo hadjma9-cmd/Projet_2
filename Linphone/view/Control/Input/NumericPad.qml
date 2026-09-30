@@ -14,6 +14,12 @@ FocusScope {
 
 	property var currentCall
 	property bool lastRowVisible: true
+	// Apparence des touches. Par defaut celle du pave d'appel (touches blanches sur fond gris) ;
+	// le clavier de « Nouvel appel », pose sur fond blanc, prend des touches teintees.
+	property var keyStyle: ButtonStyle.numericPad
+	property real keySize: Utils.getSizeWithScreenRatio(60)
+	property real keyColumnSpacing: Utils.getSizeWithScreenRatio(40)
+	property real keyRowSpacing: Utils.getSizeWithScreenRatio(10)
 
 	onButtonPressed: (text) => {
 		if (currentCall) currentCall.core.lSendDtmf(text)
@@ -110,8 +116,8 @@ FocusScope {
 	GridLayout {
 		id: numPadGrid
 		columns: 3
-        columnSpacing: Utils.getSizeWithScreenRatio(40)
-        rowSpacing: Utils.getSizeWithScreenRatio(10)
+        columnSpacing: mainItem.keyColumnSpacing
+        rowSpacing: mainItem.keyRowSpacing
 
 		function getButtonAt(index){
 			index = (index+15) % 15
@@ -134,8 +140,8 @@ FocusScope {
 				id: numPadButton
 				Layout.alignment: Qt.AlignHCenter
 				required property int index
-                implicitWidth: Utils.getSizeWithScreenRatio(60)
-                implicitHeight: Utils.getSizeWithScreenRatio(60)
+                implicitWidth: mainItem.keySize
+                implicitHeight: mainItem.keySize
 				onClicked: {
 					mainItem.buttonPressed(text)
 				}
@@ -143,7 +149,7 @@ FocusScope {
 				KeyNavigation.right: numPadGrid.getButtonAt(index + 1)
 				KeyNavigation.up: numPadGrid.getButtonAt(index - 3)
 				KeyNavigation.down: numPadGrid.getButtonAt(index + 3)
-				style: ButtonStyle.numericPad
+				style: mainItem.keyStyle
                 radius: Utils.getSizeWithScreenRatio(71)
 				text: index + 1
                 textSize: Utils.getSizeWithScreenRatio(32)
@@ -160,8 +166,8 @@ FocusScope {
 			BigButton {
 				id: digitButton
 				Layout.alignment: Qt.AlignHCenter
-                implicitWidth: Utils.getSizeWithScreenRatio(60)
-                implicitHeight: Utils.getSizeWithScreenRatio(60)
+                implicitWidth: mainItem.keySize
+                implicitHeight: mainItem.keySize
 				
 				onClicked: mainItem.buttonPressed(pressText.text)
 				onPressAndHold: mainItem.buttonPressed(longPressText.text)
@@ -171,7 +177,7 @@ FocusScope {
 				KeyNavigation.up: numPadGrid.getButtonAt((index - 3)+9)
 				KeyNavigation.down: numPadGrid.getButtonAt((index + 3)+9)
                 radius: Utils.getSizeWithScreenRatio(71)
-				style: ButtonStyle.numericPad
+				style: mainItem.keyStyle
 
 				//: %1 longpress %2
 				Accessible.name: longPressText.text ? qsTr("numpad_longpress_accessible_name").arg(pressText.text).arg(longPressText.text) : pressText.text

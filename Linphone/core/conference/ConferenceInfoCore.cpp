@@ -528,7 +528,7 @@ void ConferenceInfoCore::writeFromModel(const std::shared_ptr<ConferenceInfoMode
 	mDescription = model->getDescription();
 	mParticipants.clear();
 	for (auto &infos : model->getParticipantInfos()) {
-		auto address = Utils::coreStringToAppString(infos->getAddress()->asStringUriOnly());
+		auto address = Utils::coreStringToAppString(Utils::addressUriOnly(infos->getAddress()));
 		QVariantMap participant;
 		participant["address"] = address;
 		participant["role"] = (int)LinphoneEnums::ParticipantRole::Listener;

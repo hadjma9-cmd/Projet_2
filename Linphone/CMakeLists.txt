@@ -227,6 +227,9 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 )
 if(MSVC)
 	set_target_properties(${TARGET_NAME} PROPERTIES PDB_NAME "${EXECUTABLE_NAME}_app")
+	# Symboles aussi en Release (gamaphone_app.pdb) : sans eux, un minidump de crash est inexploitable.
+	# /DEBUG desactive /OPT:REF et /OPT:ICF par defaut, on les remet pour garder le meme binaire.
+	target_link_options(${TARGET_NAME} PRIVATE "$<$<CONFIG:Release>:/DEBUG;/OPT:REF;/OPT:ICF>")
 endif()
 set_target_properties(${TARGET_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
@@ -262,5 +265,10 @@ if (WIN32)
 		foreach(T ${APP_TARGETS})
 			install(FILES "$<TARGET_PDB_FILE:${T}>" DESTINATION ${CMAKE_INSTALL_BINDIR})
 		endforeach ()
+	endif()
+	if(MSVC)
+		# Avec Visual Studio (multi-configuration), CMAKE_BUILD_TYPE est vide : le bloc ci-dessus
+		# n'installe jamais le PDB. On installe celui de l'application en Release et RelWithDebInfo.
+		install(FILES "$<TARGET_PDB_FILE:${TARGET_NAME}>" DESTINATION ${CMAKE_INSTALL_BINDIR} CONFIGURATIONS Release RelWithDebInfo OPTIONAL)
 	endif()
 endif()

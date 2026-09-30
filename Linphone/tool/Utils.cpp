@@ -47,9 +47,11 @@
 #include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QFileInfo>
+#include <QHash>
 #include <QHostAddress>
 #include <QImageReader>
 #include <QMimeDatabase>
+#include <QMutex>
 #include <QPainter>
 #include <QProcess>
 #include <QQmlComponent>
@@ -228,6 +230,7 @@ void Utils::createGroupCall(QString subject, const std::list<QString> &participa
 void Utils::setupConference(ConferenceInfoGui *confGui) {
 	if (!confGui) return;
 	auto window = App::getInstance()->getOrCreateCallsWindow(QVariant());
+	if (!window) return;
 	window->setProperty("conferenceInfo", QVariant::fromValue(confGui));
 	window->show();
 }
@@ -235,6 +238,7 @@ void Utils::setupConference(ConferenceInfoGui *confGui) {
 void Utils::openCallsWindow(CallGui *call) {
 	if (call) {
 		auto window = App::getInstance()->getOrCreateCallsWindow(QVariant::fromValue(call));
+		if (!window) return;
 		window->show();
 		window->raise();
 	}
@@ -463,6 +467,79 @@ bool Utils::isValidURL(const QString &url) {
 	return QUrl(url).isValid();
 }
 
+std::string Utils::addressUriOnly(const std::shared_ptr<const linphone::Address> &address) {
+	return address ? address->asStringUriOnly() : std::string();
+}
+
+std::string Utils::addressFull(const std::shared_ptr<const linphone::Address> &address) {
+	return address ? address->asString() : std::string();
+}
+
+std::string Utils::addressDisplayName(const std::shared_ptr<const linphone::Address> &address) {
+	return address ? address->getDisplayName() : std::string();
+}
+
+std::string Utils::addressUsername(const std::shared_ptr<const linphone::Address> &address) {
+	return address ? address->getUsername() : std::string();
+}
+
+namespace {
+// FriendCore partage par adresse. findFriendByAddress est appele par chaque avatar, ligne de conversation
+// ou d'historique : recreer a chaque fois un FriendCore (FriendModel, ecouteur SDK, presence, appareils)
+// coutait cher et multipliait les ecouteurs pour un meme contact. Appele depuis le thread du modele.
+struct SharedFriendCore {
+	QWeakPointer<FriendCore> core;
+	const linphone::Friend *linFriend = nullptr;
+};
+QMutex gSharedFriendCoresMutex;
+QHash<QString, SharedFriendCore> gSharedFriendCores;
+
+QSharedPointer<FriendCore> getSharedFriendCore(const QString &address,
+                                               const std::shared_ptr<linphone::Friend> &linFriend) {
+	{
+		QMutexLocker locker(&gSharedFriendCoresMutex);
+		auto it = gSharedFriendCores.constFind(address);
+		// Un FriendCore vivant garde son contact en vie : comparer les pointeurs est sur.
+		if (it != gSharedFriendCores.constEnd() && it->linFriend == linFriend.get()) {
+			auto core = it->core.toStrongRef();
+			if (core) return core;
+		}
+	}
+	auto core = FriendCore::create(linFriend);
+	QMutexLocker locker(&gSharedFriendCoresMutex);
+	if (gSharedFriendCores.size() > 256) { // Purge des entrees dont le FriendCore a disparu.
+		for (auto i = gSharedFriendCores.begin(); i != gSharedFriendCores.end();)
+			i = i->core.isNull() ? gSharedFriendCores.erase(i) : std::next(i);
+	}
+	SharedFriendCore entry;
+	entry.core = core;
+	entry.linFriend = linFriend.get();
+	gSharedFriendCores.insert(address, entry);
+	return core;
+}
+
+void forgetSharedFriendCore(const QString &address) {
+	QMutexLocker locker(&gSharedFriendCoresMutex);
+	gSharedFriendCores.remove(address);
+}
+
+constexpr qint64 MissingAvatarTtlMs = 10 * 60 * 1000;
+QHash<QString, qint64> gMissingAvatarUrls; // URL -> date de l'echec (ms). Thread graphique uniquement.
+} // namespace
+
+bool Utils::isMissingAvatarUrl(const QString &url) {
+	if (url.isEmpty()) return false;
+	auto it = gMissingAvatarUrls.find(url);
+	if (it == gMissingAvatarUrls.end()) return false;
+	if (QDateTime::currentMSecsSinceEpoch() - it.value() < MissingAvatarTtlMs) return true;
+	gMissingAvatarUrls.erase(it);
+	return false;
+}
+
+void Utils::markMissingAvatarUrl(const QString &url) {
+	if (!url.isEmpty()) gMissingAvatarUrls.insert(url, QDateTime::currentMSecsSinceEpoch());
+}
+
 VariantObject *Utils::findAvatarByAddress(const QString &address) {
 	if (!App::getInstance()->getCoreStarted()) return nullptr;
 	VariantObject *data = new VariantObject("findAvatarByAddress", "");
@@ -515,13 +592,16 @@ VariantObject *Utils::findFriendByAddress(const QString &address) {
 			}
 		}
 		if (!linFriend) return QVariant();
-		auto friendCore = FriendCore::create(linFriend);
+		auto friendCore = getSharedFriendCore(address, linFriend);
 		return QVariant::fromValue(new FriendGui(friendCore));
 	});
 	// Rebuild friend if needed
 	auto updateValue = [data, address](const std::shared_ptr<linphone::Friend> &f) -> void {
-		if (f && f->getAddress() && f->getAddress()->weakEqual(ToolModel::interpretUrl(address)))
+		if (f && f->getAddress() && f->getAddress()->weakEqual(ToolModel::interpretUrl(address))) {
+			// Contact cree, modifie ou supprime : on reconstruit un FriendCore neuf.
+			forgetSharedFriendCore(address);
 			data->invokeRequestValue();
+		}
 	};
 	data->makeUpdateCond(CoreModel::getInstance().get(), &CoreModel::friendCreated, updateValue); // New Friend
 	data->makeUpdateCond(CoreModel::getInstance().get(), &CoreModel::friendRemoved, updateValue); // New Friend
@@ -2013,6 +2093,11 @@ QUrl Utils::getRegistrationStateIcon(LinphoneEnums::RegistrationState state) {
 	return registrationStateIcon;
 }
 
+QString Utils::getInCallPresenceStatus() {
+	//: "En communication"
+	return tr("contact_presence_status_in_call");
+}
+
 QString Utils::getPresenceStatus(LinphoneEnums::Presence presence) {
 	mustBeInMainThread(sLog().arg(Q_FUNC_INFO));
 	QString presenceStatus = "";
@@ -2105,7 +2190,7 @@ bool Utils::isOnlyEmojis(const QString &text) {
 void Utils::openContactAtAddress(const QString &address) {
 	App::postModelAsync([address] {
 		auto isFriend = ToolModel::findFriendByAddress(address);
-		if (isFriend) {
+		if (isFriend || !Constants::ContactCreationEnabled) {
 			App::postCoreAsync([address] {
 				auto window = getMainWindow();
 				QMetaObject::invokeMethod(window, "displayContactPage", Q_ARG(QVariant, address));

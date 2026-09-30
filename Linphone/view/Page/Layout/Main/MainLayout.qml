@@ -15,6 +15,33 @@ Item {
     id: mainItem
     property var callObj
     property var contextualMenuOpenedComponent: undefined
+    // Icones a droite du bandeau : meme ecart visible entre deux dessins, au pixel pres.
+    // Un SVG n'occupe pas tout son cadre de 256 (les trois points n'en prennent que le
+    // milieu) : des boutons regulierement espaces laissent des vides inegaux. Chaque icone
+    // recoit donc un emplacement cale sur l'emprise horizontale de son dessin (left, right,
+    // en unites du cadre, mesurees au rendu) plus une demi-marge de chaque cote, obtenu par
+    // les marges de mise en page du bouton. Valeurs entieres : dessins nets, et ecarts egaux
+    // a moins d'un pixel (les bords des dessins tombent entre deux pixels).
+    readonly property real headerButtonSize: Utils.getSizeWithScreenRatio(36)
+    readonly property real headerIconSize: Utils.getSizeWithScreenRatio(28)
+    readonly property real headerIconHalfGap: Math.round(Utils.getSizeWithScreenRatio(12))
+    // Bord gauche de la boite de l'icone dans son emplacement.
+    function headerIconX(iconSize, left) {
+        return headerIconHalfGap - Math.floor(iconSize * left / 256)
+    }
+    function headerSlotWidth(iconSize, left, right) {
+        return headerIconX(iconSize, left) + Math.ceil(iconSize * right / 256) + headerIconHalfGap
+    }
+    // iconOffset : position de la boite de l'icone dans l'element ; centree si omis.
+    function headerLeftMargin(itemWidth, iconSize, left, iconOffset) {
+        if (iconOffset === undefined)
+            iconOffset = (itemWidth - iconSize) / 2
+        return headerIconX(iconSize, left) - iconOffset
+    }
+    function headerRightMargin(itemWidth, iconSize, left, right, iconOffset) {
+        return headerSlotWidth(iconSize, left, right) - headerLeftMargin(itemWidth, iconSize, left, iconOffset) - itemWidth
+    }
+
     property bool focusPageOnNextLoad: false // Focus the page on next load - usefull cause of loader
 
     signal addAccountRequest
@@ -116,6 +143,53 @@ Item {
             defaultAccount.core?.lResetMissedCalls()
     }
 
+    // Messagerie vocale (barre laterale) : cumul sur tous les comptes, recalcule quand un compte
+    // apparait ou que son indicateur de messages (MWI) ou son adresse de messagerie change.
+    property int voicemailCount: 0
+    property bool voicemailShowMwi: false
+    property bool voicemailAvailable: false
+    function updateCumulatedMwi() {
+        var count = 0;
+        var showMwi = false;
+        var supportsVoiceMail = false;
+        for (var i = 0; i < accountProxy.count; i++) {
+            var core = accountProxy.getAt(i).core;
+            count += core.voicemailCount;
+            showMwi |= core.showMwi;
+            supportsVoiceMail |= core.voicemailAddress.length > 0;
+        }
+        mainItem.voicemailShowMwi = showMwi;
+        mainItem.voicemailCount = count;
+        mainItem.voicemailAvailable = showMwi || supportsVoiceMail;
+    }
+    function openVoicemail() {
+        if (accountProxy.count > 1) {
+            avatarButton.popup.open();
+        } else {
+            if (accountProxy.defaultAccount.core.voicemailAddress.length > 0)
+                UtilsCpp.createCall(accountProxy.defaultAccount.core.voicemailAddress);
+            else
+                UtilsCpp.showInformationPopup(qsTr("information_popup_error_title"),
+                //: "L'URI de messagerie vocale n'est pas définie."
+                qsTr("no_voicemail_uri_error_message"), false);
+        }
+    }
+    Repeater {
+        model: accountProxy
+        delegate: Item {
+            Component.onCompleted: mainItem.updateCumulatedMwi()
+            Connections {
+                target: modelData ? modelData.core : null
+                function onShowMwiChanged() {
+                    mainItem.updateCumulatedMwi();
+                }
+                function onVoicemailAddressChanged() {
+                    mainItem.updateCumulatedMwi();
+                }
+            }
+        }
+    }
+
     CallProxy {
         id: callsModel
         sourceModel: AppCpp.calls
@@ -179,7 +253,7 @@ Item {
                     {
                         "icon": AppIcons.chatTeardropText,
                         "selectedIcon": AppIcons.chatTeardropTextSelected,
-                        //: "Conversations"
+                        //: "Messages" (« Conversations » etait coupe dans la barre laterale)
                         "label": qsTr("bottom_navigation_conversations_label"),
                         //: "Open conversations page"
                         "accessibilityLabel": qsTr("open_conversations_page_accessible_name"),
@@ -193,6 +267,44 @@ Item {
                         //: "Open meetings page"
                         "accessibilityLabel": qsTr("open_contact_page_accessible_name"),
                         "visible": !SettingsCpp.disableMeetingsFeature
+                    },
+                    // Actions, construites comme les onglets pour un espacement identique ; elles
+                    // s'executent au clic sans devenir l'onglet courant (voir VerticalTabBar).
+                    {
+                        "icon": AppIcons.dialer,
+                        "selectedIcon": AppIcons.dialer,
+                        //: "Clavier"
+                        "label": qsTr("sidebar_dialer_label"),
+                        //: "Open dialer"
+                        "accessibilityLabel": qsTr("open_dialer_acccessibility_label"),
+                        "action": function () {
+                            // L'onglet Appels d'abord : la page d'appel n'est creee qu'a son
+                            // premier affichage, et doit exister pour recevoir la demande.
+                            mainItem.goToNewCall();
+                            mainItem.openNumPadRequest();
+                        }
+                    },
+                    {
+                        "icon": AppIcons.voicemail,
+                        "selectedIcon": AppIcons.voicemail,
+                        //: "Boîte vocale"
+                        "label": qsTr("sidebar_voicemail_label"),
+                        "accessibilityLabel": qsTr("sidebar_voicemail_label"),
+                        // Dessin large et bas : agrandi (28 au lieu de 24) pour peser autant que
+                        // ses voisins, dans le meme cadre.
+                        "iconScale": 28 / 24,
+                        "isVisible": function () {
+                            return mainItem.voicemailAvailable;
+                        },
+                        "unread": function () {
+                            return mainItem.voicemailShowMwi ? mainItem.voicemailCount : 0;
+                        },
+                        "alert": function () {
+                            return mainItem.voicemailShowMwi && mainItem.voicemailCount === 0;
+                        },
+                        "action": function () {
+                            mainItem.openVoicemail();
+                        }
                     }
                 ]
                 onCurrentIndexChanged: {
@@ -246,193 +358,34 @@ Item {
 
                 RowLayout {
                     id: topRow
-                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
+                    // Hauteur figee : sans cela, un enfant capable de s'etirer (les mises en page
+                    // imbriquees le peuvent par defaut) fait partager au bandeau la hauteur de la
+                    // fenetre avec la page affichee dessous.
+                    Layout.fillHeight: false
+                    // 68 : la place d'une photo de profil de 60.
+                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(68)
                     Layout.leftMargin: Utils.getSizeWithScreenRatio(45)
-                    Layout.rightMargin: Utils.getSizeWithScreenRatio(41)
+                    // 33 + demi-marge de 12 de la derniere icone : bord droit du menu a 45, comme la
+                    // photo a 45 du bord gauche.
+                    Layout.rightMargin: Utils.getSizeWithScreenRatio(33)
                     spacing: Utils.getSizeWithScreenRatio(25)
-                    SearchBar {
-                        id: magicSearchBar
-                        Layout.fillWidth: true
-                        //: "Rechercher un contact, appeler %1"
-                        placeholderText: qsTr("searchbar_placeholder_text").arg(SettingsCpp.disableChatFeature ? "…" :
-                        //: "ou envoyer un message …"
-                        qsTr("searchbar_placeholder_text_chat_feature_enabled"))
-                        focusedBorderColor: DefaultStyle.main1_500_main
-                        numericPadButton.visible: text.length === 0
-                        numericPadButton.checkable: false
-                        handleNumericPadPopupButtonsPressed: false
-
-                        onOpenNumericPadRequested: mainItem.goToNewCall()
-
-                        Connections {
-                            target: mainItem
-                            function onCallCreated() {
-                                magicSearchBar.focus = false;
-                                magicSearchBar.clearText();
-                            }
-                        }
-                        
-                        onTextChanged: {
-                            if (text.length != 0)
-                                listPopup.open();
-                            else
-                                listPopup.close();
-                        }
-                        KeyNavigation.down: contactList //contactLoader.item?.count > 0 || !contactLoader.item?.footerItem? contactLoader.item : contactLoader.item?.footerItem
-                        KeyNavigation.up: contactList //contactLoader.item?.footerItem ? contactLoader.item?.footerItem : contactLoader.item
-                        Keys.onPressed: (event) => {
-                            event.accepted = false
-                            var firstContact = contactList.getFirstContact()
-                            if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return && firstContact.searchResultItem) {
-                                console.log("Enter pressed from magic search bar, calling", firstContact.searchResultItem.core.defaultAddress)
-                                mainWindow.startCallWithContact(firstContact.searchResultItem, false)
-                            }
-                        }
-                        Popup {
-                            id: listPopup
-                            width: magicSearchBar.width
-                            property real maxHeight: Utils.getSizeWithScreenRatio(400)
-                            property bool displayScrollbar: contactList.height > maxHeight
-                            height: Math.min(contactList.contentHeight, maxHeight) + topPadding + bottomPadding
-                            y: magicSearchBar.height
-                            //                            closePolicy: Popup.CloseOnEscape
-                            topPadding: Utils.getSizeWithScreenRatio(20)
-                            bottomPadding: Utils.getSizeWithScreenRatio(contactList.haveContacts ? 20 : 10)
-                            rightPadding: Utils.getSizeWithScreenRatio(8)
-                            leftPadding: Utils.getSizeWithScreenRatio(20)
-                            visible: magicSearchBar.text.length != 0
-
-                            background: Item {
-                                anchors.fill: parent
-                                Rectangle {
-                                    id: popupBg
-                                    radius: Utils.getSizeWithScreenRatio(16)
-                                    color: DefaultStyle.grey_0
-                                    anchors.fill: parent
-                                    border.color: DefaultStyle.main1_500_main
-                                    border.width: contactList.activeFocus ? 2 : 0
-                                }
-                                MultiEffect {
-                                    source: popupBg
-                                    anchors.fill: popupBg
-                                    shadowEnabled: true
-                                    shadowBlur: 0.1
-                                    shadowColor: DefaultStyle.grey_1000
-                                    shadowOpacity: 0.1
-                                }
-                            }
-
-                            contentItem: AllContactListView {
-                                id: contactList
-                                width: listPopup.width - listPopup.leftPadding - listPopup.rightPadding
-                                itemsRightMargin: Utils.getSizeWithScreenRatio(5) //(Actions have already 10 of margin)
-                                showInitials: false
-                                showContactMenu: false
-                                showActions: true
-                                showFavorites: false
-                                selectionEnabled: false
-                                searchOnEmpty: false
-
-                                sectionsPixelSize: Typography.p2.pixelSize
-                                sectionsWeight: Typography.p2.weight
-                                sectionsSpacing: Utils.getSizeWithScreenRatio(5)
-
-                                searchBarText: magicSearchBar.text
-                                //: "Searchbar suggestions"
-                                Accessible.name: qsTr("searchbar_suggestions_accessible_name")
-                            }
-                        }
-                    }
+                    // Bloc identite : avatar (ouvre la liste des comptes), nom et poste, puis
+                    // pastille de statut cliquable. Il occupe la place laissee par la barre de
+                    // recherche globale retiree.
                     RowLayout {
+                        // Taille naturelle uniquement : une RowLayout imbriquee s'etire par defaut.
+                        Layout.fillWidth: false
+                        Layout.fillHeight: false
                         spacing: Utils.getSizeWithScreenRatio(10)
                         PopupButton {
-                            id: deactivateDndButton
-                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(32)
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(32)
-                            popup.padding: Utils.getSizeWithScreenRatio(14)
-                            //: "Do not disturb"
-                            popUpTitle: qsTr("do_not_disturb_accessible_name")
-                            visible: SettingsCpp.dnd
-                            contentItem: EffectImage {
-                                imageSource: AppIcons.bellDnd
-                                width: Utils.getSizeWithScreenRatio(32)
-                                height: Utils.getSizeWithScreenRatio(32)
-                                Layout.preferredWidth: Utils.getSizeWithScreenRatio(32)
-                                Layout.preferredHeight: Utils.getSizeWithScreenRatio(32)
-                                fillMode: Image.PreserveAspectFit
-                                colorizationColor: DefaultStyle.main1_500_main
-                            }
-                            popup.contentItem: ColumnLayout {
-                                IconLabelButton {
-                                    Layout.fillWidth: true
-                                    focus: visible
-                                    icon.width: Utils.getSizeWithScreenRatio(32)
-                                    icon.height: Utils.getSizeWithScreenRatio(32)
-                                    //: "Désactiver ne pas déranger"
-                                    text: qsTr("contact_presence_status_disable_do_not_disturb")
-                                    icon.source: AppIcons.bellDnd
-                                    onClicked: {
-                                        deactivateDndButton.popup.close();
-                                        SettingsCpp.dnd = false;
-                                    }
-                                }
-                            }
-                        }
-                        Voicemail {
-                            id: voicemail
-                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(42)
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(36)
-                            Repeater {
-                                model: accountProxy
-                                delegate: Item {
-                                    Connections {
-                                        target: modelData ? modelData.core : null
-                                        function onShowMwiChanged() {
-                                            voicemail.updateCumulatedMwi();
-                                        }
-                                        function onVoicemailAddressChanged() {
-                                            voicemail.updateCumulatedMwi();
-                                        }
-                                    }
-                                }
-                            }
-
-                            function updateCumulatedMwi() {
-                                var count = 0;
-                                var showMwi = false;
-                                var supportsVoiceMail = false;
-                                for (var i = 0; i < accountProxy.count; i++) {
-                                    var core = accountProxy.getAt(i).core;
-                                    count += core.voicemailCount;
-                                    showMwi |= core.showMwi;
-                                    supportsVoiceMail |= core.voicemailAddress.length > 0;
-                                }
-                                voicemail.showMwi = showMwi;
-                                voicemail.voicemailCount = count;
-                                voicemail.visible = showMwi || supportsVoiceMail;
-                            }
-
-                            Component.onCompleted: {
-                                updateCumulatedMwi();
-                            }
-
-                            onClicked: {
-                                if (accountProxy.count > 1) {
-                                    avatarButton.popup.open();
-                                } else {
-                                    if (accountProxy.defaultAccount.core.voicemailAddress.length > 0)
-                                        UtilsCpp.createCall(accountProxy.defaultAccount.core.voicemailAddress);
-                                    else
-                                        UtilsCpp.showInformationPopup(qsTr("information_popup_error_title"),
-                                        //: "L'URI de messagerie vocale n'est pas définie."
-                                        qsTr("no_voicemail_uri_error_message"), false);
-                                }
-                            }
-                        }
-                        PopupButton {
                             id: avatarButton
-                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(54)
+                            // Photo mise en avant, plus grande que les icones de droite.
+                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(60)
                             Layout.preferredHeight: width
+                            // Ni fond ni ombre : le bouton garde le focus apres un clic, et son
+                            // cercle restait affiche autour de la photo.
+                            style: ButtonStyle.noBackground
+                            shadowEnabled: false
                             popup.topPadding: Utils.getSizeWithScreenRatio(23)
                             popup.bottomPadding: Utils.getSizeWithScreenRatio(23)
                             popup.leftPadding: Utils.getSizeWithScreenRatio(24)
@@ -445,16 +398,6 @@ Item {
                                     height: avatarButton.height
                                     width: avatarButton.width
                                     account: accountProxy.defaultAccount
-                                }
-                                Rectangle {
-                                    // Black border for keyboard navigation
-                                    visible: avatarButton.keyboardFocus
-                                    width: avatar.width
-                                    height: avatar.height
-                                    color: "transparent"
-                                    border.color: DefaultStyle.main2_900
-                                    border.width: Utils.getSizeWithScreenRatio(3)
-                                    radius: width / 2
                                 }
                             }
                             popup.contentItem: AccountListView {
@@ -469,10 +412,129 @@ Item {
                                 getNextItem: avatarButton.getNextItem
                             }
                         }
+                        ContactDescription {
+                            // ColumnLayout dont les textes demandent a remplir l'espace : sans ces
+                            // deux lignes, elle poussait la pastille a droite et etirait le bandeau.
+                            Layout.fillWidth: false
+                            Layout.fillHeight: false
+                            // Plus grand que dans la liste des comptes, a l'echelle de la photo.
+                            topTextPixelSize: Typography.h2m.pixelSize
+                            topTextWeight: Typography.h3m.weight
+                            bottomTextPixelSize: Typography.p1.pixelSize
+                            account: accountProxy.defaultAccount
+                            // Toujours le poste seul, jamais l'adresse SIP complete : le reglage
+                            // hide_sip_addresses vaut false par defaut, et « sip:878@domaine… »
+                            // tiendrait mal dans le bandeau.
+                            bottomText: accountProxy.defaultAccount
+                                ? UtilsCpp.getUsername(accountProxy.defaultAccount.core.identityAddress)
+                                : ""
+                        }
+                        // La pastille fixe sa taille avec width/height et non implicitWidth : la mise
+                        // en page ne lui reservait que la largeur par defaut d'un PopupButton (30) et
+                        // elle debordait sur les icones de droite. On l'enveloppe, comme Contact.qml.
+                        Item {
+                            visible: accountProxy.defaultAccount?.core.publishEnabled || false
+                            Layout.preferredWidth: headerStatusPopup.width
+                            Layout.preferredHeight: headerStatusPopup.height
+                            ContactStatusPopup {
+                                id: headerStatusPopup
+                                account: accountProxy.defaultAccount
+                                barHeight: Utils.getSizeWithScreenRatio(30)
+                                textPixelSize: Utils.getSizeWithScreenRatio(13)
+                                // Graisse normale : en leger, le statut paraissait pale a cote du nom en gras.
+                                textWeight: Font.Normal
+                                statusIconSize: Utils.getSizeWithScreenRatio(13)
+                                arrowSize: Utils.getSizeWithScreenRatio(16)
+                            }
+                        }
+                    }
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                    RowLayout {
+                        // Aucun espacement propre : chaque icone porte le sien (headerSlotWidth).
+                        spacing: 0
+                        // Notifications coupees (menu ⋮) : cloche barree, seul indice visible de cet
+                        // etat. En tete du groupe : celui-ci etant aligne a droite, elle apparait et
+                        // disparait sans deplacer les autres icones. Meme taille et meme gris qu'elles,
+                        // barre en rouge : deux couches superposees, EffectImage ne teintant une image
+                        // que d'une seule couleur.
+                        PopupButton {
+                            id: notificationsOffButton
+                            visible: SettingsCpp.dnd
+                            Layout.preferredWidth: mainItem.headerButtonSize
+                            Layout.preferredHeight: mainItem.headerButtonSize
+                            // Cloche et barre reunies : 32 a 219 sur 256.
+                            Layout.leftMargin: mainItem.headerLeftMargin(mainItem.headerButtonSize, mainItem.headerIconSize, 32)
+                            Layout.rightMargin: mainItem.headerRightMargin(mainItem.headerButtonSize, mainItem.headerIconSize, 32, 219)
+                            style: ButtonStyle.noBackground
+                            icon.width: mainItem.headerIconSize
+                            icon.height: mainItem.headerIconSize
+                            contentItem: Item {
+                                EffectImage {
+                                    anchors.fill: parent
+                                    imageSource: AppIcons.bellSlash
+                                    imageWidth: notificationsOffButton.icon.width
+                                    imageHeight: notificationsOffButton.icon.height
+                                    colorizationColor: notificationsOffButton.pressed
+                                        ? notificationsOffButton.pressedImageColor
+                                        : notificationsOffButton.hovered
+                                            ? notificationsOffButton.hoveredImageColor
+                                            : notificationsOffButton.contentImageColor
+                                }
+                                EffectImage {
+                                    anchors.fill: parent
+                                    imageSource: AppIcons.bellSlashBar
+                                    imageWidth: notificationsOffButton.icon.width
+                                    imageHeight: notificationsOffButton.icon.height
+                                    colorizationColor: DefaultStyle.danger_500_main
+                                }
+                            }
+                            popup.padding: Utils.getSizeWithScreenRatio(14)
+                            //: "Notifications désactivées"
+                            popUpTitle: qsTr("do_not_disturb_accessible_name")
+                            popup.contentItem: ColumnLayout {
+                                IconLabelButton {
+                                    Layout.fillWidth: true
+                                    focus: visible
+                                    // « Activer les notifications » : cloche simple, comme dans le menu ⋮.
+                                    icon.width: Utils.getSizeWithScreenRatio(32)
+                                    icon.height: Utils.getSizeWithScreenRatio(32)
+                                    //: "Activer les notifications"
+                                    text: qsTr("contact_presence_status_disable_do_not_disturb")
+                                    icon.source: AppIcons.bell
+                                    onClicked: {
+                                        notificationsOffButton.popup.close();
+                                        SettingsCpp.dnd = false;
+                                    }
+                                }
+                            }
+                        }
+                        // Pave numerique et messagerie vocale : dans la barre laterale, sous les
+                        // onglets. Messagerie : deja un onglet de la barre laterale.
                         PopupButton {
                             id: settingsMenuButton
-                            icon.width: Utils.getSizeWithScreenRatio(24)
-                            icon.height: Utils.getSizeWithScreenRatio(24)
+                            // Trois barres, icone de 28 comme la cloche : l'engrenage aurait fait doublon
+                            // avec l'entree Parametres du menu.
+                            Layout.preferredWidth: mainItem.headerButtonSize
+                            Layout.preferredHeight: mainItem.headerButtonSize
+                            // Barres : de 4 a 24 px sur 28 (list-bars.svg), rapporte au cadre de 256.
+                            Layout.leftMargin: mainItem.headerLeftMargin(mainItem.headerButtonSize, mainItem.headerIconSize, 256 * 4 / 28)
+                            Layout.rightMargin: mainItem.headerRightMargin(mainItem.headerButtonSize, mainItem.headerIconSize, 256 * 4 / 28, 256 * 24 / 28)
+                            icon.source: AppIcons.menuBars
+                            icon.width: mainItem.headerIconSize
+                            icon.height: mainItem.headerIconSize
+                            // Jamais de rond autour de l'icone : le style par defaut colorait le fond
+                            // tant que le bouton gardait le focus, soit jusqu'au clic suivant ailleurs.
+                            // Seule l'icone fonce au survol et a l'appui, comme ses voisines.
+                            style: ButtonStyle.noBackground
+                            shadowEnabled: false
+                            contentItem: EffectImage {
+                                imageSource: settingsMenuButton.icon.source
+                                imageWidth: settingsMenuButton.icon.width
+                                imageHeight: settingsMenuButton.icon.height
+                                colorizationColor: settingsMenuButton.colorizationColor
+                            }
                             popup.width: Utils.getSizeWithScreenRatio(271)
                             popup.padding: Utils.getSizeWithScreenRatio(14)
                             //: "Application options"
@@ -514,9 +576,14 @@ Item {
                                         icon.width: Utils.getSizeWithScreenRatio(32)
                                         icon.height: Utils.getSizeWithScreenRatio(32)
                                         text: SettingsCpp.dnd ? qsTr("contact_presence_status_disable_do_not_disturb") :
-                                        //: "Activer ne pas déranger"
+                                        //: "Désactiver les notifications"
                                         qsTr("contact_presence_status_enable_do_not_disturb")
-                                        icon.source: AppIcons.bellDnd
+                                        // « Desactiver les notifications » : cloche barree, barre en rouge, comme celle
+                                        // qui apparait alors dans le bandeau. « Activer les notifications » :
+                                        // cloche simple.
+                                        icon.source: SettingsCpp.dnd ? AppIcons.bell : AppIcons.bellSlash
+                                        overlayIconSource: SettingsCpp.dnd ? "" : AppIcons.bellSlashBar
+                                        overlayIconColor: DefaultStyle.danger_500_main
                                         onClicked: {
                                             settingsMenuButton.popup.close();
                                             SettingsCpp.dnd = !SettingsCpp.dnd;
@@ -687,9 +754,6 @@ Item {
                                 onCreateContactRequested: (name, address) => {
                                     mainItem.createContact(name, address);
                                 }
-                                Component.onCompleted: {
-                                    magicSearchBar.numericPadPopup = callPage.numericPadPopup;
-                                }
                                 onGoToCallForwardSettings: {
                                     var page = settingsPageComponent.createObject(parent, {
                                         defaultIndex: 1
@@ -752,10 +816,6 @@ Item {
                                         console.log("open chat requested, open", chat.core.title);
                                         chatPage.openChatRequested(chat);
                                     }
-                                }
-                                onSelectedChatGuiChanged: {
-                                    magicSearchBar.clearText()
-                                    magicSearchBar.focus = false;
                                 }
                             }
                             onLoaded: {

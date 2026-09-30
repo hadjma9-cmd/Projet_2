@@ -48,6 +48,10 @@ public:
 	                    const std::shared_ptr<const linphone::ParticipantDevice> &device);
 
 	static QString getRemoteAvatarUrl(const std::shared_ptr<const linphone::Address> &address);
+	// Adresse de messagerie vocale d'un compte (*97) : affichee « Messagerie » partout, a la place de
+	// son numero technique et avant tout nom de contact.
+	static bool isVoicemailAddress(const std::shared_ptr<const linphone::Address> &address);
+	static QString getVoicemailDisplayName();
 	static QString getDisplayName(const std::shared_ptr<const linphone::Address> &address);
 	static QString getDisplayName(QString address);
 
@@ -104,6 +108,10 @@ public:
 
 	static LinphoneEnums::Presence
 	corePresenceModelToAppPresence(std::shared_ptr<const linphone::PresenceModel> presenceModel);
+	// Etat pose par le serveur et non choisi par le contact (appel en cours) : a ignorer.
+	static bool isAutomaticPresence(std::shared_ptr<const linphone::PresenceModel> presenceModel);
+	// Appel signale par le serveur et deja decroche : « En communication ».
+	static bool isAnsweredCallPresence(std::shared_ptr<const linphone::PresenceModel> presenceModel);
 	static std::shared_ptr<linphone::PresenceModel> appPresenceToCorePresenceModel(LinphoneEnums::Presence presence,
 	                                                                               QString presenceNote);
 	static std::string configAccountSection(const std::shared_ptr<linphone::Account> &account);

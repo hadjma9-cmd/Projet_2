@@ -6,7 +6,7 @@ list(APPEND _LINPHONEAPP_RC_FILES data/assistant/use-app-sip-account.rc
 	data/emoji/emoji.json
 )
 
-file(GLOB files LIST_DIRECTORIES false  image/*)
+file(GLOB files LIST_DIRECTORIES false CONFIGURE_DEPENDS image/*)
 foreach(f ${files})
 	get_filename_component(filename  ${f} NAME)
 	list(APPEND _LINPHONEAPP_RC_FILES data/image/${filename})

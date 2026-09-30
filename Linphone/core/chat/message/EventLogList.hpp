@@ -25,6 +25,11 @@
 #include "tool/AbstractObject.hpp"
 #include "tool/thread/SafeConnection.hpp"
 #include <QLocale>
+#include <memory>
+
+namespace linphone {
+class ChatRoom;
+}
 
 class EventLogGui;
 class EventLogCore;
@@ -49,6 +54,7 @@ public:
 	void disconnectItem(const QSharedPointer<EventLogCore> &item);
 
 	void loadMessagesUpTo(std::shared_ptr<linphone::EventLog> event);
+	void preloadRecentChats(int count);
 
 	void setLastFoundResult(const QSharedPointer<EventLogCore> &eventLog);
 
@@ -79,6 +85,31 @@ signals:
 	void messagesLoadedUpTo(std::shared_ptr<linphone::EventLog> event);
 
 private:
+	// Conversations deja ouvertes : leurs evenements deja construits, pour y revenir sans
+	// rechargement. Indexees par l'identifiant de la conversation, stable meme si son ChatCore
+	// est recree.
+	struct CachedEvents {
+		QString chatId;
+		QList<QSharedPointer<EventLogCore>> events;
+		// Conversation du SDK a laquelle appartiennent ces evenements. Une conversation supprimee
+		// puis recreee garde le meme identifiant, mais n'est plus le meme objet : ses anciens
+		// messages ne doivent pas lui etre rendus (plantage du 17/09 en les marquant lus).
+		std::weak_ptr<linphone::ChatRoom> room;
+	};
+	static constexpr int MaxCachedChats = 10;
+	void storeInCache(const QString &chatId,
+	                  const QList<QSharedPointer<EventLogCore>> &events,
+	                  const std::weak_ptr<linphone::ChatRoom> &room);
+	QList<QSharedPointer<EventLogCore>> takeFromCache(const QString &chatId,
+	                                                  const std::weak_ptr<linphone::ChatRoom> &room);
+	void dropFromCache(const QString &chatId);
+	bool mergeFreshEvents(const QList<QSharedPointer<EventLogCore>> &fresh);
+	int indexOfEventLog(const std::shared_ptr<linphone::EventLog> &event);
+	void emitFilterResult(int index);
+	QList<CachedEvents> mCache;
+	QString mListChatId;               // conversation dont les evenements sont dans mList
+	bool mSilentUpdatePending = false; // prochaine lecture : liste deja affichee depuis le cache
+
 	QString mFilter;
 	QSharedPointer<ChatCore> mChatCore;
 	QSharedPointer<SafeConnection<EventLogList, CoreModel>> mCoreModelConnection;

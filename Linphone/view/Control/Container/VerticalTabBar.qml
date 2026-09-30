@@ -13,7 +13,7 @@ Control.TabBar {
     topPadding: Utils.getSizeWithScreenRatio(36)
 
 	property var model
-	readonly property alias cornerRadius: bottomLeftCorner.radius
+	readonly property real cornerRadius: Utils.getSizeWithScreenRatio(25)
 
 	property AccountGui defaultAccount
 
@@ -66,24 +66,16 @@ Control.TabBar {
 	background: Item {
 		id: background
 		anchors.fill: parent
+		// Un seul rectangle arrondi au seul coin superieur droit. Les trois rectangles d'origine
+		// (tout arrondi, puis coins recouverts) ne pouvaient pas porter un degrade continu.
+		// Fonce en haut, ou se trouvent les onglets et leur texte blanc ; plus clair en bas, vide.
 		Rectangle {
-			id: bottomLeftCorner
 			anchors.fill: parent
-			color: DefaultStyle.main1_500_main
-            radius: Utils.getSizeWithScreenRatio(25)
-		}
-		Rectangle {
-			color: DefaultStyle.main1_500_main
-			anchors.left: parent.left
-			anchors.top: parent.top
-			width: parent.width/2
-			height: parent.height/2
-		}
-		Rectangle {
-			color: DefaultStyle.main1_500_main
-			y: parent.y + parent.height/2
-			width: parent.width
-			height: parent.height/2
+			topRightRadius: mainItem.cornerRadius
+			gradient: Gradient {
+				GradientStop { position: 0.0; color: DefaultStyle.main1_gradient_top }
+				GradientStop { position: 1.0; color: DefaultStyle.main1_gradient_bottom }
+			}
 		}
 	}
 	
@@ -100,15 +92,21 @@ Control.TabBar {
             bottomInset:  Utils.getSizeWithScreenRatio(32)
             topInset:  Utils.getSizeWithScreenRatio(32)
 			hoverEnabled: true
-			visible: modelData?.visible != undefined ? modelData.visible : true
+			visible: modelData?.isVisible ? modelData.isVisible()
+				: modelData?.visible != undefined ? modelData.visible : true
 			onVisibleChanged: mainItem.updateVisibleCount()
 			text: modelData.accessibilityLabel
 			property bool keyboardFocus: FocusHelper.keyboardFocus
 			focusPolicy: Qt.StrongFocus
 			activeFocusOnTab: true
+			// Entree « action » (fonction action du modele : clavier, messagerie vocale) : meme allure et
+			// memes dimensions qu'un onglet, pour un espacement identique, mais elle s'execute au clic
+			// sans devenir l'onglet courant.
+			checkable: !modelData?.action
 			UnreadNotification {
 				badgeType: modelData.label
-				unread: !defaultAccount
+				unread: modelData?.unread ? modelData.unread()
+				: !defaultAccount
 				? -1
 				: index === 0 
 					? defaultAccount.core?.unreadCallNotifications || -1
@@ -118,6 +116,18 @@ Control.TabBar {
 				anchors.right: parent.right
                 anchors.rightMargin: Utils.getSizeWithScreenRatio(15)
 				anchors.top: parent.top
+			}
+			// Pastille sans chiffre : du nouveau sans nombre connu (messagerie vocale).
+			Rectangle {
+				visible: modelData?.alert ? modelData.alert() : false
+				width: Utils.getSizeWithScreenRatio(10)
+				height: width
+				radius: width / 2
+				color: DefaultStyle.danger_500_main
+				anchors.right: parent.right
+				anchors.rightMargin: Utils.getSizeWithScreenRatio(17)
+				anchors.top: parent.top
+				anchors.topMargin: Utils.getSizeWithScreenRatio(2)
 			}
 			MouseArea {
 				anchors.fill: tabButton
@@ -140,6 +150,9 @@ Control.TabBar {
 					imageSource: mainItem.currentIndex === index ? modelData.selectedIcon : modelData.icon
 					Layout.preferredWidth: buttonSize
 					Layout.preferredHeight: buttonSize
+					// Dessin agrandi dans le meme cadre (iconScale) : l'espacement des entrees ne change pas.
+					imageWidth: Math.round(buttonSize * (modelData?.iconScale || 1))
+					imageHeight: Math.round(buttonSize * (modelData?.iconScale || 1))
 					Layout.alignment: Qt.AlignHCenter
 					fillMode: Image.PreserveAspectFit
 					colorizationColor: DefaultStyle.grey_0
@@ -177,7 +190,11 @@ Control.TabBar {
 				}
 			}
 			Keys.onPressed: event => {
-                if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                if (modelData?.action && (event.key === Qt.Key_Enter || event.key === Qt.Key_Return
+                    || event.key === Qt.Key_Space)) {
+                    modelData.action()
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
                     mainItem.enterPressed()
                 } else if(event.key === Qt.Key_Space){
 					mainItem.spacePressed()
@@ -194,7 +211,10 @@ Control.TabBar {
 				}
 			}
 			onClicked: {
-				mainItem.setCurrentIndex(TabBar.index)
+				if (modelData?.action)
+					modelData.action()
+				else
+					mainItem.setCurrentIndex(TabBar.index)
 			}
 		}
 	}

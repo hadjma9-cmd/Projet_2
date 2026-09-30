@@ -108,6 +108,8 @@ signals:
 	void organizationChanged(const QString &orga);
 	void jobChanged(const QString &job);
 	void presenceReceived(LinphoneEnums::Presence presence, QString presenceNote);
+	// Appel en cours signale par le serveur : affiche par-dessus le statut choisi, sans le modifier.
+	void inCallChanged(bool inCall);
 	void updated();
 	void removed();
 

@@ -47,6 +47,9 @@ MagicSearchList::MagicSearchList(QObject *parent) : ListProxy(parent) {
 
 MagicSearchList::~MagicSearchList() {
 	mustBeInMainThread("~" + getClassName());
+	// Desinscription aupres du SDK : sans elle, la recherche et ses resultats restaient en memoire
+	// apres chaque fermeture d'une liste de contacts (Nouvel appel, clavier...).
+	if (mMagicSearch) emit mMagicSearch->removeListener();
 }
 
 void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
@@ -84,7 +87,16 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 			    &MagicSearchList::lSearch,
 			    [this](QString filter, int sourceFlags, LinphoneEnums::MagicSearchAggregation aggregationFlag,
 			           int maxResults) {
-				    resetData();
+				    // Nouvelle recherche : on vide la liste. Relance de la meme recherche (retour
+				    // sur l'onglet, passage de minuit) : on garde les resultats affiches, remplaces
+				    // d'un coup a l'arrivee des nouveaux, au lieu d'une liste vide le temps que
+				    // l'annuaire LDAP reponde.
+				    QString searchKey =
+				        QStringLiteral("%1|%2|%3|%4")
+				            .arg(filter, QString::number(sourceFlags),
+				                 QString::number(static_cast<int>(aggregationFlag)), QString::number(maxResults));
+				    if (searchKey != mLastSearchKey) resetData();
+				    mLastSearchKey = searchKey;
 				    mModelConnection->invokeToModel([this, filter, sourceFlags, aggregationFlag, maxResults]() {
 					    mMagicSearch->search(filter, sourceFlags, aggregationFlag, maxResults);
 				    });
@@ -113,6 +125,17 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 					    QSharedPointer<FriendCore> contact;
 					    auto linphoneFriend = it->getFriend();
 					    bool isStored = false;
+					    // Resultat de l'annuaire : on affiche le contact de la liste ldap_friends, abonne a
+					    // la presence, plutot que l'objet neuf renvoye par la recherche (presence inconnue,
+					    // jamais mis a jour).
+					    if (linphoneFriend && linphoneFriend->getAddress() &&
+					        it->hasSourceFlag(linphone::MagicSearch::Source::LdapServers)) {
+						    auto fList = linphoneFriend->getFriendList();
+						    if (!fList || fList->getDisplayName() != "app_friends") {
+							    if (auto listed = ldapContacts->findFriendByAddress(linphoneFriend->getAddress()))
+								    linphoneFriend = listed;
+						    }
+					    }
 					    if (linphoneFriend) {
 						    if (!mShowMe && isOwnAccountAddress(linphoneFriend->getAddress())) {
 							    lWarning() << log().arg("do not show my own address in this contact list");
@@ -157,7 +180,7 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 					    }
 				    }
 				    mModelConnection->invokeToCore([this, contacts]() {
-					    setResults(*contacts);
+					    mergeResults(*contacts);
 					    delete contacts;
 					    emit resultsProcessed();
 				    });
@@ -184,6 +207,66 @@ void MagicSearchList::setResults(const QList<QSharedPointer<FriendCore>> &contac
 	for (auto it : contacts) {
 		connectContact(it.get());
 	}
+}
+
+void MagicSearchList::mergeResults(const QList<QSharedPointer<FriendCore>> &contacts) {
+	// Identite d'un contact : son adresse SIP, a defaut son nom (contacts sans adresse).
+	auto keyOf = [](const QSharedPointer<FriendCore> &contact) {
+		auto address = contact->getDefaultAddress();
+		return address.isEmpty() ? QStringLiteral("name:") + contact->getFullName() : address.toLower();
+	};
+	auto friendOf = [](const QSharedPointer<FriendCore> &contact) -> std::shared_ptr<linphone::Friend> {
+		auto model = contact->getModel();
+		return model ? model->getFriend() : nullptr;
+	};
+	// Nouveaux resultats par cle (une meme cle peut revenir plusieurs fois).
+	QHash<QString, QList<QSharedPointer<FriendCore>>> incoming;
+	for (auto &contact : contacts)
+		incoming[keyOf(contact)].append(contact);
+
+	// 1. Contacts deja affiches : conserves s'ils sont toujours dans les resultats, retires sinon.
+	//    Parcours depuis la fin pour que les indices restent valides pendant les retraits.
+	int kept = 0, replaced = 0, removed = 0;
+	for (int i = mList.size() - 1; i >= 0; --i) {
+		auto current = mList[i].objectCast<FriendCore>();
+		if (!current) continue;
+		auto it = incoming.find(keyOf(current));
+		if (it == incoming.end() || it->isEmpty()) {
+			QObject::disconnect(current.get(), nullptr, this, nullptr);
+			removeRow(i);
+			++removed;
+			continue;
+		}
+		auto fresh = it->takeFirst();
+		auto currentFriend = friendOf(current);
+		if (currentFriend && currentFriend == friendOf(fresh)) {
+			++kept; // Meme contact SDK : on garde l'objet affiche, sa presence reste a jour.
+		} else {
+			// Le SDK a recree le contact : l'ancien objet ne recevrait plus la presence.
+			QObject::disconnect(current.get(), nullptr, this, nullptr);
+			connectContact(fresh.get());
+			mList[i] = fresh.objectCast<QObject>();
+			auto modelIndex = index(i, 0);
+			emit dataChanged(modelIndex, modelIndex);
+			++replaced;
+		}
+	}
+
+	// 2. Contacts apparus depuis la derniere recherche : ajoutes a la suite (le proxy les trie).
+	QList<QSharedPointer<FriendCore>> added;
+	for (auto &contact : contacts) {
+		auto it = incoming.find(keyOf(contact));
+		if (it != incoming.end() && it->removeOne(contact)) added.append(contact);
+	}
+	for (auto &contact : added)
+		connectContact(contact.get());
+	ListProxy::add(added);
+	lDebug() << log()
+	                .arg("MergeResults: %1 kept, %2 replaced, %3 removed, %4 added")
+	                .arg(kept)
+	                .arg(replaced)
+	                .arg(removed)
+	                .arg(added.size());
 }
 
 void MagicSearchList::add(QSharedPointer<FriendCore> contact) {
@@ -230,6 +313,17 @@ void MagicSearchList::setMaxResults(int maxResults) {
 
 bool MagicSearchList::getShowMe() const {
 	return mShowMe;
+}
+
+bool MagicSearchList::getExactNumberMatch() const {
+	return mExactNumberMatch;
+}
+
+void MagicSearchList::setExactNumberMatch(bool exact) {
+	if (mExactNumberMatch != exact) {
+		mExactNumberMatch = exact;
+		emit exactNumberMatchChanged(mExactNumberMatch);
+	}
 }
 
 void MagicSearchList::setShowMe(bool showMe) {

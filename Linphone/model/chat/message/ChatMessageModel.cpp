@@ -193,7 +193,8 @@ void ChatMessageModel::onFileTransferProgressIndication(const std::shared_ptr<li
 	try {
 		emit fileTransferProgressIndication(message, content, offset, total);
 	} catch (const std::exception &ex) {
-		lFatal() << log().arg("Exception has been catch in signal fileTransferProgressIndication : %1").arg(ex.what());
+		lWarning()
+		    << log().arg("Exception has been catch in signal fileTransferProgressIndication : %1").arg(ex.what());
 	}
 }
 

@@ -54,7 +54,8 @@ QSharedPointer<EventCountNotifier> EventCountNotifier::create(QObject *parent) {
 }
 
 EventCountNotifier::EventCountNotifier(QObject *parent) : AbstractEventCountNotifier(parent) {
-	QSvgRenderer renderer((QString(Constants::WindowIconPath)));
+	// Meme icone que App::setSysTrayIcon : ce rendu la remplace des qu'un compteur s'affiche.
+	QSvgRenderer renderer((QString(Constants::SystemTrayIconPath)));
 	if (!renderer.isValid()) qFatal("Invalid SVG Image.");
 
 	QPixmap buf(IconWidth, IconHeight);

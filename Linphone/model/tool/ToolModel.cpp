@@ -27,10 +27,11 @@
 #include "tool/UriTools.hpp"
 #include "tool/Utils.hpp"
 #include <QDebug>
-#include <QUrl>
 #include <QDirIterator>
 #include <QLibrary>
+#include <QRegularExpression>
 #include <QTest>
+#include <QUrl>
 
 DEFINE_ABSTRACT_OBJECT(ToolModel)
 
@@ -106,7 +107,23 @@ QString ToolModel::getRemoteAvatarUrl(const std::shared_ptr<const linphone::Addr
 	return QString();
 }
 
+bool ToolModel::isVoicemailAddress(const std::shared_ptr<const linphone::Address> &address) {
+	if (!address) return false;
+	for (auto &account : CoreModel::getInstance()->getCore()->getAccountList()) {
+		auto params = account->getParams();
+		auto voicemail = params ? params->getVoicemailAddress() : nullptr;
+		if (voicemail && voicemail->weakEqual(address)) return true;
+	}
+	return false;
+}
+
+QString ToolModel::getVoicemailDisplayName() {
+	//: "Messagerie"
+	return tr("voicemail_display_name");
+}
+
 QString ToolModel::getDisplayName(const std::shared_ptr<const linphone::Address> &address) {
+	if (isVoicemailAddress(address)) return getVoicemailDisplayName();
 	QString displayName;
 	if (address) {
 		auto linFriend = findFriendByAddress(address);
@@ -260,7 +277,8 @@ QString ToolModel::encodeTextToQmlRichFormat(const QString &text,
 							// address->clean();
 							auto addressString = Utils::coreStringToAppString(address->asStringUriOnly());
 							if (isFriend)
-								part = "@" + Utils::coreStringToAppString(isFriend->getAddress()->getDisplayName());
+								part = "@" +
+								       Utils::coreStringToAppString(Utils::addressDisplayName(isFriend->getAddress()));
 							QString participantLink = "<a style=\"color:" + primaryColor.name() +
 							                          ";\" href=\"mention:" + addressString + "\">" + part + "</a>";
 							finalMentions.append(participantLink);
@@ -532,14 +550,14 @@ std::shared_ptr<linphone::FriendList> ToolModel::getFriendList(const std::string
 	auto core = CoreModel::getInstance()->getCore();
 	auto friendList = core->getFriendListByName(listName);
 	if (!friendList) {
-    friendList = core->createFriendList();
-    friendList->setDisplayName(listName);
-    if (listName == "ldap_friends") {
-        friendList->setType(linphone::FriendList::Type::ApplicationCache);
-    }
-    friendList->enableSubscriptions(true);   // <-- ajout
-    core->addFriendList(friendList);
-}
+		friendList = core->createFriendList();
+		friendList->setDisplayName(listName);
+		if (listName == "ldap_friends") {
+			friendList->setType(linphone::FriendList::Type::ApplicationCache);
+		}
+		friendList->enableSubscriptions(true); // <-- ajout
+		core->addFriendList(friendList);
+	}
 	return friendList;
 }
 
@@ -886,7 +904,38 @@ ToolModel::corePresenceModelToAppPresence(std::shared_ptr<const linphone::Presen
 			return LinphoneEnums::Presence::Undefined;
 		}
 	}
+	// Ferme = injoignable (contact deconnecte). Traduit auparavant en Undefined : les contacts
+	// hors ligne n'avaient aucune pastille, et un contact qui se deconnectait gardait la sienne.
+	// Seul un etat reellement transmis compte (FreeSWITCH joint un element person et une note,
+	// « Unregistered ») : le SDK fabrique aussi un etat ferme vide quand un abonnement se termine
+	// (NOTIFY sans corps), qui ne dit rien du contact et doit laisser la derniere valeur connue.
+	if (presenceModel->getBasicStatus() == linphone::PresenceBasicStatus::Closed &&
+	    (presenceModel->getNbPersons() > 0 || presenceModel->getNote("") != nullptr))
+		return LinphoneEnums::Presence::Offline;
 	return LinphoneEnums::Presence::Undefined;
+}
+
+// FreeSWITCH signale lui-meme les appels en cours (activite on-the-phone, note « Ring 222 »,
+// « Talk 1000 »...). La presence etant strictement manuelle, ces notifications ne doivent ni
+// remplacer ni effacer le statut choisi par le contact.
+bool ToolModel::isAutomaticPresence(std::shared_ptr<const linphone::PresenceModel> presenceModel) {
+	if (!presenceModel || presenceModel->getBasicStatus() != linphone::PresenceBasicStatus::Open) return false;
+	auto activity = presenceModel->getActivity();
+	return activity && activity->getType() == linphone::PresenceActivity::Type::OnThePhone;
+}
+
+// Notes de FreeSWITCH pour un appel de 878 vers 1000 (releve dans les journaux) : pendant la
+// sonnerie, « Call 1000 » pour l'appelant et « Ring 878 » pour l'appele ; au decroche, « Talk »
+// pour les deux. L'appelant est « En communication » des qu'il compose ; l'appele seulement
+// une fois qu'il a repondu, pas tant que son poste sonne (Ring). Une note absente ou inconnue
+// garde le comportement d'origine (en communication).
+bool ToolModel::isAnsweredCallPresence(std::shared_ptr<const linphone::PresenceModel> presenceModel) {
+	if (!isAutomaticPresence(presenceModel)) return false;
+	auto note = presenceModel->getNote(Utils::appStringToCoreString(QLocale().name().left(2)));
+	if (!note) note = presenceModel->getNote("");
+	const QString text = note ? Utils::coreStringToAppString(note->getContent()).trimmed() : QString();
+	static const QRegularExpression notAnswered(QStringLiteral("^ring\\b"), QRegularExpression::CaseInsensitiveOption);
+	return !notAnswered.match(text).hasMatch();
 }
 
 std::shared_ptr<linphone::PresenceModel> ToolModel::appPresenceToCorePresenceModel(LinphoneEnums::Presence presence,
@@ -918,11 +967,47 @@ std::shared_ptr<linphone::PresenceModel> ToolModel::appPresenceToCorePresenceMod
 			return nullptr;
 	}
 
-	if (!presenceNote.isEmpty()) {
-		auto note = CoreModel::getInstance()->getCore()->createPresenceNote(
-		    Utils::appStringToCoreString(presenceNote), Utils::appStringToCoreString(QLocale().name().left(2)));
-		auto service = presenceModel->getNthService(0);
-		service->addNote(note);
+	// Placement de la note, dicte par le traitement des PUBLISH par FreeSWITCH (constate sur ses NOTIFY) :
+	// - sans note dans le tuple, il ignore l'activite publiee et diffuse « Available » : un poste passe
+	//   en Occupe sans message restait vu Present par tous ;
+	// - quand aucune activite n'est publiee (En ligne), il reprend la note du tuple comme nom
+	//   d'activite : « au sport » donnait <rpid:au sport/>, XML invalide rejete par tous les clients.
+	// Les libelles par defaut ci-dessous sont masques a la reception (FriendCore, isServerGeneratedNote).
+	auto core = CoreModel::getInstance()->getCore();
+	auto lang = Utils::appStringToCoreString(QLocale().name().left(2));
+	QString tupleNote;
+	switch (presence) {
+		case LinphoneEnums::Presence::Online:
+			// Aucune note si l'utilisateur n'en a pas (diffusion « Available », correcte). Sinon un mot
+			// sans espace dans le tuple, et le message dans la personne (<dm:note>).
+			if (!presenceNote.isEmpty()) tupleNote = QStringLiteral("available");
+			break;
+		case LinphoneEnums::Presence::Busy:
+			tupleNote = presenceNote.isEmpty() ? QStringLiteral("busy") : presenceNote;
+			break;
+		case LinphoneEnums::Presence::Away:
+			tupleNote = presenceNote.isEmpty() ? QStringLiteral("away") : presenceNote;
+			break;
+		case LinphoneEnums::Presence::Offline:
+			tupleNote = presenceNote.isEmpty() ? QStringLiteral("offline") : presenceNote;
+			break;
+		case LinphoneEnums::Presence::DoNotDisturb:
+			tupleNote = presenceNote.isEmpty() ? QStringLiteral("do not disturb") : presenceNote;
+			break;
+		default:
+			break;
+	}
+	if (!tupleNote.isEmpty()) {
+		if (auto service = presenceModel->getNthService(0))
+			service->addNote(core->createPresenceNote(Utils::appStringToCoreString(tupleNote), lang));
+	}
+	if (presence == LinphoneEnums::Presence::Online && !presenceNote.isEmpty()) {
+		auto person = presenceModel->getNthPerson(0);
+		if (!person) {
+			person = core->createPresencePerson("pnote");
+			presenceModel->addPerson(person);
+		}
+		person->addNote(core->createPresenceNote(Utils::appStringToCoreString(presenceNote), lang));
 	}
 	return presenceModel;
 }

@@ -7,6 +7,7 @@ import QtQuick.Layouts
 import Linphone
 import UtilsCpp
 import SettingsCpp
+import ConstantsCpp
 import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
@@ -67,8 +68,11 @@ ColumnLayout {
 					property var participantGui: modelData
 					property var contactObj: UtilsCpp.findFriendByAddress(participantGui.core.sipAddress)
 					property var contact: contactObj?.value || null
+					// Sans creation de contacts, tout contact trouve (annuaire compris) s'ouvre dans sa fiche.
+					property bool showExistingContact: !!contact && (contact.core.isAppFriend || !ConstantsCpp.contactCreationEnabled)
 					Avatar {
 						contact: contactObj?.value || null
+						shadowEnabled: false
 						displayNameVal: participantGui.core.displayName
 						Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)
 						Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
@@ -117,19 +121,20 @@ ColumnLayout {
 								id: detailsButtons
 								anchors.fill: parent
 								IconLabelButton {
+									visible: showExistingContact || ConstantsCpp.contactCreationEnabled
 									Layout.fillWidth: true
 									//: "Show contact"
-									text: contact && contact.core && contact.core.isAppFriend ? qsTr("menu_see_existing_contact") :
+									text: showExistingContact ? qsTr("menu_see_existing_contact") :
 																//: "Add to contacts"
 																qsTr("menu_add_address_to_contacts")
-									icon.source: (contact && contact.core && contact.core.isAppFriend)
+									icon.source: showExistingContact
 										? AppIcons.adressBook
 										: AppIcons.plusCircle
 									icon.width: Utils.getSizeWithScreenRatio(32)
 									icon.height: Utils.getSizeWithScreenRatio(32)
 									onClicked: {
 										detailOptions.close()
-										if (contact && contact.core.isAppFriend)
+										if (showExistingContact)
 											UtilsCpp.getMainWindow().displayContactPage(participantGui.core.sipAddress)
 										else
 											UtilsCpp.getMainWindow().displayCreateContactPage("",participantGui.core.sipAddress)

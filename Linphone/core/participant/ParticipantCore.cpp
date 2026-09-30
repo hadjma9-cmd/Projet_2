@@ -56,7 +56,7 @@ ParticipantCore::ParticipantCore(const std::shared_ptr<linphone::Participant> &p
 		else mSecurityLevel = LinphoneEnums::SecurityLevel::None;
 		for (auto &device : participant->getDevices()) {
 			auto name = Utils::coreStringToAppString(device->getName());
-			auto address = Utils::coreStringToAppString(device->getAddress()->asStringUriOnly());
+			auto address = Utils::coreStringToAppString(Utils::addressUriOnly(device->getAddress()));
 			QVariantMap map;
 			map.insert("name", name);
 			map.insert("address", address);

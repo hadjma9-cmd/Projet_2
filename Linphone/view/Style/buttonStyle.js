@@ -6,9 +6,9 @@
 // Orange
 	var main = {
 		color: {
-			normal: Linphone.DefaultStyle.main1_500_main,
-			hovered: Linphone.DefaultStyle.main1_600,
-			pressed: Linphone.DefaultStyle.main1_700
+			normal: Linphone.DefaultStyle.main1_button,
+			hovered: Linphone.DefaultStyle.main1_button_hover,
+			pressed: Linphone.DefaultStyle.main1_button_pressed
 		},
 		text: {
 			normal: Linphone.DefaultStyle.grey_0,
@@ -30,18 +30,18 @@
 		color: {
 			normal: Linphone.DefaultStyle.grey_0,
 			hovered: Linphone.DefaultStyle.main1_100,
-			pressed: Linphone.DefaultStyle.main1_500_main
+			pressed: Linphone.DefaultStyle.main1_button
 		},
 		borderColor: {
-			normal: Linphone.DefaultStyle.main1_500_main,
+			normal: Linphone.DefaultStyle.main1_button,
 			keybaordFocused: Linphone.DefaultStyle.main2_900
 		},
 		text: {
-			normal: Linphone.DefaultStyle.main1_500_main,
+			normal: Linphone.DefaultStyle.main1_button,
 			pressed: Linphone.DefaultStyle.grey_0
 		},
 		image: {
-			normal: Linphone.DefaultStyle.main1_500_main,
+			normal: Linphone.DefaultStyle.main1_button,
 			pressed: Linphone.DefaultStyle.grey_0
 		}
 	}
@@ -51,15 +51,15 @@
 		color: {
 			normal: Linphone.DefaultStyle.grey_0,
 			hovered: Linphone.DefaultStyle.main1_100,
-			pressed: Linphone.DefaultStyle.main1_500_main
+			pressed: Linphone.DefaultStyle.main1_button
 		},
 		text: {
-			normal: Linphone.DefaultStyle.main1_500_main,
-			pressed: Linphone.DefaultStyle.main1_500_main
+			normal: Linphone.DefaultStyle.main1_button,
+			pressed: Linphone.DefaultStyle.main1_button
 		},
 		image: {
-			normal: Linphone.DefaultStyle.main1_500_main,
-			pressed: Linphone.DefaultStyle.main1_500_main
+			normal: Linphone.DefaultStyle.main1_button,
+			pressed: Linphone.DefaultStyle.main1_button
 		}
 	}
 
@@ -71,12 +71,12 @@
 			pressed: Linphone.DefaultStyle.main1_300
 		},
 		text: {
-			normal: Linphone.DefaultStyle.main1_500_main,
-			pressed: Linphone.DefaultStyle.main1_500_main
+			normal: Linphone.DefaultStyle.main1_button,
+			pressed: Linphone.DefaultStyle.main1_button
 		},
 		image: {
-			normal: Linphone.DefaultStyle.main1_500_main,
-			pressed: Linphone.DefaultStyle.main1_500_main
+			normal: Linphone.DefaultStyle.main1_button,
+			pressed: Linphone.DefaultStyle.main1_button
 		}
 	}
 
@@ -181,13 +181,13 @@
 			normal: Linphone.DefaultStyle.main2_200,
 			hovered: Linphone.DefaultStyle.main2_300,
             pressed: Linphone.DefaultStyle.main2_400,
-            checked: Linphone.DefaultStyle.main1_500_main
+            checked: Linphone.DefaultStyle.main1_button
 		},
 		image: {
 			normal: Linphone.DefaultStyle.main2_200,
 			hovered: Linphone.DefaultStyle.main2_300,
             pressed: Linphone.DefaultStyle.main2_400,
-            checked: Linphone.DefaultStyle.main1_500_main,
+            checked: Linphone.DefaultStyle.main1_button,
 		}
 	}
 
@@ -207,13 +207,13 @@
 			normal: Linphone.DefaultStyle.main2_600,
 			hovered: Linphone.DefaultStyle.main2_700,
             pressed: Linphone.DefaultStyle.main2_800,
-            checked: Linphone.DefaultStyle.main1_500_main
+            checked: Linphone.DefaultStyle.main1_button
 		},
 		image: {
 			normal: Linphone.DefaultStyle.main2_600,
 			hovered: Linphone.DefaultStyle.main2_700,
             pressed: Linphone.DefaultStyle.main2_800,
-            checked: Linphone.DefaultStyle.main1_500_main,
+            checked: Linphone.DefaultStyle.main1_button,
 		}
 	}
 	var noBackgroundLightBorder =  Object.assign({
@@ -250,14 +250,14 @@
 			pressed: "#00000000"
 		},
 		text: {
-			normal: Linphone.DefaultStyle.main1_500_main,
-			hovered: Linphone.DefaultStyle.main1_600,
-			pressed: Linphone.DefaultStyle.main1_700
+			normal: Linphone.DefaultStyle.main1_button,
+			hovered: Linphone.DefaultStyle.main1_button_hover,
+			pressed: Linphone.DefaultStyle.main1_button_pressed
 		},
 		image: {
-			normal: Linphone.DefaultStyle.main1_500_main,
-			hovered: Linphone.DefaultStyle.main1_600,
-			pressed: Linphone.DefaultStyle.main1_700
+			normal: Linphone.DefaultStyle.main1_button,
+			hovered: Linphone.DefaultStyle.main1_button_hover,
+			pressed: Linphone.DefaultStyle.main1_button_pressed
 		}
 	}
 
@@ -328,6 +328,18 @@
 		text: {
 			normal: Linphone.DefaultStyle.main2_600,
 			pressed: Linphone.DefaultStyle.main2_700
+		}
+	}
+// Pave du clavier de « Nouvel appel » : touches teintees, posees sur le fond blanc de la page.
+	var numericPadLight = {
+		color: {
+			normal: Linphone.DefaultStyle.main2_100,
+			hovered: Linphone.DefaultStyle.main2_200,
+			pressed: Linphone.DefaultStyle.main2_300
+		},
+		text: {
+			normal: Linphone.DefaultStyle.main2_700,
+			pressed: Linphone.DefaultStyle.main2_800
 		}
 	}
 

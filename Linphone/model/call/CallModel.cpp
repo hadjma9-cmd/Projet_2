@@ -42,7 +42,8 @@ CallModel::CallModel(const std::shared_ptr<linphone::Call> &call, QObject *paren
 	mMicroVolumeTimer.setSingleShot(false);
 	connect(&mMicroVolumeTimer, &QTimer::timeout, this,
 	        [this]() { this->microphoneVolumeChanged(Utils::computeVu(mMonitor->getRecordVolume())); });
-	mMicroVolumeTimer.start();
+	// Pas demarre : aucun ecran n'affiche le volume du micro. Il tournait 20 fois par seconde pour chaque
+	// appel, sans jamais s'arreter, meme apres la fin de l'appel. A demarrer si un vumetre est ajoute.
 }
 
 CallModel::~CallModel() {

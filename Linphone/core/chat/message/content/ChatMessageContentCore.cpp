@@ -59,6 +59,8 @@ ChatMessageContentCore::ChatMessageContentCore(const std::shared_ptr<linphone::C
 		mIsText = content->isText();
 		mIsVoiceRecording = content->isVoiceRecording();
 		mIsVideo = Utils::isVideo(mFilePath);
+		mIsImage = Utils::isImage(mFilePath);
+		mIsAnimatedImage = Utils::isAnimatedImage(mFilePath);
 		mFileSize = (quint64)content->getFileSize();
 		mFileDuration = content->getFileDuration();
 		mFileOffset = 0;
@@ -72,9 +74,7 @@ ChatMessageContentCore::ChatMessageContentCore(const std::shared_ptr<linphone::C
 			setRichFormatText(ToolModel::encodeTextToQmlRichFormat(mUtf8Text, mSearchedTextPart, {}, chatroom));
 		});
 		mWasDownloaded = !mFilePath.isEmpty() && QFileInfo(mFilePath).isFile();
-		mThumbnail = mFilePath.isEmpty()
-		                 ? QUrl()
-		                 : QUrl(QString("image://%1/%2").arg(ThumbnailProvider::ProviderId).arg(mFilePath));
+		mThumbnail = mFilePath.isEmpty() ? QUrl() : QUrl(ThumbnailProvider::thumbnailUrl(mFilePath));
 		mChatMessageContentModel = Utils::makeQObject_ptr<ChatMessageContentModel>(content, chatMessageModel);
 	}
 }
@@ -126,12 +126,18 @@ void ChatMessageContentCore::setSelf(QSharedPointer<ChatMessageContentCore> me) 
 		    auto isFile = content->isFile();
 		    auto isFileTransfer = content->isFileTransfer();
 		    auto isFileEncrypted = content->isFileEncrypted();
-		    mChatMessageContentModelConnection->invokeToCore([this, filePath, isFile, isFileTransfer, isFileEncrypted] {
-			    setIsFile(isFile || QFileInfo(filePath).isFile());
-			    setIsFileTransfer(isFileTransfer);
-			    setIsFileEncrypted(isFileEncrypted);
-			    setFilePath(filePath);
-		    });
+		    // Types lus ici, dans le thread du modele : Utils::isImage ouvre le fichier.
+		    auto isImage = Utils::isImage(filePath);
+		    auto isAnimatedImage = Utils::isAnimatedImage(filePath);
+		    auto isVideo = Utils::isVideo(filePath);
+		    mChatMessageContentModelConnection->invokeToCore(
+		        [this, filePath, isFile, isFileTransfer, isFileEncrypted, isImage, isAnimatedImage, isVideo] {
+			        setIsFile(isFile || QFileInfo(filePath).isFile());
+			        setIsFileTransfer(isFileTransfer);
+			        setIsFileEncrypted(isFileEncrypted);
+			        setFileTypes(isImage, isAnimatedImage, isVideo);
+			        setFilePath(filePath);
+		        });
 	    });
 
 	mChatMessageContentModelConnection->makeConnectToCore(&ChatMessageContentCore::lCancelDownloadFile, [this]() {
@@ -176,6 +182,26 @@ void ChatMessageContentCore::setIsFile(bool isFile) {
 
 bool ChatMessageContentCore::isVideo() const {
 	return mIsVideo;
+}
+
+bool ChatMessageContentCore::isImage() const {
+	return mIsImage;
+}
+
+bool ChatMessageContentCore::isAnimatedImage() const {
+	return mIsAnimatedImage;
+}
+
+void ChatMessageContentCore::setFileTypes(bool isImage, bool isAnimatedImage, bool isVideo) {
+	if (mIsImage != isImage || mIsAnimatedImage != isAnimatedImage) {
+		mIsImage = isImage;
+		mIsAnimatedImage = isAnimatedImage;
+		emit isImageChanged();
+	}
+	if (mIsVideo != isVideo) {
+		mIsVideo = isVideo;
+		emit isVideoChanged();
+	}
 }
 
 bool ChatMessageContentCore::isFileEncrypted() const {

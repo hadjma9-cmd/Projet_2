@@ -21,6 +21,7 @@
 #include "Constants.hpp"
 
 constexpr char Constants::WindowIconPath[];
+constexpr char Constants::SystemTrayIconPath[];
 constexpr char Constants::DefaultLocale[];
 
 constexpr char Constants::LanguagePath[];
@@ -159,6 +160,7 @@ constexpr char Constants::ContactUrl[];
 constexpr char Constants::TranslationUrl[];
 
 constexpr int Constants::MaxMosaicParticipants;
+constexpr bool Constants::ContactCreationEnabled;
 
 constexpr char Constants::LinphoneBZip2_exe[];
 constexpr char Constants::LinphoneBZip2_dll[];

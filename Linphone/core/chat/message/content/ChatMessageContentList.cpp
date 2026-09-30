@@ -199,6 +199,8 @@ void ChatMessageContentList::setSelf(QSharedPointer<ChatMessageContentList> me) 
 		for (auto &content : getSharedList<ChatMessageContentCore>()) {
 			if (content) disconnect(content.get(), &ChatMessageContentCore::wasDownloadedChanged, this, nullptr);
 			if (content) disconnect(content.get(), &ChatMessageContentCore::thumbnailChanged, this, nullptr);
+			if (content) disconnect(content.get(), &ChatMessageContentCore::isFileChanged, this, nullptr);
+			if (content) disconnect(content.get(), &ChatMessageContentCore::isFileTransferChanged, this, nullptr);
 		}
 		if (!mChatMessageCore) return;
 		auto contents = mChatMessageCore->getChatMessageContentList();
@@ -209,7 +211,16 @@ void ChatMessageContentList::setSelf(QSharedPointer<ChatMessageContentList> me) 
 					        content->lCreateThumbnail();
 				        }
 			        });
-			connect(content.get(), &ChatMessageContentCore::thumbnailChanged, this, [this] { emit lUpdate(); });
+			// Mise a jour de la seule ligne concernee : un resetData recreait toutes les vues du message
+			// (image rechargee, saut de defilement) a chaque miniature prete.
+			auto refreshRow = [this, item = content.get()] {
+				int row = -1;
+				if (ListProxy::get(item, &row) && row >= 0) emit dataChanged(index(row, 0), index(row, 0));
+			};
+			connect(content.get(), &ChatMessageContentCore::thumbnailChanged, this, refreshRow);
+			// isFile et isFileTransfer decident du filtre du proxy des fichiers.
+			connect(content.get(), &ChatMessageContentCore::isFileChanged, this, refreshRow);
+			connect(content.get(), &ChatMessageContentCore::isFileTransferChanged, this, refreshRow);
 		}
 		resetData<ChatMessageContentCore>(contents);
 	});

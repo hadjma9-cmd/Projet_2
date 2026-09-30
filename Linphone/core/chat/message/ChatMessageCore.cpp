@@ -207,6 +207,10 @@ ChatMessageCore::ChatMessageCore(const std::shared_ptr<linphone::ChatMessage> &c
 }
 
 ChatMessageCore::~ChatMessageCore() {
+	// Le modele s'est inscrit aupres du SDK dans le constructeur : sans desinscription, il se gardait
+	// lui-meme en vie (et le message SDK avec), une fuite par message affiche.
+	if (mChatMessageModelConnection) mChatMessageModelConnection->disconnect();
+	if (mChatMessageModel) emit mChatMessageModel->removeListener();
 }
 
 void ChatMessageCore::setSelf(QSharedPointer<ChatMessageCore> me) {
@@ -337,9 +341,9 @@ void ChatMessageCore::setSelf(QSharedPointer<ChatMessageCore> me) {
 				    }
 			    });
 		    } catch (const std::exception &ex) {
-			    lFatal() << log()
-			                    .arg("Exception has been catch in signal fileTransferProgressIndication : %1")
-			                    .arg(ex.what());
+			    lWarning() << log()
+			                      .arg("Exception has been catch in signal fileTransferProgressIndication : %1")
+			                      .arg(ex.what());
 		    }
 	    });
 
@@ -409,7 +413,8 @@ QList<ImdnStatus> ChatMessageCore::computeDeliveryStatus(const std::shared_ptr<l
 	QList<ImdnStatus> imdnStatusList;
 	auto createImdnStatus = [this](std::shared_ptr<linphone::ParticipantImdnState> participant,
 	                               linphone::ChatMessage::State state) -> ImdnStatus {
-		auto address = participant->getParticipant() ? participant->getParticipant()->getAddress()->clone() : nullptr;
+		auto participantAddress = participant->getParticipant() ? participant->getParticipant()->getAddress() : nullptr;
+		auto address = participantAddress ? participantAddress->clone() : nullptr;
 		auto lastUpdated = QDateTime::fromSecsSinceEpoch(participant->getStateChangeTime());
 		if (address) {
 			address->clean();

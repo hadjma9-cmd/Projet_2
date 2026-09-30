@@ -5,6 +5,7 @@ import QtQuick.Controls.Basic as Control
 import Linphone
 import UtilsCpp
 import SettingsCpp
+import ConstantsCpp
 import "qrc:/qt/qml/Linphone/view/Style/buttonStyle.js" as ButtonStyle
 import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
@@ -44,8 +45,10 @@ AbstractMainPage {
     signal createCallFromSearchBarRequested
     signal createContactRequested(string name, string address)
     signal openNumPadRequest
-
-    property alias numericPadPopup: numericPadPopupItem
+    // Mode de « Nouvel appel » : Clavier (vrai) ou Contacts. Le dernier choix est garde ; le bouton
+    // pave du bandeau ouvre toujours le clavier.
+    property bool newCallDialerMode: true
+    signal dialerFocusRequested
 
     Connections {
         enabled: confInfoGui
@@ -84,6 +87,13 @@ AbstractMainPage {
                 && listStackView.currentItem.objectName != "historyListItem")
             listStackView.replace(historyListItem)
     }
+    // Demande du bouton numeroteur du bandeau (relayee par MainLayout) : page « Nouvel appel »,
+    // onglet Clavier, numero pret a etre saisi.
+    onOpenNumPadRequest: {
+        newCallDialerMode = true
+        goToNewCall()
+        dialerFocusRequested()
+    }
 
     Dialog {
         id: deleteHistoryPopup
@@ -116,22 +126,6 @@ AbstractMainPage {
             focus: true
             onActiveFocusChanged: if (activeFocus) {
                 currentItem.forceActiveFocus()
-            }
-        }
-
-        Item {
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: Utils.getSizeWithScreenRatio(402)
-            NumericPadPopup {
-                id: numericPadPopupItem
-                width: parent.width
-                height: parent.height
-                visible: false
-                onLaunchCall: {
-                    mainItem.createCallFromSearchBarRequested()
-                }
             }
         }
     }
@@ -305,14 +299,18 @@ AbstractMainPage {
                                     when: historyListView.loading
                                     value: false
                                 }
-                                onCurrentIndexChanged: {
-                                    mainItem.selectedRowHistoryGui = model.getAt(
-                                                currentIndex)
+                                // getAt() rend un nouvel objet a chaque appel, meme pour la meme ligne : le
+                                // panneau de detail etait reconstruit (avec sa propre liste d'historique) a
+                                // chaque variation de la liste, en boucle pendant les appels. Il ne l'est plus
+                                // que si l'appel selectionne change vraiment.
+                                function updateSelectedRow() {
+                                    var gui = model.getAt(currentIndex)
+                                    var current = mainItem.selectedRowHistoryGui
+                                    if (gui && current && gui.core === current.core) return
+                                    mainItem.selectedRowHistoryGui = gui
                                 }
-                                onCountChanged: {
-                                    mainItem.selectedRowHistoryGui = model.getAt(
-                                                currentIndex)
-                                }
+                                onCurrentIndexChanged: updateSelectedRow()
+                                onCountChanged: updateSelectedRow()
                             }
                         }
                     }
@@ -335,13 +333,24 @@ AbstractMainPage {
     Component {
         id: newCallItem
         FocusScope {
+            id: newCallPage
             objectName: "newCallItem"
             width: parent?.width
             height: parent?.height
+            function focusCurrentMode(reason) {
+                if (mainItem.newCallDialerMode)
+                    dialerForm.focusNumber()
+                else
+                    callContactsList.forceActiveFocus(reason)
+            }
             Control.StackView.onActivated: {
-                if(!numericPadPopupItem.visible){
-		            const focusReason = FocusNavigator.doesLastFocusWasKeyboard() ? Qt.TabFocusReason : Qt.OtherFocusReason
-                   callContactsList.forceActiveFocus(focusReason)
+                const focusReason = FocusNavigator.doesLastFocusWasKeyboard() ? Qt.TabFocusReason : Qt.OtherFocusReason
+                newCallPage.focusCurrentMode(focusReason)
+            }
+            Connections {
+                target: mainItem
+                function onDialerFocusRequested() {
+                    newCallPage.focusCurrentMode(Qt.OtherFocusReason)
                 }
             }
             ColumnLayout {
@@ -379,24 +388,77 @@ AbstractMainPage {
                         Layout.fillWidth: true
                     }
                 }
-                NewCallForm {
-                    id: callContactsList
+                // Deux facons d'appeler : composer un numero, comme sur un telephone (Clavier), ou
+                // choisir un contact par son nom (Contacts).
+                Rectangle {
+                    Layout.topMargin: Utils.getSizeWithScreenRatio(18)
+                    Layout.rightMargin: Utils.getSizeWithScreenRatio(39)
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
+                    radius: height / 2
+                    color: DefaultStyle.main2_100
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: Utils.getSizeWithScreenRatio(4)
+                        spacing: Utils.getSizeWithScreenRatio(4)
+                        Repeater {
+                            model: [{
+                                    //: "Contacts"
+                                    "label": qsTr("new_call_tab_contacts"),
+                                    "iconSource": AppIcons.adressBook,
+                                    "dialer": false
+                                }, {
+                                    //: "Clavier"
+                                    "label": qsTr("new_call_tab_dialer"),
+                                    "iconSource": AppIcons.dialer,
+                                    "dialer": true
+                                }]
+                            Button {
+                                required property var modelData
+                                readonly property bool selected: mainItem.newCallDialerMode === modelData.dialer
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                style: selected ? ButtonStyle.main : ButtonStyle.noBackground
+                                text: modelData.label
+                                icon.source: modelData.iconSource
+                                icon.width: Utils.getSizeWithScreenRatio(18)
+                                icon.height: Utils.getSizeWithScreenRatio(18)
+                                textSize: Utils.getSizeWithScreenRatio(15)
+                                textWeight: Font.Bold
+                                spacing: Utils.getSizeWithScreenRatio(8)
+                                Accessible.role: Accessible.PageTab
+                                onClicked: {
+                                    mainItem.newCallDialerMode = modelData.dialer
+                                    newCallPage.focusCurrentMode(Qt.OtherFocusReason)
+                                }
+                            }
+                        }
+                    }
+                }
+                StackLayout {
                     Layout.topMargin: Utils.getSizeWithScreenRatio(18)
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    numPadPopup: numericPadPopupItem
-                    searchBarColor: DefaultStyle.grey_100
-                    onContactClicked: contact => {
-                        mainWindow.startCallWithContact(contact, false, callContactsList)
+                    currentIndex: mainItem.newCallDialerMode ? 1 : 0
+                    // Contacts : recherche par nom, sans pave.
+                    NewCallForm {
+                        id: callContactsList
+                        searchBarColor: DefaultStyle.grey_100
+                        onContactClicked: contact => {
+                            mainWindow.startCallWithContact(contact, false, callContactsList)
+                        }
+                        onGroupCreationRequested: {
+                            console.log("groupe call requetsed")
+                            listStackView.push(groupCallItem)
+                        }
                     }
-                    onGroupCreationRequested: {
-                        console.log("groupe call requetsed")
-                        listStackView.push(groupCallItem)
-                    }
-                    Connections {
-                        target: mainItem
-                        function onCreateCallFromSearchBarRequested() {
-                            UtilsCpp.createCall(callContactsList.searchBar.text)
+                    // Clavier : numero compose puis appel, sans recherche.
+                    Item {
+                        DialerForm {
+                            id: dialerForm
+                            anchors.fill: parent
+                            anchors.rightMargin: Utils.getSizeWithScreenRatio(39)
+                            onCallRequested: number => UtilsCpp.createCall(number)
                         }
                     }
                 }
@@ -457,6 +519,8 @@ AbstractMainPage {
                 specificAddress: callHistoryGui
                                  && callHistoryGui.core.remoteAddress || ""
                 property bool isLocalFriend: contact ? contact.core.isAppFriend : false
+                // Sans creation de contacts, tout contact trouve (annuaire compris) s'ouvre dans sa fiche.
+                property bool showExistingContact: !!contact && (isLocalFriend || !ConstantsCpp.contactCreationEnabled)
 
                 buttonContent: PopupButton {
                     id: detailOptions
@@ -479,17 +543,18 @@ AbstractMainPage {
                             anchors.fill: parent
                             IconLabelButton {
                                 id: addContactButton
+                                visible: contactDetail.showExistingContact || ConstantsCpp.contactCreationEnabled
                                 Layout.fillWidth: true
                                 //: "Show contact"
-                                text: contactDetail.isLocalFriend ? qsTr("menu_see_existing_contact") :
+                                text: contactDetail.showExistingContact ? qsTr("menu_see_existing_contact") :
                                                               //: "Add to contacts"
                                                               qsTr("menu_add_address_to_contacts")
-                                icon.source: contactDetail.isLocalFriend ? AppIcons.adressBook : AppIcons.plusCircle
+                                icon.source: contactDetail.showExistingContact ? AppIcons.adressBook : AppIcons.plusCircle
                                 icon.width: Utils.getSizeWithScreenRatio(32)
                                 icon.height: Utils.getSizeWithScreenRatio(32)
                                 onClicked: {
                                     detailOptions.close()
-                                    if (contactDetail.isLocalFriend)
+                                    if (contactDetail.showExistingContact)
                                         mainWindow.displayContactPage(contactDetail.contactAddress)
                                     else
                                         mainItem.createContactRequested(contactDetail.contactName, contactDetail.contactAddress)
@@ -501,40 +566,6 @@ AbstractMainPage {
                                                     != 0 ? detailOptions.getNextItem(
                                                                 0) : null
                             }
-                            IconLabelButton {
-                                id: copySIPAddressButton
-                                Layout.fillWidth: true
-                                //: "Copier l'adresse SIP"
-                                text: qsTr("menu_copy_sip_address")
-                                icon.source: AppIcons.copy
-                                icon.width: Utils.getSizeWithScreenRatio(32)
-                                icon.height: Utils.getSizeWithScreenRatio(32)
-                                onClicked: {
-                                    detailOptions.close()
-                                    var success = UtilsCpp.copyToClipboard(
-                                                mainItem.selectedRowHistoryGui
-                                                && mainItem.selectedRowHistoryGui.core.remoteAddress)
-                                    if (success)
-                                        UtilsCpp.showInformationPopup(
-                                                    //: Adresse copiée
-                                                    qsTr("sip_address_copied_to_clipboard_toast"),
-                                                    //: L'adresse a été copié dans le presse_papiers
-                                                    qsTr("sip_address_copied_to_clipboard_message"),
-                                                    true)
-                                    else
-                                        UtilsCpp.showInformationPopup(
-                                                    qsTr("information_popup_error_title"),
-                                                    //: "Erreur lors de la copie de l'adresse"
-                                                    qsTr("sip_address_copy_to_clipboard_error"),
-                                                    false)
-                                }
-                                KeyNavigation.up: visibleChildren.length
-                                                    != 0 ? detailOptions.getPreviousItem(
-                                                                1) : null
-                                KeyNavigation.down: visibleChildren.length
-                                                    != 0 ? detailOptions.getNextItem(
-                                                                1) : null
-                            }
                             // IconLabelButton {
                             // 	background: Item {}
                             // 	enabled: false
@@ -544,12 +575,6 @@ AbstractMainPage {
                             // 	}
                             // 	onClicked: console.debug("[CallPage.qml] TODO : block user")
                             // }
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: Utils.getSizeWithScreenRatio(2)
-                                color: DefaultStyle.main2_400
-                            }
-
                             IconLabelButton {
                                 id: deleteHistoryButton
                                 Layout.fillWidth: true
@@ -573,10 +598,10 @@ AbstractMainPage {
                                 }
                                 KeyNavigation.up: visibleChildren.length
                                                     != 0 ? detailOptions.getPreviousItem(
-                                                                2) : null
+                                                                1) : null
                                 KeyNavigation.down: visibleChildren.length
                                                     != 0 ? detailOptions.getNextItem(
-                                                                2) : null
+                                                                1) : null
                             }
                         }
                     }
@@ -653,9 +678,10 @@ AbstractMainPage {
                                                                                                                         ? qsTr("call_outgoing")
                                                                                                                         //: "Appel entrant"
                                                                                                                         : qsTr("call_audio_incoming")
+                                                    color: DefaultStyle.main2_700
                                                     font {
                                                         pixelSize: Typography.p1.pixelSize
-                                                        weight: Typography.p1.weight
+                                                        weight: Font.DemiBold
                                                     }
                                                 }
                                             }
@@ -664,7 +690,7 @@ AbstractMainPage {
                                                 color: modelData.core.status === LinphoneEnums.CallStatus.Missed ? DefaultStyle.danger_500_main : DefaultStyle.main2_500_main
                                                 font {
                                                     pixelSize: Utils.getSizeWithScreenRatio(12)
-                                                    weight: Utils.getSizeWithScreenRatio(300)
+                                                    weight: Typography.p1s.weight
                                                 }
                                             }
                                         }
@@ -674,9 +700,10 @@ AbstractMainPage {
                                         }
                                         Text {
                                             text: UtilsCpp.formatElapsedTime(modelData.core.duration,false)
+                                            color: DefaultStyle.main2_600
                                             font {
-                                                pixelSize: Utils.getSizeWithScreenRatio(12)
-                                                weight: Utils.getSizeWithScreenRatio(300)
+                                                pixelSize: Typography.b3.pixelSize
+                                                weight: Typography.b3.weight
                                             }
                                         }
                                     }

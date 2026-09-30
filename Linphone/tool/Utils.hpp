@@ -25,6 +25,8 @@
 #include <QObject>
 #include <QSize>
 #include <QString>
+#include <memory>
+#include <string>
 
 #include "Constants.hpp"
 #include "tool/AbstractObject.hpp"
@@ -55,6 +57,10 @@ class DownloadablePayloadTypeCore;
 class ChatGui;
 class ChatMessageGui;
 class RecorderGui;
+
+namespace linphone {
+class Address;
+}
 
 class Utils : public QObject, public AbstractObject {
 	Q_OBJECT
@@ -136,6 +142,10 @@ public:
 	Q_INVOKABLE static bool isValidURL(const QString &url);
 	Q_INVOKABLE static VariantObject *findAvatarByAddress(const QString &address);
 	Q_INVOKABLE static VariantObject *findFriendByAddress(const QString &address);
+	// Avatars introuvables (404, fichier absent) memorises 10 minutes : une vue recreee au defilement
+	// ne relance pas la requete. Thread graphique uniquement.
+	Q_INVOKABLE static bool isMissingAvatarUrl(const QString &url);
+	Q_INVOKABLE static void markMissingAvatarUrl(const QString &url);
 	Q_INVOKABLE static VariantObject *getFriendAddressSecurityLevel(const QString &address);
 	Q_INVOKABLE static VariantObject *getFriendSecurityLevel(const QString &address);
 	static QString generateSavedFilename(const QString &from, const QString &to);
@@ -154,6 +164,14 @@ public:
 	Q_INVOKABLE static QColor getPresenceBackgroundColor(LinphoneEnums::Presence presence);
 	Q_INVOKABLE static QUrl getPresenceIcon(LinphoneEnums::Presence presence);
 	Q_INVOKABLE static QString getPresenceStatus(LinphoneEnums::Presence presence);
+	static QString getInCallPresenceStatus();
+
+	// Adresses du SDK : getAddress() peut renvoyer nullptr (contact sans adresse SIP, resultat de
+	// recherche par numero, participant en cours de creation). Chaine vide dans ce cas.
+	static std::string addressUriOnly(const std::shared_ptr<const linphone::Address> &address);
+	static std::string addressFull(const std::shared_ptr<const linphone::Address> &address);
+	static std::string addressDisplayName(const std::shared_ptr<const linphone::Address> &address);
+	static std::string addressUsername(const std::shared_ptr<const linphone::Address> &address);
 
 	Q_INVOKABLE static VariantObject *getCurrentCallChat(CallGui *call);
 	Q_INVOKABLE static VariantObject *getChatForAddress(QString address);

@@ -52,7 +52,11 @@ QtObject {
 	property string usersThreeFilled: "image://internal/users-three-filled.svg"
 	property string userPlus: "image://internal/user-plus.svg"
 	property string noItemImage: "image://internal/noItemImage.svg"
+	// Conversations sans rien a afficher : illustration sobre aux couleurs du theme bleu_gama.
+	property string noConversationImage: "image://internal/no-conversation.svg"
 	property string verticalDots: "image://internal/dots-three-vertical.svg"
+	// Menu du bandeau : trois barres (l'engrenage est deja l'entree Parametres du menu).
+	property string menuBars: "image://internal/list-bars.svg"
 	property string plusCircle: "image://internal/plus-circle.svg"
 	property string micro: "image://internal/microphone-stage.svg"
 	property string groupCall: "image://internal/group-call.svg"
@@ -135,6 +139,8 @@ QtObject {
 	property string calendar: "image://internal/calendar.svg"
 	property string bell: "image://internal/bell.svg"
 	property string bellSlash: "image://internal/bell-slash.svg"
+	// Barre seule de bell-slash.svg (un peu plus epaisse), a superposer en couleur.
+	property string bellSlashBar: "image://internal/bell-slash-bar.svg"
 	property string bellDnd: "image://internal/bell-dnd.svg"
 	property string bellRinger: "image://internal/bell-ringing.svg"
 	property string voicemail: "image://internal/voicemail.svg"
@@ -150,6 +156,7 @@ QtObject {
 	property string presenceBusy: "image://internal/presence_busy.svg"
 	property string presenceDoNotDisturb: "image://internal/presence_do_not_disturb.svg"
 	property string presenceOffline: "image://internal/presence_offline.svg"
+	property string presenceOnThePhone: "image://internal/presence_on_the_phone.svg"
 	property string presenceNote: "image://internal/presence-note.svg"
 	property string clockCountDown: "image://internal/clock-countdown.svg"
 	property string reply: "image://internal/reply.svg"

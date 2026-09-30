@@ -163,11 +163,11 @@ void FriendModel::clearAddresses() {
 }
 
 QString FriendModel::getDefaultAddress() const {
-	return Utils::coreStringToAppString(mMonitor->getAddress()->asStringUriOnly());
+	return Utils::coreStringToAppString(Utils::addressUriOnly(mMonitor->getAddress()));
 }
 
 QString FriendModel::getDefaultFullAddress() const {
-	return Utils::coreStringToAppString(mMonitor->getAddress()->asString());
+	return Utils::coreStringToAppString(Utils::addressFull(mMonitor->getAddress()));
 }
 
 QString FriendModel::getFullName() const {
@@ -311,8 +311,19 @@ void FriendModel::setStarred(bool starred) {
 }
 
 void FriendModel::onPresenceReceived(const std::shared_ptr<linphone::Friend> &contact) {
+	if (contact && ToolModel::isAutomaticPresence(contact->getPresenceModel())) {
+		// Appel signale par le serveur : pastille « En communication » une fois decroche seulement,
+		// pas pendant la sonnerie (ToolModel::isAnsweredCallPresence). Dans tous les cas, le statut
+		// choisi reste intact et revient avec la notification de fin d'appel.
+		const bool answered = ToolModel::isAnsweredCallPresence(contact->getPresenceModel());
+		lInfo() << log().arg(answered ? "call in progress for contact" : "call ringing for contact")
+		        << Utils::addressUriOnly(contact->getAddress());
+		emit inCallChanged(answered);
+		return;
+	}
 	lInfo() << log().arg("presence received for contact")
-	        << (contact ? contact->getAddress()->asStringUriOnly() : "NULL") << getPresence(contact);
+	        << (contact ? Utils::addressUriOnly(contact->getAddress()) : "NULL") << getPresence(contact);
+	emit inCallChanged(false);
 	emit presenceReceived(getPresence(contact), getPresenceNote(contact));
 }
 

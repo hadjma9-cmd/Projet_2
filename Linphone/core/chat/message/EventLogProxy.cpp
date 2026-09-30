@@ -228,6 +228,11 @@ void EventLogProxy::findIndexCorrespondingToFilter(int startIndex, bool forward,
 	}
 }
 
+void EventLogProxy::preloadRecentChats(int count) {
+	auto eventLogList = dynamic_cast<EventLogList *>(sourceModel());
+	if (eventLogList) eventLogList->preloadRecentChats(count);
+}
+
 void EventLogProxy::findChatMessageById(const QString &messageId) {
 	auto eventLogList = dynamic_cast<EventLogList *>(sourceModel());
 	if (eventLogList) {

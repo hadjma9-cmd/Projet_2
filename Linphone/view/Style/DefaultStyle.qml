@@ -7,13 +7,21 @@ QtObject {
 
 	property var currentTheme: Themes.themes.hasOwnProperty(SettingsCpp.themeMainColor)
 							  ? Themes.themes[SettingsCpp.themeMainColor]
-							  : Themes.themes["orange"]
+							  : Themes.themes["bleu_gama"]
     property var main1_100: currentTheme.main100
     property var main1_200: currentTheme.main200
     property var main1_300: currentTheme.main300
     property var main1_500_main: currentTheme.main500
     property var main1_600: currentTheme.main600
     property var main1_700: currentTheme.main700
+    // Degrade de la barre laterale (haut, bas). Un theme qui n'en definit pas garde un aplat.
+    property var main1_gradient_top: currentTheme.gradientTop || currentTheme.main500
+    property var main1_gradient_bottom: currentTheme.gradientBottom || currentTheme.main500
+    // Boutons : couleur propre au theme, sinon le fonce du degrade. Survol et appui en
+    // derivent, assombris comme les nuances 600 (x0,80) et 700 (x0,68) du theme.
+    property color main1_button: currentTheme.button || currentTheme.gradientTop || currentTheme.main500
+    property color main1_button_hover: Qt.darker(main1_button, 1.25)
+    property color main1_button_pressed: Qt.darker(main1_button, 1.47)
 
     property var main2_0: "#FAFEFF"
     property var main2_100: "#EEF6F8"

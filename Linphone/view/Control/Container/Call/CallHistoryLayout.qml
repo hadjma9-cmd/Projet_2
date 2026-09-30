@@ -66,8 +66,10 @@ ColumnLayout {
             Layout.preferredWidth: Utils.getSizeWithScreenRatio(360)
             spacing: Utils.getSizeWithScreenRatio(5)
 
+			// Nom, poste et presence : memes styles que le panneau d'informations d'une
+			// conversation (ConversationInfos.qml).
 			ColumnLayout {
-                spacing: Utils.getSizeWithScreenRatio(2)
+                spacing: Utils.getSizeWithScreenRatio(3)
 				Layout.alignment: Qt.AlignHCenter
 				Text {
 					Layout.preferredWidth: implicitWidth
@@ -76,9 +78,10 @@ ColumnLayout {
 					elide: Text.ElideRight
 					text: detailAvatar.displayNameVal
 					maximumLineCount: 1
+					color: DefaultStyle.main2_700
 					font {
-                        pixelSize: Typography.p1.pixelSize
-                        weight: Typography.p1.weight
+                        pixelSize: Typography.h3m.pixelSize
+                        weight: Typography.h3m.weight
 					}
 				}
 				Text {
@@ -89,9 +92,10 @@ ColumnLayout {
 					text: SettingsCpp.hideSipAddresses ? UtilsCpp.getUsername(mainItem.specificAddress) : mainItem.specificAddress
 					elide: Text.ElideMiddle
 					maximumLineCount: 1
+					color: DefaultStyle.main2_600
 					font {
-                        pixelSize: Utils.getSizeWithScreenRatio(12)
-                        weight: Utils.getSizeWithScreenRatio(300)
+                        pixelSize: Typography.p1s.pixelSize
+                        weight: Typography.p1s.weight
 					}
 				}
 			}
@@ -103,8 +107,8 @@ ColumnLayout {
 				text: contact ? contact.core.presenceStatus : ""
 				color: contact ? contact.core.presenceColor : 'transparent'
 				font {
-                    pixelSize: Utils.getSizeWithScreenRatio(12)
-                    weight: Utils.getSizeWithScreenRatio(300)
+                    pixelSize: Typography.p2.pixelSize
+                    weight: Typography.p2.weight
 				}
 			}
 		}

@@ -44,8 +44,10 @@ Loader{
 	// L'avatar peut etre une URL distante (annuaire) qui renvoie 404 quand l'utilisateur
 	// n'a pas de photo. Sans ce drapeau, haveAvatar resterait vrai et on afficherait une
 	// image vide au lieu des initiales.
-	property bool avatarLoadFailed: false
-	onAvatarUriChanged: avatarLoadFailed = false
+	// Les echecs sont memorises 10 minutes cote C++ : une vue recreee (defilement) ne relance pas
+	// la requete vers une photo absente.
+	property bool avatarLoadFailed: avatarUri.length !== 0 && UtilsCpp.isMissingAvatarUrl(avatarUri)
+	onAvatarUriChanged: avatarLoadFailed = avatarUri.length !== 0 && UtilsCpp.isMissingAvatarUrl(avatarUri)
 	property bool haveAvatar: avatarUri.length !== 0 && !avatarLoadFailed
 	property var avatarObj: UtilsCpp.findAvatarByAddress(_address)
 	property string computedAvatarUri: avatarObj ? avatarObj.value : ''
@@ -192,6 +194,10 @@ Loader{
 						}
 					}
 					MultiEffect {
+						// Suit shadowEnabled comme l'ombre exterieure : dans les listes, chaque effet
+						// coutait une texture hors ecran par avatar.
+						visible: mainItem.shadowEnabled
+						enabled: mainItem.shadowEnabled
 						source: initialItem
 						anchors.fill: initialItem
 						shadowEnabled: true
@@ -226,7 +232,10 @@ Loader{
 						// change. Le cache memoire de Qt, indexe par URL, servirait indefiniment
 						// l'ancienne image : on le desactive pour laisser jouer les en-tetes HTTP.
 						cache: false
-						onStatusChanged: if (status === Image.Error) mainItem.avatarLoadFailed = true
+						onStatusChanged: if (status === Image.Error) {
+							UtilsCpp.markMissingAvatarUrl(mainItem.avatarUri)
+							mainItem.avatarLoadFailed = true
+						}
 						mipmap: true
 						layer.enabled: true
 					}

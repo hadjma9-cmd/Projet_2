@@ -20,11 +20,11 @@
 
 #include "FriendCore.hpp"
 
-#include <QRegularExpression>
 #include "core/App.hpp"
 #include "model/tool/ToolModel.hpp"
 #include "tool/Utils.hpp"
 #include "tool/thread/SafeConnection.hpp"
+#include <QRegularExpression>
 
 DEFINE_ABSTRACT_OBJECT(FriendCore)
 
@@ -52,13 +52,16 @@ FriendCore::FriendCore(const std::shared_ptr<linphone::Friend> &contact, bool is
 		mFriendModel->setSelf(mFriendModel);
 		auto presence = mFriendModel->getPresence(contact);
 		auto note = mFriendModel->getPresenceNote(contact);
+		bool inCall = ToolModel::isAnsweredCallPresence(contact->getPresenceModel());
 
 		lDebug() << "[FriendCore] INITIAL PRESENCE:"
-         		 << "address=" << contact->getAddress()->asStringUriOnly()
-         		 << "presence=" << static_cast<int>(presence)
-         		 << "note=" << note;
+		         << "address=" << Utils::addressUriOnly(contact->getAddress())
+		         << "presence=" << static_cast<int>(presence) << "note=" << note;
 
-		App::postCoreAsync([this, presence, note]() { setPresence(presence, note); });
+		App::postCoreAsync([this, presence, note, inCall]() {
+			setPresence(presence, note);
+			setInCall(inCall);
+		});
 		mPictureUri = Utils::coreStringToAppString(contact->getPhoto());
 		mFullName = mFriendModel->getFullName();
 		auto defaultAddress = contact->getAddress();
@@ -104,7 +107,7 @@ FriendCore::FriendCore(const std::shared_ptr<linphone::Friend> &contact, bool is
 			mDeviceList.append(
 			    Utils::createFriendDeviceVariant(Utils::coreStringToAppString(device->getDisplayName()),
 			                                     // do not use uri only as we want the unique device
-			                                     Utils::coreStringToAppString(device->getAddress()->asString()),
+			                                     Utils::coreStringToAppString(Utils::addressFull(device->getAddress())),
 			                                     LinphoneEnums::fromLinphone(device->getSecurityLevel())));
 		}
 		updateVerifiedDevicesCount();
@@ -171,7 +174,7 @@ void FriendCore::setSelf(QSharedPointer<FriendCore> me) {
 					    devicesList.append(Utils::createFriendDeviceVariant(
 					        Utils::coreStringToAppString(device->getDisplayName()),
 					        // do not use uri only as we want the unique device
-					        Utils::coreStringToAppString(device->getAddress()->asString()),
+					        Utils::coreStringToAppString(Utils::addressFull(device->getAddress())),
 					        LinphoneEnums::fromLinphone(device->getSecurityLevel())));
 				    }
 				    mFriendModelConnection->invokeToCore([this, presence, devicesList, presenceNote]() {
@@ -180,6 +183,9 @@ void FriendCore::setSelf(QSharedPointer<FriendCore> me) {
 					    updateVerifiedDevicesCount();
 				    });
 			    });
+			mFriendModelConnection->makeConnectToModel(&FriendModel::inCallChanged, [this](bool inCall) {
+				mFriendModelConnection->invokeToCore([this, inCall]() { setInCall(inCall); });
+			});
 			mFriendModelConnection->makeConnectToModel(&FriendModel::pictureUriChanged, [this](const QString &uri) {
 				mFriendModelConnection->invokeToCore([this, uri]() { this->onPictureUriChanged(uri); });
 			});
@@ -241,7 +247,7 @@ void FriendCore::setSelf(QSharedPointer<FriendCore> me) {
 					    devicesList.append(Utils::createFriendDeviceVariant(
 					        Utils::coreStringToAppString(device->getDisplayName()),
 					        // do not use uri only as we want the unique device
-					        Utils::coreStringToAppString(device->getAddress()->asString()),
+					        Utils::coreStringToAppString(Utils::addressFull(device->getAddress())),
 					        LinphoneEnums::fromLinphone(device->getSecurityLevel())));
 				    }
 				    mCoreModelConnection->invokeToCore([this, devicesList]() {
@@ -464,8 +470,11 @@ QList<QVariant> FriendCore::getAllAddresses() const {
 	auto phoneNumbers = mPhoneNumberList;
 	while (addressIt != mAddressList.end()) {
 		auto username = Utils::getUsername(addressIt->toMap()["address"].toString());
-		std::remove_if(phoneNumbers.begin(), phoneNumbers.end(),
-		               [username](const QVariant &data) { return data.toMap()["address"].toString() == username; });
+		// Retire les numeros identiques a l'identifiant d'une adresse SIP (878 et sip:878@...).
+		// Auparavant std::remove_if sans erase : rien n'etait retire, le doublon restait, et
+		// l'appel ouvrait un choix entre deux entrees designant le meme poste.
+		phoneNumbers.removeIf(
+		    [&username](const QVariant &data) { return data.toMap()["address"].toString() == username; });
 		++addressIt;
 	}
 	addresses << phoneNumbers;
@@ -762,9 +771,11 @@ std::shared_ptr<FriendModel> FriendCore::getModel() {
 // « Unregistered » sous le nom de quelqu'un. On ne garde donc que ce qui ressemble a un vrai
 // message. L'etat, lui, est deja porte par la pastille et par la ligne de statut.
 static bool isServerGeneratedNote(const QString &note) {
-	static const QStringList exactValues = {"unregistered", "registered",  "available", "unavailable",
-	                                        "offline",      "idle",        "busy",      "away",
-	                                        "on the phone", "in a meeting"};
+	// busy, away, offline et do not disturb servent aussi de note par defaut a nos propres
+	// publications (ToolModel::appPresenceToCorePresenceModel).
+	static const QStringList exactValues = {"unregistered", "registered",   "available",      "unavailable",
+	                                        "offline",      "idle",         "busy",           "away",
+	                                        "on the phone", "in a meeting", "do not disturb", "dnd"};
 	if (exactValues.contains(note.trimmed().toLower())) return true;
 	// Etats d'appel, suivis du numero du correspondant : « Talk 222 », « Ring 1000 »...
 	static const QRegularExpression callState(QStringLiteral("^(talk|ring|call|hold|early|proceeding)\\s+\\S+$"),
@@ -776,13 +787,11 @@ void FriendCore::setPresence(LinphoneEnums::Presence presence, QString presenceN
 	mustBeInMainThread(log().arg(Q_FUNC_INFO));
 	if (isServerGeneratedNote(presenceNote)) presenceNote.clear();
 	bool notify = false;
-	// Un etat indetermine n'est pas une information, c'est son absence. Beaucoup de
-	// notifications en portent un, et les accepter effacait la presence deja connue :
-	// l'icone d'Undefined etant vide, la pastille disparaissait alors qu'aucun nouveau
-	// statut n'avait ete publie -- il fallait changer d'onglet pour que l'objet soit
-	// reconstruit depuis le cache du SDK, qui avait garde la vraie valeur.
-	// On conserve donc la derniere valeur connue jusqu'a ce qu'un etat reel arrive.
-	if (presence != LinphoneEnums::Presence::Undefined && presence != mPresence) {
+	// Etat inconnu = pas de pastille, plutot qu'une pastille perimee. Ne l'atteignent plus
+	// que les vraies absences d'information (abonnement termine sans contenu, en attente de
+	// sa relance) : les contacts deconnectes arrivent en Offline et les appels en cours
+	// signales par le serveur sont ignores en amont (FriendModel::onPresenceReceived).
+	if (presence != mPresence) {
 		mPresence = presence;
 		notify = true;
 	}
@@ -793,14 +802,26 @@ void FriendCore::setPresence(LinphoneEnums::Presence presence, QString presenceN
 	if (notify) emit presenceChanged();
 }
 
+void FriendCore::setInCall(bool inCall) {
+	mustBeInMainThread(log().arg(Q_FUNC_INFO));
+	if (mInCall == inCall) return;
+	mInCall = inCall;
+	emit presenceChanged();
+}
+
+// Pendant un appel, pastille bleue « En communication » a la place du statut choisi, qui
+// reapparait tel quel a la fin de l'appel.
 QUrl FriendCore::getPresenceIcon() {
+	if (mInCall) return Utils::getAppIcon("presenceOnThePhone");
 	return Utils::getPresenceIcon(mPresence);
 }
 
 QColor FriendCore::getPresenceColor() {
+	if (mInCall) return Utils::getDefaultStyleColor("info_800_main");
 	return Utils::getPresenceColor(mPresence);
 }
 
 QString FriendCore::getPresenceStatus() {
+	if (mInCall) return Utils::getInCallPresenceStatus();
 	return Utils::getPresenceStatus(mPresence);
 }

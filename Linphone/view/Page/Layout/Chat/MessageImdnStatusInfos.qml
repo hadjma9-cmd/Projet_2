@@ -32,6 +32,7 @@ MessageInfosLayout {
 			spacing: Utils.getSizeWithScreenRatio(16)
 			Avatar {
 				Layout.alignment: Qt.AlignHCenter
+				shadowEnabled: false
 				contact: listDelegate.contact
 				_address: modelData.address
 				Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)

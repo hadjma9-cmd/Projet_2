@@ -22,6 +22,7 @@
 #include <QLoggingCategory>
 #include <QMessageBox>
 #include <QString>
+#include <bctoolbox/logging.h>
 #include <linphone++/linphone.hh>
 
 #include "config.h"
@@ -63,6 +64,9 @@ void LoggerModel::enableVerbose(bool verbose) {
 void LoggerModel::enableFullLogs(const bool &full) {
 	auto service = linphone::LoggingService::get();
 	if (service) service->setLogLevel(full ? linphone::LogLevel::Debug : linphone::LogLevel::Message);
+	// Hors journaux complets, belle-sip trace chaque message SIP en entier (presence, abonnements,
+	// enregistrements) : beaucoup d'ecritures disque pour rien. Limite aux avertissements et erreurs.
+	bctbx_set_log_level("belle-sip", full ? BCTBX_LOG_DEBUG : BCTBX_LOG_WARNING);
 }
 
 bool LoggerModel::qtOnlyEnabled() const {

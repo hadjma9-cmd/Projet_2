@@ -12,8 +12,23 @@ AbstractMainPage {
     id: mainItem
     //: "Nouvelle conversation"
     noItemButtonText: qsTr("chat_start_title")
+    // Liste des conversations quand c'est elle qui est affichee (et non un formulaire de creation).
+    readonly property var conversationList: listStackView.currentItem
+                                            && listStackView.currentItem.objectName == "chatListItem"
+                                            ? listStackView.currentItem.listView : null
+    readonly property bool hasNoConversation: conversationList !== null
+                                              && conversationList.count === 0
+                                              && conversationList.searchText.length === 0
     //: "Aucune conversation"
-    emptyListText: qsTr("chat_empty_title")
+    emptyListText: hasNoConversation ? qsTr("chat_empty_title")
+                                     //: "Sélectionnez une conversation"
+                                     : qsTr("chat_select_conversation_title")
+    emptyListSubtitle: hasNoConversation
+                       //: "Démarrez une conversation avec un collègue !"
+                       ? qsTr("chat_empty_subtitle")
+                       //: "… ou démarrez-en une nouvelle !"
+                       : qsTr("chat_select_conversation_subtitle")
+    noItemImageSource: AppIcons.noConversationImage
     newItemIconSource: AppIcons.plusCircle
 
     /**
@@ -78,7 +93,15 @@ AbstractMainPage {
         }
         AppCpp.currentChat = visible ? selectedChatGui : null
     }
+    // Comme Contacts et Appels : en quittant l'onglet, plus aucune conversation n'est ouverte,
+    // on y revient sur un panneau vide. Une ouverture precise (notification, « Envoyer un
+    // message »...) arrive une fois l'onglet affiche et n'est donc pas effacee.
+    signal clearSelectionRequested()
     onVisibleChanged: {
+        if (!visible) {
+            clearSelectionRequested()
+            selectedChatGui = null
+        }
         AppCpp.currentChat = visible ? selectedChatGui : null
     }
 
@@ -91,12 +114,11 @@ AbstractMainPage {
     onNoItemButtonPressed: goToNewChat()
     signal newChatItemOpen()
 
+    // Illustration des qu'aucune conversation n'est ouverte, liste vide ou non, plutot qu'un
+    // panneau blanc ; pas pendant le premier chargement d'une liste encore vide.
     showDefaultItem: mainItem.selectedChatGui == null
-                     && listStackView.currentItem
-                     && listStackView.currentItem.objectName == "chatListItem"
-                     && listStackView.currentItem.listView.count === 0
-                     && !listStackView.currentItem.listView.loading
-                     || false
+                     && conversationList !== null
+                     && !(conversationList.count === 0 && conversationList.loading)
 
 
     function goToNewChat() {
@@ -145,7 +167,7 @@ AbstractMainPage {
                     Layout.fillHeight: false
                     Text {
                         Layout.fillWidth: true
-                        //: "Conversations"
+                        //: "Messages", comme l'onglet
                         text: qsTr("chat_list_title")
                         maximumLineCount: 1
                         color: DefaultStyle.main2_700
@@ -206,12 +228,6 @@ AbstractMainPage {
                     focus: true
                     KeyNavigation.up: newChatButton
                     KeyNavigation.down: chatListView
-                    Binding {
-                        target: mainItem
-                        property: "showDefaultItem"
-                        when: searchBar.text.length != 0
-                        value: false
-                    }
                 }
                 Item {
                     Layout.fillWidth: true
@@ -237,6 +253,9 @@ AbstractMainPage {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             chatProxy.model: AppCpp.chats
+                            // Explicite : sans cela, la liste se place d'elle-meme sur la premiere
+                            // conversation des qu'elle se remplit, et l'ouvrait.
+                            currentIndex: -1
                             Layout.topMargin: Utils.getSizeWithScreenRatio(39)
                             searchBar: searchBar
                             Control.ScrollBar.vertical: scrollbar
@@ -257,6 +276,10 @@ AbstractMainPage {
                                 function onNewChatItemOpen() {
                                     // reset index to clear right panel when opening new conversation
                                     chatListView.currentIndex = -1
+                                }
+                                function onClearSelectionRequested() {
+                                    chatListView.currentIndex = -1
+                                    chatListView.currentChatGui = null
                                 }
                             }
                         }

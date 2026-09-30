@@ -186,6 +186,7 @@ Control.Control {
 
             Avatar {
                 id: avatar
+                shadowEnabled: false
                 visible: mainItem.isFromChatGroup && mainItem.isRemoteMessage
                 Layout.preferredWidth: mainItem.isRemoteMessage ? 26 : 0
                 Layout.preferredHeight: 26

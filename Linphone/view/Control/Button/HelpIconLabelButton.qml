@@ -42,7 +42,7 @@ Control.Control {
 			width: mainItem.iconSize
 			height: mainItem.iconSize
 			imageSource: mainItem.iconSource
-			colorizationColor: DefaultStyle.main1_500_main
+			colorizationColor: DefaultStyle.main1_button
 		}
 		ColumnLayout {
 			width: implicitWidth

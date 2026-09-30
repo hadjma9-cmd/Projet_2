@@ -68,6 +68,7 @@ class FriendCore : public QObject, public AbstractObject {
 	Q_PROPERTY(QColor presenceColor READ getPresenceColor NOTIFY presenceChanged)
 	Q_PROPERTY(QString presenceStatus READ getPresenceStatus NOTIFY presenceChanged)
 	Q_PROPERTY(QString presenceNote MEMBER mPresenceNote NOTIFY presenceChanged)
+	Q_PROPERTY(bool inCall MEMBER mInCall NOTIFY presenceChanged)
 	Q_PROPERTY(bool isSaved READ getIsSaved NOTIFY isSavedChanged)
 	Q_PROPERTY(bool isStored READ getIsStored NOTIFY isStoredChanged)
 	Q_PROPERTY(QString pictureUri READ getPictureUri WRITE setPictureUri NOTIFY pictureUriChanged)
@@ -192,6 +193,7 @@ protected:
 	QColor mPresenceColor;
 	QString mPresenceStatus;
 	QString mPresenceNote = "";
+	bool mInCall = false; // En communication : prime sur le statut choisi, sans le remplacer
 	QString mGivenName;
 	QString mFamilyName;
 	QString mFullName;
@@ -215,6 +217,7 @@ protected:
 
 private:
 	void setPresence(LinphoneEnums::Presence presence, QString presenceNote);
+	void setInCall(bool inCall);
 
 	DECLARE_ABSTRACT_OBJECT
 };

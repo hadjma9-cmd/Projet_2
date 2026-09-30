@@ -17,7 +17,8 @@ Flickable {
     property bool showActions: false // Display actions layout (call buttons)
     property bool showContactMenu: true // Display the dot menu for contacts.
     property bool showFavorites: true // Display the favorites in the header
-    property bool hideSuggestions: false // Hide not stored contacts (not suggestions)
+    // Section « Suggestions » (adresses hors contacts : historique, saisie...) jamais affichee.
+    property bool hideSuggestions: true // Hide not stored contacts (not suggestions)
     property bool showMe: true // Wether to display current account address or not (disabled for adding participants)
     property string highlightText: searchText // Bold characters in Display name.
     property var sourceFlags: LinphoneEnums.MagicSearchSource.All
@@ -32,8 +33,20 @@ Flickable {
     property FriendGui highlightedContact
 
     property bool searchOnEmpty: true
-    property bool loading: false
+    // Vrai des la creation quand une recherche va partir : sinon « Aucun contact » s'affiche
+    // le temps que le modele s'initialise.
+    property bool loading: searchOnEmpty
     property bool pauseSearch: false // true = don't search on text change
+    // Formulaires d'appel : un numero compose ne fait ressortir que le contact dont c'est le
+    // numero, et cette correspondance remplace alors la suggestion d'appeler le numero brut.
+    property bool exactNumberMatch: false
+    readonly property bool numberMatchesContact: exactNumberMatch && contactsList.count > 0
+                                                 && isDialedNumber(searchText)
+    // Meme regle que MagicSearchProxy : chiffres et + * #, au moins un chiffre (« * » seul est
+    // la recherche « tout afficher »), separateurs ignores.
+    function isDialedNumber(text) {
+        return /^\+?[0-9*#]*[0-9][0-9*#]*$/.test((text || "").replace(/[\s.()\/-]/g, ""))
+    }
 
     // Model properties
     // set searchBarText without specifying a model to bold
@@ -117,6 +130,9 @@ Flickable {
     property bool silentRefresh: false
     function refresh() {
         silentRefresh = true
+        // La liste affichee reste en place pendant la relance (MagicSearchList) ; loading
+        // n'affiche le sablier que si elle est vide, et evite « Aucun contact » entre-temps.
+        loading = true
         mainModel.forceUpdate()
     }
     function resetSelections() {
@@ -220,6 +236,7 @@ Flickable {
         id: magicSearchProxy
         searchText: mainItem.searchText
         showMe: mainItem.showMe
+        exactNumberMatch: mainItem.exactNumberMatch
         aggregationFlag: LinphoneEnums.MagicSearchAggregation.Friend
         sourceFlags: mainItem.sourceFlags
         onModelReset: {
@@ -421,7 +438,8 @@ Flickable {
             model: MagicSearchProxy {
                 id: suggestionsProxy
                 parentProxy: mainItem.mainModel
-                filterType: mainItem.hideSuggestions ? MagicSearchProxy.FilteringTypes.None : MagicSearchProxy.FilteringTypes.Other
+                filterType: mainItem.hideSuggestions || mainItem.numberMatchesContact
+                            ? MagicSearchProxy.FilteringTypes.None : MagicSearchProxy.FilteringTypes.Other
                 initialDisplayItems: contactsProxy.haveMore && contactsList.expanded 
                     ? 0 
                     : Math.max(20, Math.round(2 * mainItem.height / Utils.getSizeWithScreenRatio(63)))

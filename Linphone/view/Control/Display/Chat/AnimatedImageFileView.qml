@@ -23,7 +23,7 @@ AnimatedImage {
 	mipmap: false//SettingsModel.mipmapEnabled
 	autoTransform: true
 	fillMode: Image.PreserveAspectFit
-	source: contentGui && UtilsCpp.isAnimatedImage(contentGui.core.filePath) ? ('file:/'+ contentGui.core.filePath) : ""
+	source: contentGui && contentGui.core.isAnimatedImage ? ('file:/'+ contentGui.core.filePath) : ""
 	// sourceSize.width: implicitWidth
 	// sourceSize.height: implicitHeight
 	states: State {

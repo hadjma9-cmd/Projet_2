@@ -15,6 +15,10 @@ Button {
 	shadowEnabled: mainItem.activeFocus || hovered
 	style: ButtonStyle.hoveredBackground
 	property bool inverseLayout: false
+	// Seconde couche facultative, posee sur l'icone dans sa propre couleur (ex. : barre rouge
+	// de la cloche barree) : EffectImage ne teint une image que d'une seule couleur.
+	property url overlayIconSource: ""
+	property color overlayIconColor: "transparent"
 	spacing: Utils.getSizeWithScreenRatio(5)
 
 	contentItem: RowLayout {
@@ -31,6 +35,16 @@ Button {
 					: mainItem.contentImageColor
 			Layout.preferredWidth: mainItem.icon.width
 			Layout.preferredHeight: mainItem.icon.height
+			// Chargee a la demande : aucun cout pour les autres boutons, et un effet neuf a
+			// chaque changement (voir la remarque en tete d'EffectImage).
+			Loader {
+				anchors.fill: parent
+				active: mainItem.overlayIconSource.toString().length !== 0
+				sourceComponent: EffectImage {
+					imageSource: mainItem.overlayIconSource
+					colorizationColor: mainItem.overlayIconColor
+				}
+			}
 		}
 		Text {
 			id: textItem

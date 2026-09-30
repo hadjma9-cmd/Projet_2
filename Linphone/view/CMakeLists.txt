@@ -129,6 +129,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Tool/Prototype/ItemPrototype.qml
 	view/Control/Tool/Prototype/PhoneNumberPrototype.qml
 
+	view/Page/Form/Call/DialerForm.qml
 	view/Page/Form/Call/NewCallForm.qml
 	view/Page/Form/Chat/NewChatForm.qml
 	view/Page/Form/Chat/SelectedChatView.qml

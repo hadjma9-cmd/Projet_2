@@ -244,6 +244,9 @@ signals:
 	void currentChatChanged();
 	void conferenceInfosChanged();
 	void chatsChanged();
+	// Evenements d'une conversation perimes (conversation ou historique supprime) : a retirer des
+	// caches de messages (EventLogList).
+	void chatEventsInvalidated(const QString &chatId);
 	void callHistoryChanged();
 	void localeChanged();
 	void lForceOidcTimeout();

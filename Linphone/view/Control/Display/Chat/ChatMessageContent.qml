@@ -85,7 +85,9 @@ ColumnLayout {
 	ImageFileView {
 		id: singleImageFile
 		cache: false
-		visible: mainItem.filescontentProxy.count === 1 && source !== "" && UtilsCpp.isImage(contentGui.core.filePath)
+		// Image illisible : on retombe sur la fiche fichier plutot que sur une bulle vide.
+		visible: mainItem.filescontentProxy.count === 1 && source !== "" && status !== Image.Error
+			&& contentGui.core.isImage
 		contentGui: mainItem.filescontentProxy.count === 1
 			? mainItem.filescontentProxy.getChatMessageContentAtIndex(0)
 			: null
@@ -95,7 +97,7 @@ ColumnLayout {
 	}
 	AnimatedImageFileView {
 		id: singleAnimatedImageFile
-		visible: mainItem.filescontentProxy.count === 1 && source !== "" && UtilsCpp.isAnimatedImage(contentGui.core.filePath)
+		visible: mainItem.filescontentProxy.count === 1 && source !== "" && contentGui.core.isAnimatedImage
 		contentGui: mainItem.filescontentProxy.count === 1
 			? mainItem.filescontentProxy.getChatMessageContentAtIndex(0)
 			: null
@@ -122,7 +124,7 @@ ColumnLayout {
 	}
 	VideoFileView {
 		id: singleVideoFile
-		visible: mainItem.filescontentProxy.count === 1 && UtilsCpp.isVideo(contentGui.core.filePath)
+		visible: mainItem.filescontentProxy.count === 1 && contentGui.core.isVideo
 		contentGui: mainItem.filescontentProxy.count === 1
 			? mainItem.filescontentProxy.getChatMessageContentAtIndex(0)
 			: null

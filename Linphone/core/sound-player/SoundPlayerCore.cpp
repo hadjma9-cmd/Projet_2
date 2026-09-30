@@ -44,6 +44,7 @@ SoundPlayerCore::SoundPlayerCore(QObject *parent) {
 
 SoundPlayerCore::~SoundPlayerCore() {
 	// mForceCloseTimer->stop();
+	if (mSoundPlayerModel) emit mSoundPlayerModel->removeListener();
 }
 
 void SoundPlayerCore::setSelf(QSharedPointer<SoundPlayerCore> me) {
@@ -80,6 +81,8 @@ void SoundPlayerCore::buildInternalPlayer(QSharedPointer<SoundPlayerCore> me) {
 	mHasVideo = player->getIsVideoAvailable();
 	mDuration = player->getDuration();
 
+	// Lecteur reconstruit (changement de peripherique) : l'ancien se desinscrit du SDK pour etre libere.
+	if (mSoundPlayerModel) emit mSoundPlayerModel->removeListener();
 	mSoundPlayerModel = Utils::makeQObject_ptr<SoundPlayerModel>(player);
 	mSoundPlayerModel->setSelf(mSoundPlayerModel);
 	mSoundPlayerModelConnection = SafeConnection<SoundPlayerCore, SoundPlayerModel>::create(me, mSoundPlayerModel);

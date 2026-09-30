@@ -1,0 +1,27 @@
+<svg width="360" height="314" viewBox="0 0 360 314" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Aucune conversation : deux bulles aux couleurs du theme bleu_gama, sur un disque clair. -->
+  <defs>
+    <linearGradient id="bubbleGradient" x1="142" y1="150" x2="298" y2="262" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#045091"/>
+      <stop offset="1" stop-color="#187FA3"/>
+    </linearGradient>
+  </defs>
+  <circle cx="180" cy="150" r="128" fill="#EEF5F8"/>
+  <ellipse cx="182" cy="283" rx="98" ry="7" fill="#045091" fill-opacity="0.07"/>
+  <!-- Bulle recue -->
+  <path d="M88 78H212A26 26 0 0 1 238 104V156A26 26 0 0 1 212 182H118L92 204L96 182H88A26 26 0 0 1 62 156V104A26 26 0 0 1 88 78Z" fill="#FFFFFF" stroke="#D1E5ED" stroke-width="2" stroke-linejoin="round"/>
+  <rect x="86" y="104" width="124" height="10" rx="5" fill="#D1E5ED"/>
+  <rect x="86" y="124" width="132" height="10" rx="5" fill="#D1E5ED"/>
+  <rect x="86" y="144" width="84" height="10" rx="5" fill="#D1E5ED"/>
+  <!-- Bulle envoyee, ombre portee puis bulle -->
+  <path d="M170 156H278A24 24 0 0 1 302 180V224A24 24 0 0 1 278 248H272L276 268L250 248H170A24 24 0 0 1 146 224V180A24 24 0 0 1 170 156Z" fill="#045091" fill-opacity="0.10"/>
+  <path d="M166 150H274A24 24 0 0 1 298 174V218A24 24 0 0 1 274 242H268L272 262L246 242H166A24 24 0 0 1 142 218V174A24 24 0 0 1 166 150Z" fill="url(#bubbleGradient)"/>
+  <circle cx="192" cy="196" r="7" fill="#FFFFFF"/>
+  <circle cx="220" cy="196" r="7" fill="#FFFFFF" fill-opacity="0.8"/>
+  <circle cx="248" cy="196" r="7" fill="#FFFFFF" fill-opacity="0.6"/>
+  <!-- Touches discretes -->
+  <circle cx="292" cy="94" r="6" fill="#74B2C8" fill-opacity="0.6"/>
+  <circle cx="310" cy="124" r="3" fill="#A3CCDA"/>
+  <circle cx="66" cy="238" r="4" fill="#A3CCDA"/>
+  <circle cx="48" cy="112" r="5" fill="#D1E5ED"/>
+</svg>

@@ -1201,7 +1201,7 @@ DEFINE_GETSET_CONFIG_STRING(SettingsModel,
 							themeMainColor,
 							ThemeMainColor,
 							"theme_main_color",
-							"orange")
+							"bleu_gama")
 DEFINE_GETSET_CONFIG_STRING(SettingsModel,
 							themeAboutPictureUrl,
 							ThemeAboutPictureUrl,

@@ -23,6 +23,51 @@
 
 #include "core/App.hpp"
 #include "core/friend/FriendCore.hpp"
+#include "tool/Utils.hpp"
+
+#include <QRegularExpression>
+
+namespace {
+// Separateurs toleres dans un numero : espaces, points, tirets, parentheses, barres obliques.
+QString withoutNumberSeparators(QString text) {
+	static const QRegularExpression separators("[\\s.()/-]");
+	return text.remove(separators);
+}
+
+// Le numero compose si le texte n'est fait que de chiffres et de + * # (au moins un chiffre :
+// « * » seul est la recherche « tout afficher »), sinon une chaine vide.
+QString dialedNumber(const QString &filter) {
+	static const QRegularExpression number("^\\+?[0-9*#]*[0-9][0-9*#]*$");
+	const QString text = withoutNumberSeparators(filter);
+	return number.match(text).hasMatch() ? text : QString();
+}
+
+// Un contact correspond a la recherche si son nom affiche, ou l'identifiant d'une de ses
+// adresses, contient le texte cherche sans tenir compte de la casse : exactement la regle
+// qu'applique Utils::boldTextPart pour mettre les correspondances en gras dans la liste.
+// Le domaine des adresses est volontairement ecarte, sinon « fr » ferait ressortir tout
+// l'annuaire.
+bool matchesSearchFilter(const QSharedPointer<FriendCore> &friendCore, const QString &filter, bool exactNumberMatch) {
+	// « * » et le texte vide sont les recherches « tout afficher » (cf. AllContactListView).
+	if (filter.isEmpty() || filter == "*") return true;
+	// Numero compose sur le pave d'un formulaire d'appel : seul un contact dont un identifiant
+	// ou un numero est ce numero ressort, et non tous ceux qui en contiennent les chiffres.
+	const QString number = exactNumberMatch ? dialedNumber(filter) : QString();
+	if (!number.isEmpty()) {
+		for (auto &friendAddress : friendCore->getAllAddresses()) {
+			auto username = Utils::getUsername(friendAddress.toMap()["address"].toString());
+			if (withoutNumberSeparators(username) == number) return true;
+		}
+		return false;
+	}
+	if (friendCore->getFullName().contains(filter, Qt::CaseInsensitive)) return true;
+	for (auto &friendAddress : friendCore->getAllAddresses()) {
+		auto address = friendAddress.toMap()["address"].toString();
+		if (Utils::getUsername(address).contains(filter, Qt::CaseInsensitive)) return true;
+	}
+	return false;
+}
+} // namespace
 
 MagicSearchProxy::MagicSearchProxy(QObject *parent) : LimitProxy(parent) {
 	auto magicSearchList = MagicSearchList::create();
@@ -79,6 +124,11 @@ void MagicSearchProxy::setList(QSharedPointer<MagicSearchList> newList) {
 			        [this, sortFilterList]() { sortFilterList->invalidate(); });
 		}
 	}
+	// Reglage porte par la liste, partagee avec les listes filles (parentProxy) : toutes refiltrent.
+	connect(mList.get(), &MagicSearchList::exactNumberMatchChanged, sortFilterList, [this, sortFilterList]() {
+		sortFilterList->invalidate();
+		emit exactNumberMatchChanged();
+	});
 	connect(
 	    mList.get(), &MagicSearchList::friendStarredChanged, this,
 	    [this, sortFilterList]() {
@@ -157,6 +207,14 @@ void MagicSearchProxy::setShowMe(bool showMe) {
 	mList->setShowMe(showMe);
 }
 
+bool MagicSearchProxy::getExactNumberMatch() const {
+	return mList->getExactNumberMatch();
+}
+
+void MagicSearchProxy::setExactNumberMatch(bool exact) {
+	mList->setExactNumberMatch(exact);
+}
+
 MagicSearchProxy *MagicSearchProxy::getParentProxy() const {
 	return mParentProxy;
 }
@@ -218,6 +276,15 @@ bool MagicSearchProxy::SortFilterList::filterAcceptsRow(int sourceRow, const QMo
 		}
 		if (!toShow && (mFilterType & (int)FilteringTypes::Other) > 0) {
 			toShow = !friendCore->getIsStored() && !friendCore->isLdap();
+		}
+
+		// L'annuaire LDAP renvoie tout l'annuaire quel que soit le filtre envoye (le serveur
+		// l'ignore), et le SDK n'applique alors aucun filtre local. Sans ce test, la recherche
+		// se contentait de mettre les correspondances en gras sans retirer les autres contacts.
+		if (toShow) {
+			auto list = dynamic_cast<MagicSearchList *>(sourceModel());
+			toShow = list ? matchesSearchFilter(friendCore, list->getSearch(), list->getExactNumberMatch())
+			              : matchesSearchFilter(friendCore, QString(), false);
 		}
 
 		if (toShow && mHideListProxy) {

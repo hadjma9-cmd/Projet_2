@@ -124,12 +124,14 @@ CallCore::CallCore(const std::shared_ptr<linphone::Call> &call) : QObject(nullpt
 	mRemoteAddress = Utils::coreStringToAppString(remoteAddress->asStringUriOnly());
 	mRemoteUsername = Utils::coreStringToAppString(remoteAddress->getUsername());
 	mCallId = Utils::coreStringToAppString(call->getCallLog()->getCallId());
-	auto linphoneFriend = ToolModel::findFriendByAddress(remoteAddress);
+	// Messagerie vocale : son nom (getDisplayName), pas celui d'un contact ou d'une recherche.
+	const bool isVoicemail = ToolModel::isVoicemailAddress(remoteAddress);
+	auto linphoneFriend = isVoicemail ? nullptr : ToolModel::findFriendByAddress(remoteAddress);
 	if (linphoneFriend)
 		mRemoteName = Utils::coreStringToAppString(
 		    linphoneFriend->getVcard() ? linphoneFriend->getVcard()->getFullName() : linphoneFriend->getName());
 	if (mRemoteName.isEmpty()) mRemoteName = ToolModel::getDisplayName(remoteAddress);
-	mShouldFindRemoteFriend = !linphoneFriend;
+	mShouldFindRemoteFriend = !linphoneFriend && !isVoicemail;
 	if (mShouldFindRemoteFriend) {
 		mShouldFindRemoteFriend = CoreModel::getInstance()->getCore()->getRemoteContactDirectories().size() > 0;
 	}
@@ -186,6 +188,8 @@ CallCore::~CallCore() {
 	mustBeInMainThread("~" + getClassName());
 	mCallModelConnection->disconnect();
 	emit mCallModel->removeListener();
+	// Recherche du nom d'un numero inconnu : meme desinscription, sinon elle restait en memoire.
+	if (mRemoteMagicSearchModel) emit mRemoteMagicSearchModel->removeListener();
 }
 
 void CallCore::setSelf(QSharedPointer<CallCore> me) {
@@ -497,7 +501,7 @@ void CallCore::setSelf(QSharedPointer<CallCore> me) {
 	mCallModelConnection->makeConnectToModel(&CallModel::headsetEndCallRequested, [this]() {
 		mCallModelConnection->invokeToCore([this]() {
 			const auto window = Utils::getOrCreateCallsWindow();
-			window->setProperty("callTerminatedByUser", true);
+			if (window) window->setProperty("callTerminatedByUser", true);
 			lTerminate();
 		});
 	});
@@ -919,9 +923,9 @@ void CallCore::findRemoteFriend(QSharedPointer<CallCore> me) {
 		    if (!remoteFriend && results.size() > 0) remoteFriend = results.front()->getFriend(); // Then result friend.
 		    if (remoteFriend) name = Utils::coreStringToAppString(remoteFriend->getName());
 		    else if (results.size() > 0) // Then result address.
-			    name = Utils::coreStringToAppString(results.front()->getAddress()->getDisplayName());
+			    name = Utils::coreStringToAppString(Utils::addressDisplayName(results.front()->getAddress()));
 		    if (name.isEmpty() && results.size() > 0)
-			    name = Utils::coreStringToAppString(results.front()->getAddress()->getUsername());
+			    name = Utils::coreStringToAppString(Utils::addressUsername(results.front()->getAddress()));
 		    if (!name.isEmpty())
 			    mRemoteMagicSearchModelConnection->invokeToCore([this, name]() {
 				    mustBeInMainThread(log().arg(Q_FUNC_INFO));

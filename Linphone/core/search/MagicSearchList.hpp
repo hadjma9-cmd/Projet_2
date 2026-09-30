@@ -45,6 +45,9 @@ public:
 	void setSearch(const QString &search);
 	QString getSearch() const;
 	void setResults(const QList<QSharedPointer<FriendCore>> &contacts);
+	// Met la liste a jour sans la reconstruire : ajoute les nouveaux, retire les disparus,
+	// garde en place ceux qui n'ont pas change (et donc leur presence deja connue).
+	void mergeResults(const QList<QSharedPointer<FriendCore>> &contacts);
 	void add(QSharedPointer<FriendCore> contact);
 
 	int getSourceFlags() const;
@@ -58,6 +61,11 @@ public:
 
 	bool getShowMe() const;
 	void setShowMe(bool showMe);
+
+	// Formulaires d'appel : un numero compose ne retient que les contacts dont un identifiant
+	// ou un numero lui est egal (voir MagicSearchProxy).
+	bool getExactNumberMatch() const;
+	void setExactNumberMatch(bool exact);
 
 	virtual QHash<int, QByteArray> roleNames() const override;
 	virtual QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -73,6 +81,7 @@ signals:
 	void aggregationFlagChanged(LinphoneEnums::MagicSearchAggregation flag);
 	void maxResultsChanged(int maxResults);
 	void showMeChanged(bool showMe);
+	void exactNumberMatchChanged(bool exact);
 
 	void friendCreated(int index, FriendGui *data);
 	void friendStarredChanged();
@@ -87,6 +96,10 @@ private:
 	QString mSearchFilter;
 	int mMaxResults = -1;
 	bool mShowMe = false;
+	bool mExactNumberMatch = false;
+	// Parametres de la derniere recherche lancee : une relance a l'identique garde les
+	// resultats affiches jusqu'a l'arrivee des nouveaux.
+	QString mLastSearchKey;
 
 	std::shared_ptr<MagicSearchModel> mMagicSearch;
 	QSharedPointer<SafeConnection<MagicSearchList, MagicSearchModel>> mModelConnection;

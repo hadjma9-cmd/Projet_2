@@ -47,6 +47,10 @@ void LimitProxy::invalidateFilter() {
 #endif
 }
 void LimitProxy::setSourceModels(SortFilterProxy *firstList) {
+	// Le filtre est propre a cette vue : il disparait avec elle. Il appartenait a la liste filtree,
+	// souvent partagee et permanente (historique d'appels, comptes, reunions) : chaque vue detruite y
+	// laissait son filtre, toujours recalcule a chaque mise a jour de la liste (gels croissants).
+	firstList->setParent(this);
 	auto secondList = firstList->sourceModel();
 	if (secondList) {
 		connect(secondList, &QAbstractItemModel::rowsInserted, this, &LimitProxy::onAdded);

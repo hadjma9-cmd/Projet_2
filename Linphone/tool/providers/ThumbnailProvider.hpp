@@ -35,6 +35,7 @@ class ThumbnailAsyncImageResponse : public QQuickImageResponse, public AbstractO
 public:
 	ThumbnailAsyncImageResponse(const QString &id, const QSize &requestedSize);
 
+	QString errorString() const override; // Non vide si la miniature n'a pas pu etre creee : l'image passe en erreur
 	QQuickTextureFactory *textureFactory() const override; // Convert QImage into texture. If Image is null, then
 	                                                       // sourceSize will be egal to 0. So there will be no errors.
 
@@ -54,6 +55,8 @@ public:
 	virtual QQuickImageResponse *requestImageResponse(const QString &id, const QSize &requestedSize) override;
 
 	static const QString ProviderId;
+	// URL image:// d'un fichier : chemin normalise et encode (espaces, barres inversees, #, %).
+	static QString thumbnailUrl(const QString &filePath);
 };
 
 #endif // THUMBNAIL_PROVIDER_H_

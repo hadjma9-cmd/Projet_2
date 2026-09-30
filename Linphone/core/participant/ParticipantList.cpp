@@ -78,7 +78,7 @@ void ParticipantList::setSelf(QSharedPointer<ParticipantList> me) {
 		    mCoreModelConnection->invokeToModel([this, conferenceModel, address, status] {
 			    auto participants = conferenceModel->getMonitor()->getParticipantList();
 			    for (auto &participant : participants) {
-				    if (Utils::coreStringToAppString(participant->getAddress()->asStringUriOnly()) == address) {
+				    if (Utils::coreStringToAppString(Utils::addressUriOnly(participant->getAddress())) == address) {
 					    conferenceModel->setParticipantAdminStatus(participant, status);
 					    return;
 				    }

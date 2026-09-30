@@ -28,4 +28,6 @@ IndentWidth:     4
 Standard:        c++14
 TabWidth:        4
 UseTab:          ForIndentation
+# emit est la macro Qt (comme Q_EMIT) : sans cela, clang-format recent coupe `emit a->b()` en `emit a -> b()`.
+StatementAttributeLikeMacros: [Q_EMIT, emit]
 ...

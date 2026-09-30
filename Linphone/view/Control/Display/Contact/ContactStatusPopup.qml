@@ -13,19 +13,31 @@ import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 
 PopupButton {
     id: presenceAndRegistrationItem
-    width: presenceOrRegistrationText.implicitWidth + Utils.getSizeWithScreenRatio(50)
-    height: Utils.getSizeWithScreenRatio(24)
-    enabled: mainItem.account && mainItem.account.core.registrationState === LinphoneEnums.RegistrationState.Ok
+    // Le compte est passe explicitement. Ce composant le lisait auparavant sur un parent
+    // nomme mainItem, par portee dynamique : il n'etait donc utilisable que sous un tel
+    // parent (Contact.qml). Le bandeau principal peut desormais s'en servir aussi.
+    property AccountGui account: null
+    // Tailles reglables ; les valeurs par defaut sont celles d'origine (liste des comptes).
+    property real barHeight: Utils.getSizeWithScreenRatio(24)
+    property real textPixelSize: Utils.getSizeWithScreenRatio(12)
+    property int textWeight: Utils.getSizeWithScreenRatio(300)
+    property real statusIconSize: Utils.getSizeWithScreenRatio(11)
+    property real arrowSize: Utils.getSizeWithScreenRatio(14)
+    // 25 = marges et espacements ; avec les tailles par defaut on retrouve les 50 d'origine.
+    width: presenceOrRegistrationText.implicitWidth + statusIconSize + arrowSize + Utils.getSizeWithScreenRatio(25)
+    height: barHeight
+    enabled: presenceAndRegistrationItem.account && presenceAndRegistrationItem.account.core.registrationState === LinphoneEnums.RegistrationState.Ok
     onEnabledChanged: if(!enabled) close()
     property bool editCustomStatus : false
     contentItem: Control.Control {
         id: presenceBar
-        property bool isRegistered: mainItem.account?.core.registrationState === LinphoneEnums.RegistrationState.Ok
+        property bool isRegistered: presenceAndRegistrationItem.account?.core.registrationState === LinphoneEnums.RegistrationState.Ok
 	    property bool keyboardFocus: FocusHelper.keyboardFocus
         background: Rectangle {
-            color: UtilsCpp.getPresenceBackgroundColor(mainItem.account.core.presence)
+            color: UtilsCpp.getPresenceBackgroundColor(presenceAndRegistrationItem.account.core.presence)
             border.color: DefaultStyle.main2_900
-            border.width: keyboardFocus ? Utils.getSizeWithScreenRatio(3) : 0
+            // Pas de contour noir de focus clavier, comme pour les boutons (Button.qml).
+            border.width: 0
             radius: Utils.getSizeWithScreenRatio(15)
         }
 
@@ -33,17 +45,17 @@ PopupButton {
             anchors.fill: parent
             Image {
                 id: registrationImage
-                sourceSize.width: Utils.getSizeWithScreenRatio(11)
-                sourceSize.height: Utils.getSizeWithScreenRatio(11)
+                sourceSize.width: presenceAndRegistrationItem.statusIconSize
+                sourceSize.height: presenceAndRegistrationItem.statusIconSize
                 smooth: false
-                Layout.preferredWidth: Utils.getSizeWithScreenRatio(11)
-                Layout.preferredHeight: Utils.getSizeWithScreenRatio(11)
+                Layout.preferredWidth: presenceAndRegistrationItem.statusIconSize
+                Layout.preferredHeight: presenceAndRegistrationItem.statusIconSize
                 source: presenceBar.isRegistered 
-                    ? mainItem.account.core.presenceIcon 
-                    : mainItem.account?.core.registrationIcon || ""
+                    ? presenceAndRegistrationItem.account.core.presenceIcon 
+                    : presenceAndRegistrationItem.account?.core.registrationIcon || ""
                 Layout.leftMargin: Utils.getSizeWithScreenRatio(8)
                 RotationAnimator on rotation {
-                    running: mainItem.account && mainItem.account.core.registrationState === LinphoneEnums.RegistrationState.Progress
+                    running: presenceAndRegistrationItem.account && presenceAndRegistrationItem.account.core.registrationState === LinphoneEnums.RegistrationState.Progress
                     direction: RotationAnimator.Clockwise
                     from: 0
                     to: 360
@@ -55,18 +67,18 @@ PopupButton {
                 id: presenceOrRegistrationText
                 verticalAlignment: Text.AlignVCenter
                 horizontalAlignment: Text.AlignHCenter
-                visible: mainItem.account
-                font.weight: Utils.getSizeWithScreenRatio(300)
-                font.pixelSize: Utils.getSizeWithScreenRatio(12)
-                color: presenceBar.isRegistered ? mainItem.account.core.presenceColor : mainItem.account?.core.registrationColor
-                text: presenceBar.isRegistered ? mainItem.account.core.presenceStatus : mainItem.account?.core.humaneReadableRegistrationState
+                visible: presenceAndRegistrationItem.account
+                font.weight: presenceAndRegistrationItem.textWeight
+                font.pixelSize: presenceAndRegistrationItem.textPixelSize
+                color: presenceBar.isRegistered ? presenceAndRegistrationItem.account.core.presenceColor : presenceAndRegistrationItem.account?.core.registrationColor
+                text: presenceBar.isRegistered ? presenceAndRegistrationItem.account.core.presenceStatus : presenceAndRegistrationItem.account?.core.humaneReadableRegistrationState
             }
             EffectImage {
                 fillMode: Image.PreserveAspectFit
                 imageSource: AppIcons.downArrow
                 colorizationColor: DefaultStyle.main2_600
-                Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
-                Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
+                Layout.preferredHeight: presenceAndRegistrationItem.arrowSize
+                Layout.preferredWidth: presenceAndRegistrationItem.arrowSize
                 Layout.rightMargin: Utils.getSizeWithScreenRatio(8)
             }
         }
@@ -82,7 +94,7 @@ PopupButton {
                 visible: !presenceAndRegistrationItem.editCustomStatus
                 anchors.fill: parent
                 anchors.margins: Utils.getSizeWithScreenRatio(20)
-                accountGui: mainItem.account
+                accountGui: presenceAndRegistrationItem.account
                 onSetCustomStatusClicked: {
                     presenceAndRegistrationItem.editCustomStatus = true
                 }
@@ -93,7 +105,7 @@ PopupButton {
                 visible: presenceAndRegistrationItem.editCustomStatus
                 anchors.fill: parent
                 anchors.margins: Utils.getSizeWithScreenRatio(20)
-                accountGui: mainItem.account
+                accountGui: presenceAndRegistrationItem.account
                 onVisibleChanged: {
                     if (!visible) {
                         presenceAndRegistrationItem.editCustomStatus = false

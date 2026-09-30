@@ -102,6 +102,7 @@ Control.Control{
 			height: contactStatusPopup.height
 			ContactStatusPopup{
 				id: contactStatusPopup
+				account: mainItem.account
 				visible: mainItem.account.core.publishEnabled
 			}
 			MouseArea {

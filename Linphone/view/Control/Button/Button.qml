@@ -20,7 +20,7 @@ Control.Button {
 	property bool hasNavigationFocus: enabled && (activeFocus || hovered)
 	property bool keyboardFocus: FocusHelper.keyboardFocus
 	// Background properties
-	property color color: style?.color?.normal || DefaultStyle.main1_500_main
+	property color color: style?.color?.normal || DefaultStyle.main1_button
 	property color hoveredColor: style?.color?.hovered || Qt.darker(color, 1.05)
     property color pressedColor: style?.color?.pressed || Qt.darker(color, 1.1)
     property color checkedColor: style?.color?.checked || style?.color?.pressed || Qt.darker(color, 1.1)
@@ -94,8 +94,11 @@ Control.Button {
 				anchors.fill: parent
                 color: mainItem.backgroundColor
 				radius: mainItem.radius
-				border.color: mainItem.keyboardFocus ? mainItem.keyboardFocusedBorderColor : mainItem.borderColor
-				border.width: mainItem.keyboardFocus ? mainItem.keyboardFocusedBorderWidth : mainItem.borderWidth 
+				// Plus de contour noir de focus clavier : il apparaissait aussi apres un simple clic,
+				// le code rendant souvent le focus avec une raison « clavier » (PopupButton, Dialog...).
+				// La bordure propre au style (boutons secondaires) est conservee.
+				border.color: mainItem.borderColor
+				border.width: mainItem.borderWidth
 			}
 			MultiEffect {
 				enabled: mainItem.shadowEnabled

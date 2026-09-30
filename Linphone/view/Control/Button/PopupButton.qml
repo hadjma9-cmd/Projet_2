@@ -56,29 +56,38 @@ Button {
         return _getNextItem(popup.contentItem instanceof FocusScope ? popup.contentItem.children[0] : popup.contentItem, index);
     }
 
+    // Parcours borne avec retour au debut de la liste. L'ancienne version se rappelait elle-meme
+    // sans fin (depassement de pile, crash) quand le seul enfant focalisable etait masque.
     function _getPreviousItem(content, index) {
-        if (!content.visible) return null
-        if (content.visibleChildren.length == 0 || !hasFocusableChild(content))
+        if (!content || !content.visible)
             return null;
-        --index;
-        while (index >= 0) {
-            if (isFocusable(content.children[index]) && content.children[index].visible)
-                return content.children[index];
-            --index;
+        var count = content.children.length;
+        if (count === 0)
+            return null;
+        if (index <= 0 || index > count)
+            index = count;
+        for (var i = 1; i <= count; ++i) {
+            var child = content.children[(index - i + count) % count];
+            if (child && child.visible && isFocusable(child))
+                return child;
         }
-        return _getPreviousItem(content, content.visibleChildren.length);
+        return null;
     }
 
     function _getNextItem(content, index) {
-        if (content.visibleChildren.length == 0 || !hasFocusableChild(content))
+        if (!content)
             return null;
-        ++index;
-        while (index < content.children.length) {
-            if (isFocusable(content.children[index]) && content.children[index].visible)
-                return content.children[index];
-            ++index;
+        var count = content.children.length;
+        if (count === 0)
+            return null;
+        if (index < -1 || index >= count)
+            index = -1;
+        for (var i = 1; i <= count; ++i) {
+            var child = content.children[(index + i) % count];
+            if (child && child.visible && isFocusable(child))
+                return child;
         }
-        return _getNextItem(content, -1);
+        return null;
     }
 
     Keys.onPressed: event => {
@@ -88,10 +97,14 @@ Button {
                 mainItem.forceActiveFocus(Qt.TabFocusReason);
                 event.accepted = true;
             } else if (event.key == Qt.Key_Up) {
-                getPreviousItem(0).forceActiveFocus(Qt.TabFocusReason);
+                var previousItem = getPreviousItem(0);
+                if (previousItem)
+                    previousItem.forceActiveFocus(Qt.TabFocusReason);
                 event.accepted = true;
             } else if (event.key == Qt.Key_Tab || event.key == Qt.Key_Down) {
-                getNextItem(-1).forceActiveFocus(Qt.BacktabFocusReason);
+                var nextItem = getNextItem(-1);
+                if (nextItem)
+                    nextItem.forceActiveFocus(Qt.BacktabFocusReason);
                 event.accepted = true;
             }
         } else if (event.key == Qt.Key_Space) {
@@ -127,6 +140,10 @@ Button {
         imageWidth: mainItem.icon.width
         imageHeight: mainItem.icon.height
         colorizationColor: mainItem.contentImageColor
+    }
+    // Curseur main au survol, comme les autres boutons : la zone souris de Button ne le donnait pas ici.
+    HoverHandler {
+        cursorShape: Qt.PointingHandCursor
     }
     onPressed: {
         if (popup.visible)

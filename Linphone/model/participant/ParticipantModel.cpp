@@ -49,7 +49,7 @@ int ParticipantModel::getDeviceCount() {
 }
 
 QString ParticipantModel::getSipAddress() const {
-	return Utils::coreStringToAppString(mParticipant->getAddress()->asString());
+	return Utils::coreStringToAppString(Utils::addressFull(mParticipant->getAddress()));
 }
 
 std::shared_ptr<const linphone::Address> ParticipantModel::getAddress() const {

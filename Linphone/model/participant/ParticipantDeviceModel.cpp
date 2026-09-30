@@ -42,7 +42,7 @@ QString ParticipantDeviceModel::getName() const {
 
 QString ParticipantDeviceModel::getDisplayName() const {
 	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
-	return Utils::coreStringToAppString(mMonitor->getAddress()->getDisplayName());
+	return Utils::coreStringToAppString(Utils::addressDisplayName(mMonitor->getAddress()));
 }
 
 int ParticipantDeviceModel::getSecurityLevel() const {
@@ -57,7 +57,7 @@ time_t ParticipantDeviceModel::getTimeOfJoining() const {
 
 QString ParticipantDeviceModel::getAddress() const {
 	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
-	return Utils::coreStringToAppString(mMonitor->getAddress()->asStringUriOnly());
+	return Utils::coreStringToAppString(Utils::addressUriOnly(mMonitor->getAddress()));
 }
 
 bool ParticipantDeviceModel::getPaused() const {
@@ -98,14 +98,14 @@ void ParticipantDeviceModel::onIsMuted(const std::shared_ptr<linphone::Participa
 }
 void ParticipantDeviceModel::onStateChanged(const std::shared_ptr<linphone::ParticipantDevice> &participantDevice,
                                             linphone::ParticipantDevice::State state) {
-	lDebug() << log().arg(Q_FUNC_INFO) << participantDevice->getAddress()->asStringUriOnly() << (int)state;
+	lDebug() << log().arg(Q_FUNC_INFO) << Utils::addressUriOnly(participantDevice->getAddress()) << (int)state;
 	emit stateChanged(LinphoneEnums::fromLinphone(state));
 }
 void ParticipantDeviceModel::onStreamCapabilityChanged(
     const std::shared_ptr<linphone::ParticipantDevice> &participantDevice,
     linphone::MediaDirection direction,
     linphone::StreamType streamType) {
-	lDebug() << log().arg(Q_FUNC_INFO) << participantDevice->getAddress()->asStringUriOnly() << (int)direction
+	lDebug() << log().arg(Q_FUNC_INFO) << Utils::addressUriOnly(participantDevice->getAddress()) << (int)direction
 	         << (int)streamType;
 	emit streamCapabilityChanged(streamType);
 }
@@ -113,7 +113,7 @@ void ParticipantDeviceModel::onStreamAvailabilityChanged(
     const std::shared_ptr<linphone::ParticipantDevice> &participantDevice,
     bool available,
     linphone::StreamType streamType) {
-	lDebug() << log().arg(Q_FUNC_INFO) << participantDevice->getAddress()->asStringUriOnly() << available
+	lDebug() << log().arg(Q_FUNC_INFO) << Utils::addressUriOnly(participantDevice->getAddress()) << available
 	         << (int)streamType;
 	emit streamAvailabilityChanged(streamType);
 }

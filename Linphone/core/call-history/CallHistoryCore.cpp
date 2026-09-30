@@ -66,7 +66,7 @@ CallHistoryCore::CallHistoryCore(const std::shared_ptr<linphone::CallLog> &callL
 		}
 	} else {
 		mRemoteAddress = Utils::coreStringToAppString(addr->asStringUriOnly());
-		auto linphoneFriend = ToolModel::findFriendByAddress(addr);
+		auto linphoneFriend = ToolModel::isVoicemailAddress(addr) ? nullptr : ToolModel::findFriendByAddress(addr);
 		if (linphoneFriend) {
 			mFriendModel = Utils::makeQObject_ptr<FriendModel>(linphoneFriend);
 			mDisplayName = mFriendModel->getFullName();
@@ -97,39 +97,43 @@ void CallHistoryCore::setSelf(QSharedPointer<CallHistoryCore> me) {
 		});
 	}
 	auto update = [this, remoteAddress = mRemoteAddress](const std::shared_ptr<linphone::Friend> &updatedFriend) {
-		auto friendModel = Utils::makeQObject_ptr<FriendModel>(updatedFriend);
-		auto displayName = friendModel->getFullName();
 		auto fAddress = ToolModel::interpretUrl(remoteAddress);
+		if (!fAddress || ToolModel::isVoicemailAddress(fAddress)) return; // Garde son nom « Messagerie ».
 		bool isThisFriend = false;
-		for (auto f : friendModel->getAddresses()) {
+		for (auto f : updatedFriend->getAddresses()) {
 			if (f->weakEqual(fAddress)) {
 				isThisFriend = true;
 				break;
 			}
 		}
-		if (isThisFriend)
-			mCoreModelConnection->invokeToCore([this, friendModel, displayName]() {
-				mFriendModel = friendModel;
-				auto me = mCoreModelConnection->mCore.mQData; // Locked from previous call.
-				mFriendModelConnection = SafeConnection<CallHistoryCore, FriendModel>::create(me, mFriendModel);
-				mFriendModelConnection->makeConnectToModel(&FriendModel::fullNameChanged, [this]() {
-					auto fullName = mFriendModel->getFullName();
-					mCoreModelConnection->invokeToCore([this, fullName]() {
-						if (fullName != mDisplayName) {
-							mDisplayName = fullName;
-							emit displayNameChanged();
-						}
-					});
+		// Chaque ligne de l'historique recoit chaque mise a jour de contact : le modele du contact
+		// n'est cree que pour les lignes qui le concernent.
+		if (!isThisFriend) return;
+		auto friendModel = Utils::makeQObject_ptr<FriendModel>(updatedFriend);
+		auto displayName = friendModel->getFullName();
+		mCoreModelConnection->invokeToCore([this, friendModel, displayName]() {
+			mFriendModel = friendModel;
+			auto me = mCoreModelConnection->mCore.mQData; // Locked from previous call.
+			mFriendModelConnection = SafeConnection<CallHistoryCore, FriendModel>::create(me, mFriendModel);
+			mFriendModelConnection->makeConnectToModel(&FriendModel::fullNameChanged, [this]() {
+				auto fullName = mFriendModel->getFullName();
+				mCoreModelConnection->invokeToCore([this, fullName]() {
+					if (fullName != mDisplayName) {
+						mDisplayName = fullName;
+						emit displayNameChanged();
+					}
 				});
-				if (displayName != mDisplayName) {
-					mDisplayName = displayName;
-					emit displayNameChanged();
-				}
-				emit friendUpdated();
 			});
+			if (displayName != mDisplayName) {
+				mDisplayName = displayName;
+				emit displayNameChanged();
+			}
+			emit friendUpdated();
+		});
 	};
-	if (!ToolModel::findFriendByAddress(mRemoteAddress))
-		mCoreModelConnection->makeConnectToModel(&CoreModel::friendCreated, update);
+	// Contact deja cherche par le constructeur : pas de seconde recherche (et pas de recherche dans
+	// l'annuaire pour l'adresse d'une reunion).
+	if (!mFriendModel) mCoreModelConnection->makeConnectToModel(&CoreModel::friendCreated, update);
 	mCoreModelConnection->makeConnectToModel(&CoreModel::friendUpdated, update);
 	mCoreModelConnection->makeConnectToModel(&CoreModel::friendRemoved, &CallHistoryCore::onRemoved);
 	// Update display name when display name has been requested from magic search cause not found in linphone friends

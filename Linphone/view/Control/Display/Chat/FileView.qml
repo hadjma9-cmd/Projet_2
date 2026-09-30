@@ -17,19 +17,21 @@ Item {
 	property string name: contentGui && contentGui.core.name
 	property string filePath: contentGui && contentGui.core.filePath
 	property bool wasDownloaded: contentGui && contentGui.core.wasDownloaded
-	property bool isAnimatedImage : contentGui && contentGui.core.wasDownloaded && UtilsCpp.isAnimatedImage(filePath)
-	property bool haveThumbnail: contentGui && UtilsCpp.canHaveThumbnail(filePath) && UtilsCpp.fileExists(filePath)
+	// Types lus depuis le coeur (calcules une fois) : UtilsCpp.isImage ouvrait le fichier a chaque
+	// creation de la vue, dans le thread graphique.
+	property bool isAnimatedImage : contentGui && contentGui.core.wasDownloaded && contentGui.core.isAnimatedImage
+	property bool haveThumbnail: contentGui && (contentGui.core.isImage || contentGui.core.isAnimatedImage || contentGui.core.isVideo) && UtilsCpp.fileExists(filePath)
 	property int fileSize: contentGui ? contentGui.core.fileSize : 0
 	property bool isTransferring
-	property bool isVideo: UtilsCpp.isVideo(filePath)
-	property bool isImage: UtilsCpp.isImage(filePath)
+	property bool isVideo: contentGui ? contentGui.core.isVideo : UtilsCpp.isVideo(filePath)
+	property bool isImage: contentGui ? contentGui.core.isImage : UtilsCpp.isImage(filePath)
 	property bool isPdf: UtilsCpp.isPdf(filePath)
 	property bool isThumbnail: isVideo || isImage || isPdf
 	// property to change default view display
 	property bool showAsSquare: true
 	// default image
 	property var imageSource: mainItem.contentGui
-		? UtilsCpp.isImage(mainItem.filePath)
+		? mainItem.isImage
 			? AppIcons.fileImage
 			:  UtilsCpp.isPdf(mainItem.filePath)
 				? AppIcons.filePdf

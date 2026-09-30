@@ -50,6 +50,30 @@
         <source>fps_counter</source>
         <translation>%1 FPS</translation>
     </message>
+    <message>
+        <location filename="../../view/Page/Window/AbstractWindow.qml" line="216"/>
+        <source>call_confirmation_question</source>
+        <extracomment>&quot;Souhaitez-vous appeler %1 ?&quot;</extracomment>
+        <translation>Möchten Sie %1 anrufen?</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Window/AbstractWindow.qml" line="214"/>
+        <source>call_confirmation_video_question</source>
+        <extracomment>&quot;Souhaitez-vous lancer un appel vidéo avec %1 ?&quot;</extracomment>
+        <translation>Möchten Sie einen Videoanruf mit %1 starten?</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Window/AbstractWindow.qml" line="208"/>
+        <source>call_confirmation_extension</source>
+        <extracomment>&quot;le poste %1&quot;</extracomment>
+        <translation>Nebenstelle %1</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Window/AbstractWindow.qml" line="221"/>
+        <source>dialog_call</source>
+        <extracomment>&quot;Appeler&quot;</extracomment>
+        <translation>Anrufen</translation>
+    </message>
 </context>
 <context>
     <name>AccountCore</name>
@@ -1477,6 +1501,18 @@
         <extracomment>&quot;Appel entrant&quot;</extracomment>
         <translation>Eingehender Anruf</translation>
     </message>
+    <message>
+        <location filename="../../view/Page/Main/Call/CallPage.qml" line="403"/>
+        <source>new_call_tab_contacts</source>
+        <extracomment>&quot;Contacts&quot;</extracomment>
+        <translation>Kontakte</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Main/Call/CallPage.qml" line="408"/>
+        <source>new_call_tab_dialer</source>
+        <extracomment>&quot;Clavier&quot;</extracomment>
+        <translation>Tastatur</translation>
+    </message>
 </context>
 <context>
     <name>CallSettingsLayout</name>
@@ -2683,6 +2719,24 @@ Stellen Sie sicher, dass Sie keine sensiblen Informationen teilen!</translation>
         <translation>Keine Chats</translation>
     </message>
     <message>
+        <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="25"/>
+        <source>chat_select_conversation_title</source>
+        <extracomment>&quot;Sélectionnez une conversation&quot;</extracomment>
+        <translation>Wählen Sie einen Chat aus</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="28"/>
+        <source>chat_empty_subtitle</source>
+        <extracomment>&quot;Démarrez une conversation avec un collègue !&quot;</extracomment>
+        <translation>Starten Sie einen Chat mit einem Kollegen!</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="30"/>
+        <source>chat_select_conversation_subtitle</source>
+        <extracomment>&quot;… ou démarrez-en une nouvelle !&quot;</extracomment>
+        <translation>… oder starten Sie einen neuen!</translation>
+    </message>
+    <message>
         <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="52"/>
         <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="66"/>
         <source>info_popup_error_title</source>
@@ -2717,7 +2771,7 @@ Stellen Sie sicher, dass Sie keine sensiblen Informationen teilen!</translation>
         <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="149"/>
         <source>chat_list_title</source>
         <extracomment>&quot;Conversations&quot;</extracomment>
-        <translation>Konversationen</translation>
+        <translation>Nachrichten</translation>
     </message>
     <message>
         <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="164"/>
@@ -4008,6 +4062,27 @@ Sie sind dabei, &quot;%1&quot; anzurufen. Möchten Sie fortfahren?</translation>
     </message>
 </context>
 <context>
+    <name>DialerForm</name>
+    <message>
+        <location filename="../../view/Page/Form/Call/DialerForm.qml" line="90"/>
+        <source>dialer_number_accessible_name</source>
+        <extracomment>&quot;Numéro à appeler&quot;</extracomment>
+        <translation>Zu wählende Nummer</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Form/Call/DialerForm.qml" line="107"/>
+        <source>dialer_number_placeholder</source>
+        <extracomment>&quot;Saisissez un numéro&quot;</extracomment>
+        <translation>Nummer eingeben</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Form/Call/DialerForm.qml" line="150"/>
+        <source>dialer_contact_extension</source>
+        <extracomment>&quot;Poste %1&quot;</extracomment>
+        <translation>Durchwahl %1</translation>
+    </message>
+</context>
+<context>
     <name>Dialog</name>
     <message>
         <location filename="../../view/Control/Popup/Dialog/Dialog.qml" line="26"/>
@@ -4736,7 +4811,7 @@ Ablauf: %1</translation>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="183"/>
         <source>bottom_navigation_conversations_label</source>
         <extracomment>&quot;Conversations&quot;</extracomment>
-        <translation>Konversationen</translation>
+        <translation>Nachrichten</translation>
     </message>
     <message>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="185"/>
@@ -4856,6 +4931,18 @@ Ablauf: %1</translation>
         <source>drawer_menu_add_account</source>
         <extracomment>&quot;Ajouter un compte&quot;</extracomment>
         <translation>Konto hinzufügen</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="277"/>
+        <source>sidebar_dialer_label</source>
+        <extracomment>&quot;Clavier&quot;</extracomment>
+        <translation>Tastatur</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="291"/>
+        <source>sidebar_voicemail_label</source>
+        <extracomment>&quot;Boîte vocale&quot;</extracomment>
+        <translation>Mailbox</translation>
     </message>
 </context>
 <context>
@@ -6889,6 +6976,12 @@ Um sie in einem kommerziellen Projekt zu aktivieren, kontaktieren Sie uns bitte.
         <extracomment>Dummy subject</extracomment>
         <translation>Dummy-Betreff</translation>
     </message>
+    <message>
+        <location filename="../../model/tool/ToolModel.cpp" line="122"/>
+        <source>voicemail_display_name</source>
+        <extracomment>&quot;Messagerie&quot;</extracomment>
+        <translation>Mailbox</translation>
+    </message>
 </context>
 <context>
     <name>UnreadNotification</name>
@@ -7055,6 +7148,12 @@ Um sie in einem kommerziellen Projekt zu aktivieren, kontaktieren Sie uns bitte.
         <location filename="../../tool/Utils.cpp" line="2009"/>
         <source>contact_presence_status_busy</source>
         <translation>Beschäftigt</translation>
+    </message>
+    <message>
+        <location filename="../../tool/Utils.cpp" line="0"/>
+        <source>contact_presence_status_in_call</source>
+        <extracomment>&quot;En communication&quot;</extracomment>
+        <translation>Im Gespräch</translation>
     </message>
     <message>
         <location filename="../../tool/Utils.cpp" line="2012"/>

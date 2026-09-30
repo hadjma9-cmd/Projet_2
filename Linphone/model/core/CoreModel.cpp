@@ -32,6 +32,7 @@
 #include "core/notifier/Notifier.hpp"
 #include "core/path/Paths.hpp"
 #include "model/tool/ToolModel.hpp"
+#include "tool/FluidityProbe.hpp"
 #include "tool/Utils.hpp"
 
 #if defined(Q_OS_MACOS)
@@ -92,6 +93,11 @@ void CoreModel::start() {
 	auto config = mCore->getConfig();
 	QString userAgent = ToolModel::computeUserAgent(config);
 	mCore->setUserAgent(Utils::appStringToCoreString(userAgent), LINPHONESDK_VERSION);
+	// Pas de serveur de listes (RLS) : FreeSWITCH n'en propose pas. Avec rls_uri renseigne, le SDK
+	// renouvelait les abonnements de presence par un SUBSCRIBE groupe vers ce serveur (celui de
+	// Linphone, qui repondait 404) au lieu de SUBSCRIBE individuels vers le PBX : la presence
+	// mourait au premier renouvellement. Force ici pour les configurations deja installees.
+	config->setString("sip", "rls_uri", "");
 	mCore->start();
 	migrate();
 	setPathAfterStart();
@@ -110,6 +116,10 @@ void CoreModel::start() {
 	connect(mIterateTimer, &QTimer::timeout, [this]() { mCore->iterate(); });
 
 	mIterateTimer->start();
+	// Mesure des blocages du moteur SIP (journal : « [Sonde] Fil moteur SIP »). Une seule, meme si le
+	// coeur est redemarre.
+	if (!findChild<QObject *>(QStringLiteral("fluidityProbe"), Qt::FindDirectChildrenOnly))
+		new FluidityProbe(QStringLiteral("moteur SIP"), false, this);
 
 	auto linphoneSearch = mCore->createMagicSearch();
 	linphoneSearch->setLimitedSearch(true);
@@ -359,8 +369,7 @@ void CoreModel::migrate() {
 			// porter la reference du message vise par une reaction : liblinphone retombe sur un
 			// text/plain et l'emoji part comme un message ordinaire.
 			newParams->enableCpimInBasicChatRoom(true);
-			lInfo() << log().arg("Migrating") << accountIdentity
-			        << "for version 8. Enable Cpim in basic chat rooms";
+			lInfo() << log().arg("Migrating") << accountIdentity << "for version 8. Enable Cpim in basic chat rooms";
 		}
 		account->setParams(newParams);
 	}

@@ -50,6 +50,8 @@ class ChatMessageContentCore : public QObject, public AbstractObject {
 	Q_PROPERTY(bool isMultipart READ isMultipart CONSTANT)
 	Q_PROPERTY(bool isText READ isText CONSTANT)
 	Q_PROPERTY(bool isVideo READ isVideo NOTIFY isVideoChanged)
+	Q_PROPERTY(bool isImage READ isImage NOTIFY isImageChanged)
+	Q_PROPERTY(bool isAnimatedImage READ isAnimatedImage NOTIFY isImageChanged)
 	Q_PROPERTY(bool isVoiceRecording READ isVoiceRecording CONSTANT)
 	Q_PROPERTY(int fileDuration READ getFileDuration CONSTANT)
 	Q_PROPERTY(quint64 fileSize READ getFileSize CONSTANT)
@@ -70,6 +72,10 @@ public:
 	void setIsFileTransfer(bool isFileTransfer);
 
 	bool isVideo() const;
+	bool isImage() const;
+	bool isAnimatedImage() const;
+	// Types calcules une fois par chemin (lecture du fichier) au lieu de chaque liaison QML.
+	void setFileTypes(bool isImage, bool isAnimatedImage, bool isVideo);
 	bool isCalendar() const;
 	bool isMultipart() const;
 	bool isText() const;
@@ -107,6 +113,7 @@ signals:
 	void isFileEncryptedChanged();
 	void wasDownloadedChanged(bool downloaded);
 	void isVideoChanged();
+	void isImageChanged();
 	void searchedTextPartChanged();
 	void richFormatTextChanged();
 
@@ -121,6 +128,8 @@ private:
 	DECLARE_ABSTRACT_OBJECT
 	bool mIsFile;
 	bool mIsVideo;
+	bool mIsImage = false;
+	bool mIsAnimatedImage = false;
 	bool mIsFileEncrypted;
 	bool mIsFileTransfer;
 	bool mIsCalendar;

@@ -6,14 +6,16 @@ import Linphone
 import UtilsCpp
 import EnumsToStringCpp
 import SettingsCpp
+import ConstantsCpp
 import CustomControls 1.0
 import "qrc:/qt/qml/Linphone/view/Style/buttonStyle.js" as ButtonStyle
 import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
 AbstractMainPage {
     id: mainItem
+    // Vide quand la creation est desactivee : AbstractMainPage masque alors le bouton.
     //: "Ajouter un contact"
-    noItemButtonText: qsTr("contacts_add")
+    noItemButtonText: ConstantsCpp.contactCreationEnabled ? qsTr("contacts_add") : ""
     //: "Aucun contact pour le moment"
     emptyListText: qsTr("contacts_list_empty")
     newItemIconSource: AppIcons.plusCircle
@@ -23,7 +25,10 @@ AbstractMainPage {
      * @override
      */
     function forceActiveFocus(reason = undefined){
-        createContactButton.forceActiveFocus(reason)
+        if (createContactButton.visible)
+            createContactButton.forceActiveFocus(reason)
+        else
+            searchBar.forceActiveFocus(reason)
     }
 
     // disable left panel contact list interaction while a contact is being edited
@@ -140,6 +145,7 @@ AbstractMainPage {
 
     // rightPanelStackView.initialItem: contactDetail
     showDefaultItem: rightPanelStackView.depth == 0 && !contactList.haveContacts
+                     && !contactList.loading
                      && searchBar.text.length === 0
 
     function deleteContact(contact) {
@@ -287,8 +293,10 @@ AbstractMainPage {
             }
             Button {
                 id: createContactButton
-                visible: !rightPanelStackView.currentItem
-                         || rightPanelStackView.currentItem.objectName !== "contactEdition"
+                // Mis de cote (ConstantsCpp.contactCreationEnabled) : les contacts viennent de l'annuaire.
+                visible: ConstantsCpp.contactCreationEnabled
+                         && (!rightPanelStackView.currentItem
+                             || rightPanelStackView.currentItem.objectName !== "contactEdition")
                 style: ButtonStyle.noBackground
                 focus: true
                 icon.source: AppIcons.plusCircle
@@ -390,7 +398,9 @@ AbstractMainPage {
                     spacing: Utils.getSizeWithScreenRatio(10)
                     Text {
                         text: contactDetailLayout.label
-                        color: DefaultStyle.main1_500_main
+                        // Noir neutre plutot que la couleur du theme : en bleu, le titre de section
+                        // passait pour un lien.
+                        color: DefaultStyle.grey_600
                         font {
                             pixelSize: Typography.h4.pixelSize
                             weight: Typography.h4.weight
@@ -474,7 +484,6 @@ AbstractMainPage {
                     return out
                 }
                 property var primaryEntries: splitContactEntries(allContactEntries, false)
-                property var technicalEntries: splitContactEntries(allContactEntries, true)
 
                 // Un numero court est un poste interne du PBX, pas un telephone : « 222 » n'a
                 // rien d'un numero qu'on compose depuis l'exterieur.
@@ -775,29 +784,19 @@ AbstractMainPage {
                                 // Deux tuiles cote a cote plutot que deux lignes avec chevron et
                                 // separateur : meme acces, moitie moins de hauteur.
                                 spacing: Utils.getSizeWithScreenRatio(10)
-                                Button {
+                                // Memes boutons que « Partager » (IconLabelButton) : meme taille d'icone, meme
+                                // ecart icone-libelle, meme style. Les tuiles reimplementaient ce rendu a la main
+                                // avec d'autres mesures (icone 22 au lieu de 24, ecart 10 au lieu de 5) : icones
+                                // et libelles ne tombaient pas dans la meme colonne.
+                                IconLabelButton {
+                                    // Largeur preferee nulle : les deux tuiles se partagent la place a parts
+                                    // egales, quelle que soit la longueur de leur libelle.
                                     Layout.fillWidth: true
+                                    Layout.preferredWidth: 0
                                     style: ButtonStyle.noBackground
-                                    contentItem: RowLayout {
-                                        spacing: Utils.getSizeWithScreenRatio(10)
-                                        EffectImage {
-                                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(22)
-                                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(22)
-                                            imageSource: AppIcons.shareNetwork
-                                            colorizationColor: DefaultStyle.main2_600
-                                        }
-                                        Text {
-                                            //: "Médias"
-                                            text: qsTr("contact_details_medias_tile")
-                                            font {
-                                                pixelSize: Typography.p1.pixelSize
-                                                weight: Typography.p1.weight
-                                            }
-                                        }
-                                        Item {
-                                            Layout.fillWidth: true
-                                        }
-                                    }
+                                    icon.source: AppIcons.photo
+                                    //: "Médias"
+                                    text: qsTr("contact_details_medias_tile")
                                     onClicked: {
                                         rightPanelStackView.push(contactSharedFiles, {
                                          "filter": ChatMessageFileProxy.FilterContentType.Medias})
@@ -809,29 +808,13 @@ AbstractMainPage {
                                     Layout.fillHeight: true
                                     color: DefaultStyle.main2_200
                                 }
-                                Button {
+                                IconLabelButton {
                                     Layout.fillWidth: true
+                                    Layout.preferredWidth: 0
                                     style: ButtonStyle.noBackground
-                                    contentItem: RowLayout {
-                                        spacing: Utils.getSizeWithScreenRatio(10)
-                                        EffectImage {
-                                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(22)
-                                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(22)
-                                            imageSource: AppIcons.pdf
-                                            colorizationColor: DefaultStyle.main2_600
-                                        }
-                                        Text {
-                                            //: "Documents"
-                                            text: qsTr("contact_details_documents_tile")
-                                            font {
-                                                pixelSize: Typography.p1.pixelSize
-                                                weight: Typography.p1.weight
-                                            }
-                                        }
-                                        Item {
-                                            Layout.fillWidth: true
-                                        }
-                                    }
+                                    icon.source: AppIcons.pdf
+                                    //: "Documents"
+                                    text: qsTr("contact_details_documents_tile")
                                     onClicked: {
                                         rightPanelStackView.push(contactSharedFiles, {
                                          "filter": ChatMessageFileProxy.FilterContentType.Documents})
@@ -1032,54 +1015,16 @@ AbstractMainPage {
                             // ligne discrete plutot que dans une section a elle seule.
                             visible: mainItem.selectedContact && !mainItem.contactEditable
                             Layout.fillWidth: true
+                            // Meme retrait que le contenu des cartes (leftPadding 20 du RoundedPane de
+                            // ContactDetailLayout) : son icone tombe dans la colonne de celles de
+                            // « Medias et documents » juste au-dessus.
+                            Layout.leftMargin: Utils.getSizeWithScreenRatio(20)
                             Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
                             icon.source: AppIcons.shareNetwork
                             //: "Partager"
                             text: qsTr("contact_details_share")
                             style: ButtonStyle.noBackground
                             onClicked: mainItem.shareContact()
-                        }
-                        // En dernier : l'acces technique reste le plus discret, apres l'action
-                        // destructrice « Supprimer » qui ferme habituellement une fiche.
-                        ContactDetailLayout {
-                            id: technicalLayout
-                            Layout.fillWidth: true
-                            // Repliee par defaut, comme toute section de cette page : l'URI
-                            // n'interesse que le diagnostic, pas l'usage courant.
-                            visible: contactDetail.technicalEntries.length > 0
-                            //: "Détails techniques"
-                            label: qsTr("contact_details_technical_title")
-                            content: ListView {
-                                id: techList
-                                height: contentHeight
-                                implicitHeight: contentHeight
-                                width: parent.width
-                                clip: true
-                                spacing: Utils.getSizeWithScreenRatio(9)
-                                model: VariantList {
-                                    model: contactDetail.technicalEntries
-                                }
-                                delegate: ColumnLayout {
-                                    property var listViewModelData: modelData
-                                    width: techList.width
-                                    spacing: 0
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: listViewModelData.label
-                                        font {
-                                            pixelSize: Typography.p2.pixelSize
-                                            weight: Typography.p2.weight
-                                        }
-                                    }
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: listViewModelData.address
-                                        wrapMode: Text.WrapAnywhere
-                                        color: DefaultStyle.main2_600
-                                        font.pixelSize: Typography.p1.pixelSize
-                                    }
-                                }
-                            }
                         }
                         Item {
                             Layout.fillHeight: true

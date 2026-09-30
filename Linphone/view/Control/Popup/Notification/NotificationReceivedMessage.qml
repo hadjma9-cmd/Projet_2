@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Linphone
 import UtilsCpp
+import SettingsCpp
 import QtQuick.Controls as Control
 import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
@@ -115,7 +116,9 @@ Notification {
 					}
 					Text {
 						visible: mainItem.isGroupChat
-						text: mainItem.remoteAddress
+						// Comme partout ailleurs : l'identifiant seul si hide_sip_addresses est actif.
+						text: SettingsCpp.hideSipAddresses ? UtilsCpp.getUsername(mainItem.remoteAddress)
+						                                     : mainItem.remoteAddress
 						color: DefaultStyle.main2_100
 						Layout.fillWidth: true
 						maximumLineCount: 1

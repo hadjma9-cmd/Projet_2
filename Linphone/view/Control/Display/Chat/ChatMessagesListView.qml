@@ -17,6 +17,41 @@ ListView {
     property int lastIndexFoundWithFilter: -1
     property real busyIndicatorSize: Utils.getSizeWithScreenRatio(60)
     property bool loading: false
+    // La roue n'apparait que si le chargement se prolonge : un chargement rapide ne fait plus
+    // clignoter « zone vide, roue, messages ».
+    property bool busyIndicatorShown: false
+    onLoadingChanged: {
+        if (loading) {
+            busyIndicatorDelay.restart()
+        } else {
+            busyIndicatorDelay.stop()
+            busyIndicatorShown = false
+        }
+    }
+    Timer {
+        id: busyIndicatorDelay
+        interval: 300
+        onTriggered: mainItem.busyIndicatorShown = mainItem.loading
+    }
+
+    // Position de lecture de chaque conversation, retrouvee en y revenant. Cle : identifiant de la
+    // conversation ; valeur : index du message affiche en haut. Liste inversee (le plus recent en
+    // bas) : positionViewAtIndex(..., ListView.End) y place l'element en haut de la vue.
+    property var readingPositions: ({})
+    property string displayedChatId: ""
+    function saveReadingPosition() {
+        if (displayedChatId === "") return
+        if (atYEnd) {
+            // Deja sur les derniers messages : on y reviendra naturellement.
+            delete readingPositions[displayedChatId]
+            return
+        }
+        var topIndex = indexAt(contentX + width / 2, contentY + 1)
+        if (topIndex >= 0) readingPositions[displayedChatId] = topIndex
+    }
+
+    // Conversations recentes chargees des l'ouverture de l'onglet, pour s'ouvrir sans attente.
+    Component.onCompleted: eventLogProxy.preloadRecentChats(5)
     property bool isEncrypted: chat && chat.core.isEncrypted
     property bool showEncryptedInfo: AppCpp.currentAccount !== null && AppCpp.currentAccount.core.limeServerUrl !== "" && AppCpp.currentAccount.core.conferenceFactoryAddress !== ""
     highlightFollowsCurrentItem: true
@@ -116,6 +151,7 @@ ListView {
             loading = true
         }
         onChatAboutToChange: {
+            mainItem.saveReadingPosition()
             loading = true
         }
         onModelReset: loading = false
@@ -123,10 +159,21 @@ ListView {
             loading = false
             var index = eventLogProxy.findFirstUnreadIndex()
             var itemToSelect = mainItem.itemAtIndex(index)
-            mainItem.positionViewAtIndex(index, ListView.Beginning)
+            var chatId = mainItem.chat ? mainItem.chat.core.identifier : ""
+            // Retour sur une conversation quittee en cours de lecture : on reprend au meme endroit.
+            // Sinon (premiere ouverture, rechargement de la meme conversation), comportement habituel.
+            var savedIndex = chatId !== mainItem.displayedChatId ? mainItem.readingPositions[chatId] : undefined
+            if (savedIndex !== undefined) eventLogProxy.loadUntil(savedIndex)
+            if (savedIndex !== undefined && savedIndex < mainItem.count) {
+                mainItem.positionViewAtIndex(savedIndex, ListView.End)
+            } else {
+                mainItem.positionViewAtIndex(index, ListView.Beginning)
+            }
             var lastMessage = itemAtIndex(0)
-            mainItem.lastItemVisible = lastMessage.isFullyVisible
+            // Peut ne pas exister si la position restauree est loin des derniers messages.
+            mainItem.lastItemVisible = lastMessage ? lastMessage.isFullyVisible : false
             eventLogProxy.markIndexAsRead(index)
+            mainItem.displayedChatId = chatId
         }
         onEventInsertedByUser: (index) => {
             mainItem.positionViewAtIndex(index, ListView.Beginning)
@@ -248,6 +295,7 @@ ListView {
             Avatar {
                 Layout.preferredWidth: Utils.getSizeWithScreenRatio(20)
                 Layout.preferredHeight: Utils.getSizeWithScreenRatio(20)
+                shadowEnabled: false
                 _address: mainItem.chat?.core.composingAddress
             }
             Text {
@@ -265,7 +313,7 @@ ListView {
     BusyIndicator {
         anchors.horizontalCenter: mainItem.horizontalCenter
         anchors.verticalCenter: mainItem.verticalCenter
-        visible: mainItem.loading
+        visible: mainItem.busyIndicatorShown
         height: visible ? mainItem.busyIndicatorSize : 0
         width: mainItem.busyIndicatorSize
         indicatorHeight: mainItem.busyIndicatorSize

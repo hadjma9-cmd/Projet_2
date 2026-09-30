@@ -26,12 +26,13 @@
 DEFINE_ABSTRACT_OBJECT(CallHistoryProxy)
 
 CallHistoryProxy::CallHistoryProxy(QObject *parent) : LimitProxy(parent) {
-	mHistoryList = CallHistoryList::create();
-	if (!App::getInstance()->getCallHistoryList()) {
+	// Une seule liste d'historique, partagee par toutes les vues. Chaque vue en creait auparavant une
+	// seconde, aussitot jetee, qui relisait pourtant tout l'historique sur le fil du SDK (gel en appel).
+	mHistoryList = App::getInstance()->getCallHistoryList();
+	if (!mHistoryList) {
 		mHistoryList = CallHistoryList::create();
 		App::getInstance()->setCallHistoryList(mHistoryList);
 	}
-	mHistoryList = App::getInstance()->getCallHistoryList();
 	connect(mHistoryList.get(), &CallHistoryList::listAboutToBeReset, this, &CallHistoryProxy::listAboutToBeReset);
 	setSourceModels(new SortFilterList(mHistoryList.get(), Qt::DescendingOrder));
 	connect(App::getInstance(), &App::currentDateChanged, this, [this] { emit mHistoryList->lUpdate(); });

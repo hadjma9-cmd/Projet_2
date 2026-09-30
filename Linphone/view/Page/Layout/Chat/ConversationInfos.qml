@@ -7,6 +7,7 @@ import QtQuick.Layouts
 import Linphone
 import UtilsCpp
 import SettingsCpp
+import ConstantsCpp
 import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
@@ -17,6 +18,8 @@ ColumnLayout {
 	UtilsCpp.findFriendByAddress(mainItem.chatGui.core.peerAddress) : null
 	property var contact: contactObj?.value || null
 	property bool isAppFriend: contact && contact.core.isAppFriend
+	// Sans creation de contacts, tout contact trouve (annuaire compris) s'ouvre dans sa fiche.
+	property bool showExistingContact: !!contact && (isAppFriend || !ConstantsCpp.contactCreationEnabled)
 	property bool isGroup: chatGui && chatGui.core.isGroupChat
 	spacing: 0
 	signal ephemeralSettingsRequested()
@@ -158,7 +161,7 @@ ColumnLayout {
 	Component {
 		id: oneOneTitleContent
 		Text {
-			font: Typography.p1
+			font: Typography.h3m
 			color: DefaultStyle.main2_700
 			text: mainItem.chatGui.core.title || ""
 		}
@@ -167,21 +170,21 @@ ColumnLayout {
 	Loader {
 		id: titleLayout
 		Layout.alignment: Qt.AlignHCenter
-		Layout.topMargin: Utils.getSizeWithScreenRatio(11)
+		Layout.topMargin: Utils.getSizeWithScreenRatio(12)
 		sourceComponent: mainItem.isGroup ? groupTitleContent : oneOneTitleContent
 	}
 	
 	Text {
-		font: Typography.p3
-		color: DefaultStyle.main2_700
+		font: Typography.p1s
+		color: DefaultStyle.main2_600
 		text: SettingsCpp.hideSipAddresses ? UtilsCpp.getUsername(mainItem.chatGui.core.peerAddress) : mainItem.chatGui.core.peerAddress
 		Layout.alignment: Qt.AlignHCenter
-		Layout.topMargin: Utils.getSizeWithScreenRatio(5)
+		Layout.topMargin: Utils.getSizeWithScreenRatio(3)
 	}
 	
 	Text {
 		visible: mainItem.contact
-		font: Typography.p3
+		font: Typography.p2
 		color: mainItem.contact ? mainItem.contact.core.presenceColor : "transparent"
 		text: mainItem.contact ? mainItem.contact.core.presenceStatus : ""
 		Layout.alignment: Qt.AlignHCenter
@@ -226,7 +229,9 @@ ColumnLayout {
 			}
 		}
 		LabelButton {
-			visible: !mainItem.isGroup || !SettingsCpp.disableMeetingsFeature
+			visible: mainItem.isGroup
+				? !SettingsCpp.disableMeetingsFeature
+				: mainItem.showExistingContact || ConstantsCpp.contactCreationEnabled
 			text.Layout.fillWidth: true
 			text.horizontalAlignment: Text.AlignHCenter
 			text.wrapMode: Text.Wrap
@@ -237,13 +242,13 @@ ColumnLayout {
 			button.icon.height: Utils.getSizeWithScreenRatio(24)
 			button.icon.source: mainItem.isGroup 
 				? AppIcons.videoconference
-				: mainItem.isAppFriend
+				: mainItem.showExistingContact
 					? AppIcons.adressBook 
 					: AppIcons.plusCircle
 			label: mainItem.isGroup
 				//: Schedule a meeting
 				? qsTr("group_infos_meeting") 
-				: mainItem.isAppFriend
+				: mainItem.showExistingContact
 					//: Show contact
 					? qsTr("one_one_infos_open_contact") 
 					//: Create contact
@@ -252,7 +257,7 @@ ColumnLayout {
 				if (mainItem.isGroup)
 					UtilsCpp.getMainWindow().scheduleMeeting(mainItem.chatGui.core.title, mainItem.chatGui.core.participantsAddresses)
 				else {
-					if (mainItem.isAppFriend)
+					if (mainItem.showExistingContact)
 						mainWindow.displayContactPage(mainItem.contact.core.defaultAddress)
 					else
 						mainWindow.displayCreateContactPage("",mainItem.chatGui.core.peerAddress)

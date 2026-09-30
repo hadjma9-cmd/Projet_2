@@ -114,6 +114,10 @@ FocusScope {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     showContactMenu: false
+                    // Comme dans Contacts : on ne se voit pas soi-meme (Nouvel appel, Nouvelle conversation).
+                    showMe: false
+                    // Formulaires avec pave numerique (appels) : un numero compose n'est pas une recherche.
+                    exactNumberMatch: !!mainItem.numPadPopup
                     searchBarText: searchBar.text
                     onContactSelected: (contact) => {
                         mainItem.contactClicked(contact)

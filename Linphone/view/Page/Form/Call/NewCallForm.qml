@@ -14,7 +14,9 @@ CreationFormLayout {
 
     //: Appel de groupe
     startGroupButtonText: qsTr("call_start_group_call_title")
-    startGroupButtonVisible: !SettingsCpp.disableMeetingsFeature
+    // Masque : pas de serveur de conference, les appels de groupe ne sont pas disponibles.
+    // Remettre !SettingsCpp.disableMeetingsFeature pour le reafficher.
+    startGroupButtonVisible: false
 
     topLayoutVisible: mainItem.displayCurrentCalls && callList.count > 0
     topContent: [

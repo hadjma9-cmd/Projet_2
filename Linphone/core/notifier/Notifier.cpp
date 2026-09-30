@@ -356,6 +356,10 @@ void Notifier::notifyReceivedCall(const shared_ptr<linphone::Call> &call) {
 
 	App::postCoreAsync([this, model, displayName, remoteAddrString]() {
 		mustBeInMainThread(getClassName());
+		// En « Ne pas deranger », pas de notification : la copie de l'appel est liberee avec cette tache.
+		// Elle etait auparavant creee quand meme et ne l'etait jamais (ecouteur SDK, appel SIP retenu).
+		auto settings = App::getInstance()->getSettings();
+		if (settings && settings->dndEnabled()) return;
 		lInfo() << log().arg("Display call notification");
 		QVariantMap map;
 		auto gui = new CallGui(model);
@@ -363,7 +367,7 @@ void Notifier::notifyReceivedCall(const shared_ptr<linphone::Call> &call) {
 		map["remoteAddress"].setValue(remoteAddrString);
 		map["call"].setValue(gui);
 
-		CREATE_NOTIFICATION(AbstractNotificationBackend::ReceivedCall, map)
+		if (!createNotification(AbstractNotificationBackend::ReceivedCall, map)) gui->deleteLater();
 	});
 }
 

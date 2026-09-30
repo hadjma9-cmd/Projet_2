@@ -88,12 +88,21 @@ void MagicSearchModel::onSearchResultsReceived(const std::shared_ptr<linphone::M
 	lInfo() << log().arg("SDK send callback: onSearchResultsReceived : %1 results.").arg(results.size());
 	auto appFriends = ToolModel::getAppFriendList();
 	auto ldapFriends = ToolModel::getLdapFriendList();
-	emit searchResultsReceived(results);
+	// La liste ldap_friends est mise a jour avant de diffuser les resultats : les listes affichees
+	// y retrouvent ainsi le contact abonne a la presence (MagicSearchList).
 	for (auto result : results) {
 		if (!result) continue;
 		auto f = result->getFriend();
 		auto friendsManager = FriendsManager::getInstance();
 		if (f) {
+			auto fList = f->getFriendList();
+			bool isLdap = result->hasSourceFlag(linphone::MagicSearch::Source::LdapServers) != 0;
+			// Do not add it into ldap_friends if it already exists in app_friends.
+			if (isLdap && (!fList || fList->getDisplayName() !=
+			                             "app_friends")) { // Double check because of SDK merging that lead to
+				// use a ldap result as of app_friends/ldap_friends.
+				f = updateFriendListWithFriend(f, ldapFriends);
+			}
 			auto friendAddress = f->getAddress() ? f->getAddress() : nullptr;
 			if (friendAddress) {
 				// friendAddress->clean();
@@ -104,22 +113,9 @@ void MagicSearchModel::onSearchResultsReceived(const std::shared_ptr<linphone::M
 					friendsManager->removeOtherAddress(Utils::coreStringToAppString(friendAddress->asStringUriOnly()));
 				}
 			}
-			auto fList = f->getFriendList();
-
-			//		qDebug() << log().arg("") << (f ? f->getName().c_str() : "NoFriend") << ", "
-			//		         << (result->getAddress() ? result->getAddress()->asString().c_str() : "NoAddr") << " / "
-			//		         << (fList ? fList->getDisplayName().c_str() : "NoList") << result->getSourceFlags() << " /
-			//"
-			//		         << (f ? f.get() : nullptr);
-			bool isLdap = result->hasSourceFlag(linphone::MagicSearch::Source::LdapServers) != 0;
-			// Do not add it into ldap_friends if it already exists in app_friends.
-			if (isLdap && (!fList || fList->getDisplayName() !=
-			                             "app_friends")) { // Double check because of SDK merging that lead to
-				// use a ldap result as of app_friends/ldap_friends.
-				updateFriendListWithFriend(f, ldapFriends);
-			}
 		}
 	}
+	emit searchResultsReceived(results);
 }
 
 void MagicSearchModel::onMoreResultsAvailable(const std::shared_ptr<linphone::MagicSearch> &magicSearch,
@@ -131,32 +127,53 @@ void MagicSearchModel::onMoreResultsAvailable(const std::shared_ptr<linphone::Ma
 // Done in this place so the application can benefit from user initiated searches for faster ldap name retrieval
 // upon incoming call / chat message.
 
-void MagicSearchModel::updateFriendListWithFriend(const std::shared_ptr<linphone::Friend> &linphoneFriend,
-                                                  std::shared_ptr<linphone::FriendList> friendList) {
+std::shared_ptr<linphone::Friend>
+MagicSearchModel::updateFriendListWithFriend(const std::shared_ptr<linphone::Friend> &linphoneFriend,
+                                             std::shared_ptr<linphone::FriendList> friendList) {
 	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
-	auto core = CoreModel::getInstance()->getCore();
-
-	linphoneFriend->enableSubscribes(true);
-
+	if (!friendList) return linphoneFriend;
 	if (ToolModel::friendIsInFriendList(friendList, linphoneFriend))
-		return; // Already exist. We don't need to manipulate list.
-	for (auto address : linphoneFriend->getAddresses()) {
-		auto existingFriend = friendList ? friendList->findFriendByAddress(address) : nullptr;
-		if (existingFriend) {
-			friendList->removeFriend(existingFriend);
-			friendList->addFriend(linphoneFriend);
-			return;
+		return linphoneFriend; // Already exist. We don't need to manipulate list.
+
+	// Chaque recherche renvoie des objets neufs pour les memes personnes. Les substituer a ceux de
+	// la liste desabonnait puis reabonnait tout l'annuaire a chaque recherche, et les nouveaux
+	// objets partaient sans presence connue (pastille vide jusqu'au NOTIFY suivant), tandis que
+	// les avatars deja affiches restaient lies aux anciens, desabonnes. On garde donc le contact
+	// deja present, en y reportant ce qui a pu changer dans l'annuaire.
+	auto keepExisting = [&](const std::shared_ptr<linphone::Friend> &existingFriend) {
+		bool nameChanged = !linphoneFriend->getName().empty() && existingFriend->getName() != linphoneFriend->getName();
+		bool numbersChanged = existingFriend->getPhoneNumbers() != linphoneFriend->getPhoneNumbers();
+		auto oldVcard = existingFriend->getVcard();
+		auto newVcard = linphoneFriend->getVcard();
+		bool vcardChanged = oldVcard && newVcard &&
+		                    (oldVcard->getOrganization() != newVcard->getOrganization() ||
+		                     oldVcard->getJobTitle() != newVcard->getJobTitle());
+		if (nameChanged || numbersChanged || vcardChanged) {
+			existingFriend->edit();
+			if (nameChanged) existingFriend->setName(linphoneFriend->getName());
+			if (numbersChanged) {
+				for (auto &number : existingFriend->getPhoneNumbers())
+					existingFriend->removePhoneNumber(number);
+				for (auto &number : linphoneFriend->getPhoneNumbers())
+					existingFriend->addPhoneNumber(number);
+			}
+			if (vcardChanged) {
+				oldVcard->setOrganization(newVcard->getOrganization());
+				oldVcard->setJobTitle(newVcard->getJobTitle());
+			}
+			existingFriend->done(); // Sans nouveau SUBSCRIBE : l'abonnement actif est conserve.
 		}
+		return existingFriend;
+	};
+	for (auto address : linphoneFriend->getAddresses()) {
+		if (auto existingFriend = friendList->findFriendByAddress(address)) return keepExisting(existingFriend);
 	}
 	for (auto number : linphoneFriend->getPhoneNumbers()) {
-		auto existingFriend = friendList ? friendList->findFriendByPhoneNumber(number) : nullptr;
-		if (existingFriend) {
-			friendList->removeFriend(existingFriend);
-			friendList->addFriend(linphoneFriend);
-			return;
-		}
+		if (auto existingFriend = friendList->findFriendByPhoneNumber(number)) return keepExisting(existingFriend);
 	}
 	qInfo() << log().arg("Adding Friend:") << linphoneFriend.get();
-	if (friendList) friendList->addFriend(linphoneFriend);
+	linphoneFriend->enableSubscribes(true);
+	friendList->addFriend(linphoneFriend);
 	emit CoreModel::getInstance()->friendCreated(linphoneFriend);
+	return linphoneFriend;
 }

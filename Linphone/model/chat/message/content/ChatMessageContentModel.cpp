@@ -21,6 +21,7 @@
 #include "ChatMessageContentModel.hpp"
 
 #include <QDesktopServices>
+#include <QDir>
 #include <QMessageBox>
 #include <QPainter>
 #include <QQmlApplicationEngine>
@@ -63,11 +64,13 @@ std::shared_ptr<ChatMessageModel> ChatMessageContentModel::getChatMessageModel()
 
 // Create a thumbnail from the first content that have a file
 void ChatMessageContentModel::createThumbnail() {
-	auto path = Utils::coreStringToAppString(mContent->getFilePath());
+	// Chemin normalise : le dossier de telechargement se termine par un separateur natif (barre
+	// inversee sous Windows), ce qui cassait l'URL de la miniature et laissait la bulle vide.
+	auto path = QDir::fromNativeSeparators(Utils::coreStringToAppString(mContent->getFilePath()));
 	if (!path.isEmpty()) {
 		auto isVideo = Utils::isVideo(path);
 		emit wasDownloadedChanged(mContent, QFileInfo(path).isFile());
-		emit thumbnailChanged(QStringLiteral("image://%1/%2").arg(ThumbnailProvider::ProviderId).arg(path));
+		emit thumbnailChanged(ThumbnailProvider::thumbnailUrl(path));
 		emit filePathChanged(mContent, path);
 	}
 }

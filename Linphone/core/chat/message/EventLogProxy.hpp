@@ -78,6 +78,7 @@ public:
 	Q_INVOKABLE void markIndexAsRead(int proxyIndex);
 	Q_INVOKABLE void findIndexCorrespondingToFilter(int startIndex, bool forward = true, bool isFirstResearch = true);
 	Q_INVOKABLE void findChatMessageById(const QString &messageId);
+	Q_INVOKABLE void preloadRecentChats(int count);
 
 signals:
 	void eventInsertedByUser(int index);

@@ -50,6 +50,30 @@
         <source>fps_counter</source>
         <translation>%1 FPS</translation>
     </message>
+    <message>
+        <location filename="../../view/Page/Window/AbstractWindow.qml" line="216"/>
+        <source>call_confirmation_question</source>
+        <extracomment>&quot;Souhaitez-vous appeler %1 ?&quot;</extracomment>
+        <translation>Souhaitez-vous appeler %1 ?</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Window/AbstractWindow.qml" line="214"/>
+        <source>call_confirmation_video_question</source>
+        <extracomment>&quot;Souhaitez-vous lancer un appel vidéo avec %1 ?&quot;</extracomment>
+        <translation>Souhaitez-vous lancer un appel vidéo avec %1 ?</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Window/AbstractWindow.qml" line="208"/>
+        <source>call_confirmation_extension</source>
+        <extracomment>&quot;le poste %1&quot;</extracomment>
+        <translation>le poste %1</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Window/AbstractWindow.qml" line="221"/>
+        <source>dialog_call</source>
+        <extracomment>&quot;Appeler&quot;</extracomment>
+        <translation>Appeler</translation>
+    </message>
 </context>
 <context>
     <name>AccountCore</name>
@@ -1445,6 +1469,18 @@
         <extracomment>&quot;Appel entrant&quot;</extracomment>
         <translation>Appel entrant</translation>
     </message>
+    <message>
+        <location filename="../../view/Page/Main/Call/CallPage.qml" line="403"/>
+        <source>new_call_tab_contacts</source>
+        <extracomment>&quot;Contacts&quot;</extracomment>
+        <translation>Contacts</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Main/Call/CallPage.qml" line="408"/>
+        <source>new_call_tab_dialer</source>
+        <extracomment>&quot;Clavier&quot;</extracomment>
+        <translation>Clavier</translation>
+    </message>
 </context>
 <context>
     <name>CallSettingsLayout</name>
@@ -2642,6 +2678,24 @@ assurez-vous de ne pas partager d’informations sensibles !</translation>
         <translation>Aucune conversation</translation>
     </message>
     <message>
+        <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="25"/>
+        <source>chat_select_conversation_title</source>
+        <extracomment>&quot;Sélectionnez une conversation&quot;</extracomment>
+        <translation>Sélectionnez une conversation</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="28"/>
+        <source>chat_empty_subtitle</source>
+        <extracomment>&quot;Démarrez une conversation avec un collègue !&quot;</extracomment>
+        <translation>Démarrez une conversation avec un collègue !</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="30"/>
+        <source>chat_select_conversation_subtitle</source>
+        <extracomment>&quot;… ou démarrez-en une nouvelle !&quot;</extracomment>
+        <translation>… ou démarrez-en une nouvelle !</translation>
+    </message>
+    <message>
         <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="52"/>
         <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="66"/>
         <source>info_popup_error_title</source>
@@ -2676,7 +2730,7 @@ assurez-vous de ne pas partager d’informations sensibles !</translation>
         <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="149"/>
         <source>chat_list_title</source>
         <extracomment>&quot;Conversations&quot;</extracomment>
-        <translation>Conversations</translation>
+        <translation>Messages</translation>
     </message>
     <message>
         <location filename="../../view/Page/Main/Chat/ChatPage.qml" line="164"/>
@@ -3921,6 +3975,27 @@ Vous êtes sur le point d’appeler “%1” voulez vous continuer ?</translatio
     </message>
 </context>
 <context>
+    <name>DialerForm</name>
+    <message>
+        <location filename="../../view/Page/Form/Call/DialerForm.qml" line="90"/>
+        <source>dialer_number_accessible_name</source>
+        <extracomment>&quot;Numéro à appeler&quot;</extracomment>
+        <translation>Numéro à appeler</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Form/Call/DialerForm.qml" line="107"/>
+        <source>dialer_number_placeholder</source>
+        <extracomment>&quot;Saisissez un numéro&quot;</extracomment>
+        <translation>Saisissez un numéro</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Form/Call/DialerForm.qml" line="150"/>
+        <source>dialer_contact_extension</source>
+        <extracomment>&quot;Poste %1&quot;</extracomment>
+        <translation>Poste %1</translation>
+    </message>
+</context>
+<context>
     <name>Dialog</name>
     <message>
         <location filename="../../view/Control/Popup/Dialog/Dialog.qml" line="26"/>
@@ -4644,7 +4719,7 @@ Expiration : %1</translation>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="183"/>
         <source>bottom_navigation_conversations_label</source>
         <extracomment>&quot;Conversations&quot;</extracomment>
-        <translation>Conversations</translation>
+        <translation>Messages</translation>
     </message>
     <message>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="185"/>
@@ -4685,15 +4760,15 @@ Expiration : %1</translation>
     <message>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="354"/>
         <source>do_not_disturb_accessible_name</source>
-        <extracomment>&quot;Do not disturb&quot;</extracomment>
-        <translation>Ne pas déranger</translation>
+        <extracomment>&quot;Notifications désactivées&quot;</extracomment>
+        <translation>Notifications désactivées</translation>
     </message>
     <message>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="372"/>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="516"/>
         <source>contact_presence_status_disable_do_not_disturb</source>
-        <extracomment>&quot;Désactiver ne pas déranger&quot;</extracomment>
-        <translation>Désactiver ne pas déranger</translation>
+        <extracomment>&quot;Activer les notifications&quot;</extracomment>
+        <translation>Activer les notifications</translation>
     </message>
     <message>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="426"/>
@@ -4727,8 +4802,8 @@ Expiration : %1</translation>
     <message>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="518"/>
         <source>contact_presence_status_enable_do_not_disturb</source>
-        <extracomment>&quot;Activer ne pas déranger&quot;</extracomment>
-        <translation>Activer ne pas déranger</translation>
+        <extracomment>&quot;Désactiver les notifications&quot;</extracomment>
+        <translation>Désactiver les notifications</translation>
     </message>
     <message>
         <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="533"/>
@@ -4764,6 +4839,18 @@ Expiration : %1</translation>
         <source>drawer_menu_add_account</source>
         <extracomment>&quot;Ajouter un compte&quot;</extracomment>
         <translation>Ajouter un compte</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="277"/>
+        <source>sidebar_dialer_label</source>
+        <extracomment>&quot;Clavier&quot;</extracomment>
+        <translation>Clavier</translation>
+    </message>
+    <message>
+        <location filename="../../view/Page/Layout/Main/MainLayout.qml" line="291"/>
+        <source>sidebar_voicemail_label</source>
+        <extracomment>&quot;Boîte vocale&quot;</extracomment>
+        <translation>Boîte vocale</translation>
     </message>
 </context>
 <context>
@@ -6761,6 +6848,12 @@ Pour les activer dans un projet commercial, merci de nous contacter.</translatio
         <source>conversation_message_content_deleted_by_us_label</source>
         <translation>&lt;i&gt;Vous avez supprimé le message&lt;/i&gt;</translation>
     </message>
+    <message>
+        <location filename="../../model/tool/ToolModel.cpp" line="122"/>
+        <source>voicemail_display_name</source>
+        <extracomment>&quot;Messagerie&quot;</extracomment>
+        <translation>Messagerie</translation>
+    </message>
 </context>
 <context>
     <name>UnreadNotification</name>
@@ -6829,6 +6922,12 @@ Pour les activer dans un projet commercial, merci de nous contacter.</translatio
         <location filename="../../tool/Utils.cpp" line="2009"/>
         <source>contact_presence_status_busy</source>
         <translation>Occupé</translation>
+    </message>
+    <message>
+        <location filename="../../tool/Utils.cpp" line="0"/>
+        <source>contact_presence_status_in_call</source>
+        <extracomment>&quot;En communication&quot;</extracomment>
+        <translation>En communication</translation>
     </message>
     <message>
         <location filename="../../tool/Utils.cpp" line="2012"/>

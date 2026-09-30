@@ -98,6 +98,7 @@
 #include "model/tool/ToolModel.hpp"
 #include "tool/Constants.hpp"
 #include "tool/EnumsToString.hpp"
+#include "tool/FluidityProbe.hpp"
 #include "tool/Utils.hpp"
 #include "tool/accessibility/AccessibilityHelper.hpp"
 #include "tool/accessibility/FocusHelper.hpp"
@@ -338,6 +339,8 @@ App::App(int &argc, char *argv[])
 	});
 	mEventCountNotifier = new EventCountNotifier(this);
 	mDateUpdateTimer.start();
+	// Mesure des blocages de l'interface (journal : « [Sonde] Fil interface »).
+	new FluidityProbe(QStringLiteral("interface"), true, this);
 
 	mOIDCRefreshTimer.setInterval(1000);
 	mOIDCRefreshTimer.setSingleShot(false);
@@ -1332,7 +1335,9 @@ QQuickWindow *App::getOrCreateCallsWindow(QVariant callGui) {
 		QQmlComponent component(mEngine, callUrl);
 		if (component.isError()) {
 			qWarning() << component.errors();
-			abort();
+			// Pas d'abort() : une erreur QML dans la fenetre d'appel ne doit pas tuer l'application.
+			lCritical() << log().arg("Calls window component has errors, window not created.");
+			return nullptr;
 		}
 		lInfo() << log().arg("Subwindow status: `%1`.").arg(component.status());
 
@@ -1687,6 +1692,7 @@ void App::setSysTrayIcon() {
 
 		root->connect(restoreAction, &QAction::triggered, this, [this, restoreAction](bool checked) {
 			auto mainWindow = getMainWindow();
+			if (!mainWindow) return;
 			if (mainWindow->isVisible()) {
 				mainWindow->close();
 			} else {
@@ -1729,7 +1735,7 @@ void App::setSysTrayIcon() {
 			}
 		});
 	}
-	systemTrayIcon->setIcon(QIcon(Constants::WindowIconPath));
+	systemTrayIcon->setIcon(QIcon(Constants::SystemTrayIconPath));
 	systemTrayIcon->setToolTip(APPLICATION_NAME);
 	systemTrayIcon->show();
 	if (!mSystemTrayIcon) mSystemTrayIcon = systemTrayIcon;

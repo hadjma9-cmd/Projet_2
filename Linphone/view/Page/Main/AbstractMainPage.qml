@@ -16,6 +16,10 @@ FocusScope {
 	property string noItemButtonText
 	property string newItemIconSource
 	property string emptyListText
+	// Phrase d'accompagnement sous le titre de l'etat vide (masquee si vide).
+	property string emptyListSubtitle
+	// Illustration de l'etat vide, propre a chaque page si besoin.
+	property string noItemImageSource: AppIcons.noItemImage
 	property bool showDefaultItem: true
 	property color rightPanelColor: DefaultStyle.grey_100
 	property alias leftPanelContent: leftPanel.children
@@ -68,7 +72,7 @@ FocusScope {
 							}
 							Image {
 								Layout.alignment: Qt.AlignHCenter
-								source: AppIcons.noItemImage
+								source: mainItem.noItemImageSource
                                 Layout.preferredWidth: Utils.getSizeWithScreenRatio(359)
                                 Layout.preferredHeight: Utils.getSizeWithScreenRatio(314)
 								fillMode: Image.PreserveAspectFit
@@ -81,7 +85,20 @@ FocusScope {
                                     weight: Typography.h3.weight
 								}
 							}
+							Text {
+								visible: mainItem.emptyListSubtitle !== ""
+								text: mainItem.emptyListSubtitle
+								Layout.alignment: Qt.AlignHCenter
+								// Rapprochee du titre qu'elle complete (espacement de la colonne : 30).
+								Layout.topMargin: -Utils.getSizeWithScreenRatio(20)
+								color: DefaultStyle.main2_500_main
+								font {
+                                    pixelSize: Typography.p1b.pixelSize
+                                    weight: Typography.p1b.weight
+								}
+							}
 							BigButton {
+								visible: mainItem.noItemButtonText !== ""
 								Layout.alignment: Qt.AlignHCenter
 								icon.source: mainItem.newItemIconSource
 								style: ButtonStyle.main

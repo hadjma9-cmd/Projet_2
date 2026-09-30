@@ -250,14 +250,14 @@ void ChatModel::removeParticipant(const QString &sipAddress) const {
 	if (!mMonitor) return;
 	auto addr = Utils::appStringToCoreString(sipAddress);
 	for (auto &p : mMonitor->getParticipants())
-		if (p && p->getAddress()->asStringUriOnly() == addr) return mMonitor->removeParticipant(p);
+		if (p && Utils::addressUriOnly(p->getAddress()) == addr) return mMonitor->removeParticipant(p);
 }
 
 void ChatModel::toggleParticipantAdminStatus(const QString &sipAddress) const {
 	if (!mMonitor) return;
 	auto addr = Utils::appStringToCoreString(sipAddress);
 	for (auto &p : mMonitor->getParticipants())
-		if (p && p->getAddress()->asStringUriOnly() == addr)
+		if (p && Utils::addressUriOnly(p->getAddress()) == addr)
 			return mMonitor->setParticipantAdminStatus(p, !p->isAdmin());
 }
 
@@ -266,14 +266,15 @@ void ChatModel::setParticipantAddresses(const QStringList &addresses) {
 	bool soFarSoGood = true;
 	bool participantsChanged = false;
 	for (auto p : mMonitor->getParticipants()) {
-		auto address = Utils::coreStringToAppString(p->getAddress()->asStringUriOnly());
+		auto address = Utils::coreStringToAppString(Utils::addressUriOnly(p->getAddress()));
 		if (newAddresses.contains(address)) newAddresses.remove(address);
 		else {
 			participantsChanged = true;
 			mMonitor->removeParticipants({p});
 		}
 	}
-	auto me = Utils::coreStringToAppString(mMonitor->getMe()->getAddress()->asStringUriOnly());
+	auto me = Utils::coreStringToAppString(mMonitor->getMe() ? Utils::addressUriOnly(mMonitor->getMe()->getAddress())
+	                                                         : std::string());
 	if (newAddresses.contains(me)) newAddresses.remove(me);
 	for (const auto &a : newAddresses) {
 		auto address = linphone::Factory::get()->createAddress(Utils::appStringToCoreString(a));

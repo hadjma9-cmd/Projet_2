@@ -1,6 +1,7 @@
 list(APPEND _LINPHONEAPP_SOURCES
 	tool/Constants.cpp
 	tool/EnumsToString.cpp
+	tool/FluidityProbe.cpp
 	tool/Utils.cpp
 	tool/UriTools.cpp
 	tool/QExifImageHeader.cpp

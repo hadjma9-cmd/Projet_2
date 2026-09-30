@@ -77,6 +77,11 @@ public:
 	static constexpr int MaxMosaicParticipants =
 	    6; // From 7, the mosaic quality will be limited to avoid useless computations
 
+	// Creation de contacts depuis l'interface : desactivee, les contacts viennent de l'annuaire LDAP.
+	// Mise de cote, pas supprimee : repasser a true reaffiche tous les points d'entree
+	// (bouton + des contacts, panneau info d'une conversation, menus de l'historique et des participants).
+	static constexpr bool ContactCreationEnabled = false;
+
 	static constexpr char LinphoneBZip2_exe[] = "https://www.linphone.org/releases/windows/tools/bzip2/bzip2.exe";
 	static constexpr char LinphoneBZip2_dll[] = "https://www.linphone.org/releases/windows/tools/bzip2/bzip2.dll";
 	static constexpr char DefaultRlsUri[] = "sips:rls@sip.linphone.org";
@@ -102,6 +107,7 @@ public:
 	Q_PROPERTY(QString DefaultFont MEMBER DefaultFont CONSTANT)
 	Q_PROPERTY(QString DefaultLocale MEMBER DefaultLocale CONSTANT)
 	Q_PROPERTY(int maxMosaicParticipants MEMBER MaxMosaicParticipants CONSTANT)
+	Q_PROPERTY(bool contactCreationEnabled MEMBER ContactCreationEnabled CONSTANT)
 	Q_PROPERTY(QStringList reactionsList READ getReactionsList CONSTANT)
 	Q_PROPERTY(QRegularExpression uriRegExp MEMBER mUriRegExp CONSTANT)
 
@@ -128,7 +134,14 @@ public:
 	//--------------------------------------------------------------------------------
 
 	static constexpr char LinphoneDomain[] = "sip.linphone.org"; // Use for checking if config are a Linphone
-	static constexpr char WindowIconPath[] = ":/data/image/logo.svg";
+	// Icone de la fenetre (barre de titre, barre des taches) : fichier propre, pour la changer sans
+	// toucher au logo des notifications (logo.svg). Doit etre une image valide (SVG ici).
+	static constexpr char WindowIconPath[] = ":/data/image/window-icon.svg";
+	// Icone de la zone de notification, distincte de celle de la fenetre pour pouvoir
+	// etre simplifiee (elle s'affiche en 16 a 24 px). Doit etre un SVG valide : le
+	// compteur de notifications la rend avec QSvgRenderer, qui arrete l'application
+	// (qFatal) si le fichier est absent ou illisible.
+	static constexpr char SystemTrayIconPath[] = ":/data/image/tray-icon.svg";
 	static constexpr char AppIconsPath[] = ":/data/image/";
 	static constexpr char ApplicationMinimalQtVersion[] = "6.10.0";
 	static constexpr char DefaultConferenceURI[] =

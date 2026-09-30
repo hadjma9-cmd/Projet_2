@@ -35,6 +35,8 @@ class MagicSearchProxy : public LimitProxy {
 
 	Q_PROPERTY(int maxResults READ getMaxResults WRITE setMaxResults NOTIFY maxResultsChanged)
 	Q_PROPERTY(bool showMe READ getShowMe WRITE setShowMe NOTIFY showMeChanged)
+	Q_PROPERTY(bool exactNumberMatch READ getExactNumberMatch WRITE setExactNumberMatch NOTIFY
+	               exactNumberMatchChanged)
 	Q_PROPERTY(LinphoneEnums::MagicSearchAggregation aggregationFlag READ getAggregationFlag WRITE setAggregationFlag
 	               NOTIFY aggregationFlagChanged)
 
@@ -64,6 +66,9 @@ public:
 	bool getShowMe() const;
 	void setShowMe(bool showMe);
 
+	bool getExactNumberMatch() const;
+	void setExactNumberMatch(bool exact);
+
 	MagicSearchProxy *getParentProxy() const;
 	void setList(QSharedPointer<MagicSearchList> list);
 	Q_INVOKABLE void setParentProxy(MagicSearchProxy *proxy);
@@ -82,6 +87,7 @@ signals:
 	void aggregationFlagChanged(LinphoneEnums::MagicSearchAggregation aggregationFlag);
 	void maxResultsChanged(int maxResults);
 	void showMeChanged(bool showMe);
+	void exactNumberMatchChanged();
 	void forceUpdate();
 	void localFriendCreated(int index);
 	void parentProxyChanged();

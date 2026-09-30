@@ -62,9 +62,13 @@ ListView {
             else if (mainItem.chatToSelect) {
                 selectChat(mainItem.chatToSelect)
                 mainItem.chatToSelect = null
-            } else {
+            } else if (mainItem.currentChatGui) {
                 mainItem.currentChatGui = chatProxy.getAt(mainItem.currentIndex) || null
                 selectChat(mainItem.currentChatGui)
+            } else {
+                // Aucune conversation choisie : n'en ouvrir aucune. L'index a pu etre pose par la
+                // vue elle-meme (premiere ligne des que la liste se remplit).
+                mainItem.currentIndex = -1
             }
             mainItem.researchDone()
         }
@@ -72,10 +76,13 @@ ListView {
             mainItem.chatToSelect = chat
         }
         onRowsRemoved: {
-            var index = mainItem.currentIndex
+            // La conversation affichee est retrouvee par son identite, son index ayant pu
+            // changer : se fier a l'index ouvrait la voisine. Si c'est elle qui a disparu, ou si
+            // rien n'etait ouvert, le panneau reste vide au lieu d'ouvrir une autre conversation.
+            var index = mainItem.currentChatGui ? chatProxy.findChatIndex(mainItem.currentChatGui) : -1
             mainItem.currentIndex = -1
             mainItem.currentIndex = index
-            currentChatGui = model.getAt(mainItem.currentIndex)
+            currentChatGui = index >= 0 ? model.getAt(index) : null
         }
         onLayoutChanged: {
             loading = false

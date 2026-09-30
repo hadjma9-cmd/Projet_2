@@ -13,12 +13,15 @@ Rectangle{
 	property int voicemailCount: 0
 	property bool showMwi: false
 	property real scaleFactor: 1.0
+	// Remonte l'icone, calee en bas (la place du dessus revient a la pastille).
+	property real iconBottomMargin: 0
     width: Utils.getSizeWithScreenRatio(42 * scaleFactor)
     height: Utils.getSizeWithScreenRatio(36 * scaleFactor)
 	signal clicked()
 	color: 'transparent'
 	IconButton {
 		anchors.bottom: parent.bottom
+		anchors.bottomMargin: mainItem.iconBottomMargin
 		anchors.left: parent.left
 		style: ButtonStyle.noBackground
 		icon.source: AppIcons.voicemail
@@ -32,18 +35,27 @@ Rectangle{
 			mainItem.clicked()
 		}
 	}
-	Text {
+	Rectangle {
+		// Pastille rouge a chiffre blanc, accordee au point d'alerte ci-dessous. La largeur
+		// s'adapte pour que « 99+ » tienne sans deborder.
+		id: voicemailBadge
 		anchors.top: parent.top
 		anchors.right: parent.right
-        width: Utils.getSizeWithScreenRatio(14 * scaleFactor)
-		height: width
-		horizontalAlignment: Text.AlignHCenter
-        font.weight: Typography.p2.weight
-        font.pixelSize: Typography.p2.pixelSize * scaleFactor
 		color: DefaultStyle.danger_500_main
-		text: voicemailCount >= 100 ? '99+' : voicemailCount
 		visible: showMwi && voicemailCount > 0
-		maximumLineCount: 1
+		height: Utils.getSizeWithScreenRatio(16 * scaleFactor)
+		width: Math.max(height, voicemailBadgeText.implicitWidth + Utils.getSizeWithScreenRatio(6 * scaleFactor))
+		radius: height / 2
+		Text {
+			id: voicemailBadgeText
+			anchors.centerIn: parent
+			horizontalAlignment: Text.AlignHCenter
+			font.weight: Typography.p2.weight
+			font.pixelSize: Typography.p2.pixelSize * scaleFactor
+			color: DefaultStyle.grey_0
+			text: voicemailCount >= 100 ? '99+' : voicemailCount
+			maximumLineCount: 1
+		}
 	}
 
 	Rectangle {

@@ -11,6 +11,10 @@
 #include <windows.ui.notifications.h>
 
 #include <QDebug>
+#include <QPointer>
+
+#include <atomic>
+#include <memory>
 
 using namespace Microsoft::WRL;
 using namespace ABI::Windows::UI::Notifications;
@@ -116,17 +120,21 @@ void NotificationBackend::sendMessageNotification(QVariantMap data) {
 }
 
 void NotificationBackend::sendCallNotification(QVariantMap data) {
+	// Copie de l'appel propre a cette notification : si la notification ne peut pas etre affichee,
+	// elle est liberee ici (sinon personne ne le faisait).
+	CallGui *call = data["call"].value<CallGui *>();
+	if (!call) return;
 
 	IToastNotifier *notifier = nullptr;
 	HRESULT hr = DesktopNotificationManagerCompat::CreateToastNotifier(&notifier);
 	if (FAILED(hr) || !notifier) {
 		lWarning() << "CreateToastNotifier failed:" << Qt::hex << hr;
+		call->deleteLater();
 		return;
 	}
 
 	auto displayName = data["displayName"].toString().toStdWString();
 	auto remoteAddress = data["remoteAddress"].toString().toStdWString();
-	CallGui *call = data["call"].value<CallGui *>();
 	int timeout = 2;
 	// AbstractNotificationBackend::Notifications[(int)NotificationType::ReceivedCall].getTimeout();
 
@@ -181,6 +189,7 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 	if (FAILED(hr) || !doc) {
 		lWarning() << "CreateXmlDocumentFromString failed:" << Qt::hex << hr;
 		notifier->Release();
+		call->deleteLater();
 		return;
 	}
 
@@ -190,6 +199,7 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 		lWarning() << "CreateToastNotification failed:" << Qt::hex << hr;
 		doc->Release();
 		notifier->Release();
+		call->deleteLater();
 		Utils::showInformationPopup(tr("info_popup_error_title"), tr("info_popup_error_creating_notification"), false);
 		return;
 	}
@@ -203,7 +213,11 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 	toast2->put_Group(HStringReference(L"linphone").Get());
 	if (FAILED(hr)) lWarning() << "puting tag on toast failed";
 
-	connect(call->mCore.get(), &CallCore::stateChanged, this, [this, call, notifier, toast] {
+	// Vrai quand la notification a transmis `call` a la fenetre d'appel (bouton Accepter ou clic).
+	// Ecrit depuis le rappel de la notification Windows, d'ou l'atomique.
+	auto handedToWindow = std::make_shared<std::atomic_bool>(false);
+
+	connect(call->mCore.get(), &CallCore::stateChanged, this, [this, call, notifier, toast, handedToWindow] {
 		auto state = call->mCore->getState();
 		if (state == LinphoneEnums::CallState::End || state == LinphoneEnums::CallState::Error ||
 		    state == LinphoneEnums::CallState::StreamsRunning) {
@@ -215,7 +229,10 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 			// mainWindow.call; deleting it on StreamsRunning nulls mainWindow.call mid-call
 			// (broken in-call UI, hangup stops propagating). Once in QML it is
 			// JavaScript-owned and collected when the window releases it.
-			if (state != LinphoneEnums::CallState::StreamsRunning) call->deleteLater();
+			// Decroche depuis l'application (et non depuis la notification) : la copie n'a ete remise a
+			// aucune fenetre et personne d'autre ne la tient. Elle est liberee aussi, sinon elle restait
+			// en memoire pour toujours avec l'appel SIP qu'elle retient.
+			if (state != LinphoneEnums::CallState::StreamsRunning || !handedToWindow->load()) call->deleteLater();
 
 			std::unique_ptr<DesktopNotificationHistoryCompat> history;
 			DesktopNotificationManagerCompat::get_History(&history);
@@ -229,7 +246,10 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 
 	EventRegistrationToken token;
 	toast->add_Activated(Microsoft::WRL::Callback<ITypedEventHandler<ToastNotification *, IInspectable *>>(
-	                         [this, call](IToastNotification *sender, IInspectable *args) -> HRESULT {
+	                         [this, call = QPointer<CallGui>(call), handedToWindow](IToastNotification *sender,
+	                                                                                IInspectable *args) -> HRESULT {
+		                         // `call` est suivi (QPointer) : liberee en fin d'appel, la notification
+		                         // ne doit plus s'en servir si on clique dessus apres coup.
 		                         qInfo() << "Toast clicked!";
 		                         // Cast args en IToastActivatedEventArgs
 		                         Microsoft::WRL::ComPtr<IToastActivatedEventArgs> activatedArgs;
@@ -248,6 +268,7 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 			                         if (arg.compare("accept") == 0) {
 				                         if (call) {
 					                         qDebug() << "Accept call";
+					                         handedToWindow->store(true);
 					                         Utils::openCallsWindow(call);
 					                         call->mCore->lAccept(false);
 				                         }
@@ -257,7 +278,10 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 					                         call->mCore->lDecline();
 				                         }
 			                         } else if (arg.isEmpty()) {
-				                         if (call) Utils::openCallsWindow(call);
+				                         if (call) {
+					                         handedToWindow->store(true);
+					                         Utils::openCallsWindow(call);
+				                         }
 			                         }
 
 			                         WindowsDeleteString(argumentsHString);

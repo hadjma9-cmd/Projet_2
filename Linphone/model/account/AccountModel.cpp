@@ -26,13 +26,13 @@
 #include "model/tool/ToolModel.hpp"
 #include "tool/Utils.hpp"
 #include "tool/providers/AvatarProvider.hpp"
-#include <QDebug>
-#include <QImage>
 #include <QBuffer>
-#include <QNetworkReply>
-#include <QNetworkAccessManager>
-#include <QHttpMultiPart>
+#include <QDebug>
 #include <QFile>
+#include <QHttpMultiPart>
+#include <QImage>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QUrl>
 
 DEFINE_ABSTRACT_OBJECT(AccountModel)
@@ -45,11 +45,10 @@ AccountModel::AccountModel(const std::shared_ptr<linphone::Account> &account, QO
 
 	// Un abonnement de presence peut mourir sans que rien ne le retablisse : le serveur
 	// abandonne parfois l'ecriture qui l'enregistre (base interne SQLite, un seul ecrivain),
-	// puis notifie sur un dialogue que le client a oublie ou refuse un rafraichissement qu'il
-	// ne reconnait plus. La presence du contact reste alors figee indefiniment.
-	// On reconstruit donc les abonnements periodiquement, ce que faisait manuellement la
-	// definition d'un statut personnalise via setPresence().
-	mPresenceSubscriptionTimer.setInterval(10 * 60 * 1000);
+	// ou termine le dialogue. La presence du contact resterait alors figee.
+	// Verification periodique : seuls les abonnements termines ou en erreur sont recrees,
+	// ceux qui fonctionnent ne generent aucun trafic.
+	mPresenceSubscriptionTimer.setInterval(3 * 60 * 1000);
 	connect(&mPresenceSubscriptionTimer, &QTimer::timeout, this, [this]() {
 		if (mMonitor && mMonitor->getState() == linphone::RegistrationState::Ok) refreshPresenceSubscriptions();
 	});
@@ -112,14 +111,36 @@ void AccountModel::onRegistrationStateChanged(const std::shared_ptr<linphone::Ac
 
 void AccountModel::refreshPresenceSubscriptions() {
 	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
-	// Le cycle desactive/reactive force la creation de dialogues SUBSCRIBE neufs.
-	// updateSubscriptions() ne suffirait pas : il rafraichit les dialogues existants, or
-	// ceux que le serveur a oublies repondent 481 et resteraient morts.
-	lInfo() << log().arg("Rebuilding presence subscriptions");
+	// Recree uniquement les abonnements morts. L'ancienne version desactivait puis reactivait
+	// des listes entieres : tous les contacts etaient desabonnes (SUBSCRIBE Expires: 0) a chaque
+	// passage et a chaque reenregistrement, sans reabonnement fiable derriere.
+	int alive = 0, restarted = 0;
 	for (auto &friendList : CoreModel::getInstance()->getCore()->getFriendsLists()) {
-		friendList->enableSubscriptions(false);
-		friendList->enableSubscriptions(true);
+		if (!friendList->subscriptionsEnabled()) continue;
+		for (auto &contact : friendList->getFriends()) {
+			if (!contact->getAddress() || !contact->subscribesEnabled()) continue;
+			switch (contact->getSubscriptionState()) {
+				case linphone::SubscriptionState::Active:
+				case linphone::SubscriptionState::OutgoingProgress:
+				case linphone::SubscriptionState::Pending:
+				case linphone::SubscriptionState::Expiring:
+					++alive;
+					continue;
+				default:
+					break;
+			}
+			// Absent, termine par le serveur ou en erreur : on libere l'eventuel ancien dialogue
+			// puis on envoie un SUBSCRIBE neuf (done() applique le changement).
+			contact->edit();
+			contact->enableSubscribes(false);
+			contact->done();
+			contact->edit();
+			contact->enableSubscribes(true);
+			contact->done();
+			++restarted;
+		}
 	}
+	lInfo() << log().arg("Presence subscriptions checked: %1 alive, %2 restarted").arg(alive).arg(restarted);
 }
 
 void AccountModel::onConferenceInformationUpdated(const std::shared_ptr<linphone::Account> &account,

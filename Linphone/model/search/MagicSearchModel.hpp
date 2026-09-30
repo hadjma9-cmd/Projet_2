@@ -55,8 +55,10 @@ private:
 	virtual void onSearchResultsReceived(const std::shared_ptr<linphone::MagicSearch> &magicSearch) override;
 	virtual void onMoreResultsAvailable(const std::shared_ptr<linphone::MagicSearch> &magicSearch,
 	                                    linphone::MagicSearch::Source source) override;
-	void updateFriendListWithFriend(const std::shared_ptr<linphone::Friend> &linphoneFriend,
-	                                std::shared_ptr<linphone::FriendList> friendList);
+	// Renvoie le contact conserve dans la liste : celui qui y etait deja, sinon linphoneFriend.
+	std::shared_ptr<linphone::Friend>
+	updateFriendListWithFriend(const std::shared_ptr<linphone::Friend> &linphoneFriend,
+	                           std::shared_ptr<linphone::FriendList> friendList);
 
 signals:
 	void searchResultsReceived(const std::list<std::shared_ptr<linphone::SearchResult>> &results);

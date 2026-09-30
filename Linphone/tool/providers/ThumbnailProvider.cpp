@@ -23,10 +23,12 @@
 #include "tool/QExifImageHeader.hpp"
 #include "tool/Utils.hpp"
 
+#include <QDir>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QPainter>
 #include <QSvgRenderer>
+#include <QUrl>
 
 DEFINE_ABSTRACT_OBJECT(ThumbnailAsyncImageResponse)
 
@@ -35,7 +37,12 @@ DEFINE_ABSTRACT_OBJECT(ThumbnailAsyncImageResponse)
 const QString ThumbnailProvider::ProviderId = "thumbnail";
 
 ThumbnailAsyncImageResponse::ThumbnailAsyncImageResponse(const QString &id, const QSize &requestedSize) {
-	mPath = id;
+	// Identifiant construit par ThumbnailProvider::thumbnailUrl() : chemin encode en pourcentage.
+	// Selon la version de Qt il arrive encode ou deja decode : on accepte les deux.
+	mPath = QFileInfo::exists(id) ? id : QUrl::fromPercentEncoding(id.toUtf8());
+	// finished() est emis apres la construction. Emis pendant, il pouvait etre perdu, et quand le
+	// fichier etait introuvable il ne l'etait jamais : l'image restait en chargement (bulle vide).
+	QMetaObject::invokeMethod(this, [this]() { emit finished(); }, Qt::QueuedConnection);
 	// connect(&mListener, &VideoFrameGrabberListener::imageGrabbed, this, &ThumbnailAsyncImageResponse::imageGrabbed);
 
 	if (QFileInfo(mPath).isFile()) {
@@ -91,7 +98,9 @@ QImage ThumbnailAsyncImageResponse::createThumbnail(const QString &path, QImage 
 			}
 		}
 		if (thumbnail.isNull()) {
-			QImage image(originalImage.size(), originalImage.format());
+			// Format fixe : les PNG a palette (Indexed8) ne peuvent pas servir de support a QPainter,
+			// la miniature restait blanche.
+			QImage image(originalImage.size(), QImage::Format_ARGB32_Premultiplied);
 			// Fill with color to replace transparency with white color instead of black (default).
 			image.fill(QColor(Qt::white).rgb());
 			QPainter painter(&image);
@@ -123,12 +132,22 @@ QImage ThumbnailAsyncImageResponse::createThumbnail(const QString &path, QImage 
 
 void ThumbnailAsyncImageResponse::imageGrabbed(QImage image) {
 	mImage = createThumbnail(mPath, image);
-	emit finished();
 }
 
 QQuickTextureFactory *ThumbnailAsyncImageResponse::textureFactory() const {
 	return QQuickTextureFactory::textureFactoryForImage(mImage);
 }
+
+QString ThumbnailAsyncImageResponse::errorString() const {
+	return mImage.isNull() ? QStringLiteral("Unable to create a thumbnail for %1").arg(mPath) : QString();
+}
+
+QString ThumbnailProvider::thumbnailUrl(const QString &filePath) {
+	if (filePath.isEmpty()) return QString();
+	const QString path = QDir::fromNativeSeparators(filePath);
+	return QStringLiteral("image://%1/%2").arg(ProviderId, QString::fromUtf8(QUrl::toPercentEncoding(path, "/:")));
+}
+
 QQuickImageResponse *ThumbnailProvider::requestImageResponse(const QString &id, const QSize &requestedSize) {
 	ThumbnailAsyncImageResponse *response = new ThumbnailAsyncImageResponse(id, requestedSize);
 	return response;

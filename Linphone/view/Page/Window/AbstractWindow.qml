@@ -192,9 +192,33 @@ ApplicationWindow {
                         ? ""
                         : contact.core.phoneNumbers[0].address
                     : contact.core.defaultAddress
-                if (addressToCall.length != 0) UtilsCpp.createCall(addressToCall, {'localVideoEnabled':videoEnabled})
+                if (addressToCall.length != 0) confirmCallWithContact(contact, addressToCall, videoEnabled)
             }
         }
+    }
+
+    // Confirmation avant un appel lance depuis un contact : « Souhaitez-vous appeler le poste
+    // 878 (Lucas Louis) ? ». Quand le contact a plusieurs adresses, le choix de l'adresse fait
+    // deja office de confirmation : on n'en demande pas une seconde.
+    function confirmCallWithContact(contact, address, videoEnabled) {
+        var username = UtilsCpp.getUsername(address)
+        // Meme regle que la fiche contact (ContactPage.isExtension) : 1 a 5 chiffres = un poste.
+        var target = /^[0-9]{1,5}$/.test(username)
+            //: "le poste %1"
+            ? qsTr("call_confirmation_extension").arg(username)
+            : (SettingsCpp.hideSipAddresses ? username : address)
+        var name = contact.core.fullName
+        if (name.length !== 0 && name !== username) target += " (" + name + ")"
+        var question = videoEnabled
+            //: "Souhaitez-vous lancer un appel vidéo avec %1 ?"
+            ? qsTr("call_confirmation_video_question").arg(target)
+            //: "Souhaitez-vous appeler %1 ?"
+            : qsTr("call_confirmation_question").arg(target)
+        mainWindow.showConfirmationLambdaPopup("", question, "", function (confirmed) {
+            if (confirmed) UtilsCpp.createCall(address, {'localVideoEnabled': videoEnabled})
+        },
+        //: "Appeler"
+        qsTr("dialog_call"))
     }
 
     function sendMessageToContact(contact, parentItem) {
@@ -213,7 +237,6 @@ ApplicationWindow {
 
             } else {
                 displayChatPage(contact.core.defaultAddress)
-                if (addressToCall.length != 0) UtilsCpp.createCall(addressToCall, {'localVideoEnabled':videoEnabled})
             }
         }
     }

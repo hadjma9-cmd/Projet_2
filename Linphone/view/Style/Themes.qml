@@ -4,13 +4,25 @@ import QtQuick
 QtObject {
     property var themes: {
         return {
-            "orange": {
-                "main100": "#CCD6E0",
-                "main200": "#99ADC2",
-                "main300": "#6685A3",
-                "main500": "#001E49",
-                "main600": "#001838",
-                "main700": "#001228"
+            // Theme de Gamaphone (anciennement « orange », nom herite de Linphone).
+            // main500 = #187FA3 : la couleur de marque #2BA2B6, assombrie jusqu'au point ou un
+            // texte blanc et un texte noir y sont aussi lisibles l'un que l'autre (4,56 et
+            // 4,61:1). #2BA2B6 tel quel ne donnait que 3,02:1 au texte blanc des boutons.
+            // Derivation : 100/200/300 = 80/60/40 % de blanc ; 600/700 = x0,80 / x0,68.
+            "bleu_gama": {
+                "main100": "#D1E5ED",
+                "main200": "#A3CCDA",
+                "main300": "#74B2C8",
+                "main500": "#187FA3",
+                "main600": "#136682",
+                "main700": "#10566F",
+                // Degrade de la barre laterale : moitie foncee du logo (#045091 -> #127FA9),
+                // pour que les onglets et leur texte blanc restent lisibles (8,2 puis 4,6:1).
+                "gradientTop": "#045091",
+                "gradientBottom": "#187FA3",
+                // Boutons : milieu du degrade, pour s'accorder a la barre laterale
+                // (texte blanc a 6,1:1).
+                "button": "#0E689A"
             },
             "yellow": {
                 "main100": "#FFF5D6",
