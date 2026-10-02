@@ -49,6 +49,9 @@ guess_hostname=1
 ping_with_options=0
 register_only_when_network_is_up=1
 rls_uri=
+# Presence des contacts demandee des le demarrage, sans attendre l'enregistrement du compte (remplace une
+# modification du SDK, qui changeait seulement la valeur par defaut de ce reglage).
+subscribe_presence_only_when_registered=0
 update_presence_model_timestamp_before_publish_expires_refresh=1
 use_cpim=1
 zrtp_key_agreements_suites=MS_ZRTP_KEY_AGREEMENT_K255_MLK512,MS_ZRTP_KEY_AGREEMENT_K255_KYB512
