@@ -26,12 +26,16 @@
 #include "model/friend/FriendsManager.hpp"
 #include "tool/UriTools.hpp"
 #include "tool/Utils.hpp"
+#include <QDateTime>
 #include <QDebug>
 #include <QDirIterator>
 #include <QLibrary>
 #include <QRegularExpression>
 #include <QTest>
+#include <QTimer>
 #include <QUrl>
+#include <atomic>
+#include <optional>
 
 DEFINE_ABSTRACT_OBJECT(ToolModel)
 
@@ -310,6 +314,23 @@ std::shared_ptr<linphone::Friend> ToolModel::findFriendByAddress(const QString &
 	else return nullptr;
 }
 
+std::shared_ptr<linphone::Friend> ToolModel::findDisplayedFriendByAddress(const QString &address) {
+	auto linFriend = findFriendByAddress(address);
+	// core->findFriend() may return a Friend instance without a presence model (e.g. one auto-created in the
+	// default list), while the instance subscribed to presence (the app_friends list, the one shown in the
+	// Contacts tab) is a different object that carries the presence. Prefer whichever instance actually has a
+	// presence model so that every view shows the same presence badge as the Contacts tab.
+	if (linFriend && !linFriend->getPresenceModel()) {
+		if (auto addr = interpretUrl(address)) {
+			for (auto &list : CoreModel::getInstance()->getCore()->getFriendsLists()) {
+				auto sameFriend = list->findFriendByAddress(addr);
+				if (sameFriend && sameFriend->getPresenceModel()) return sameFriend;
+			}
+		}
+	}
+	return linFriend;
+}
+
 std::shared_ptr<linphone::Friend>
 ToolModel::findFriendByAddress(const std::shared_ptr<const linphone::Address> &linphoneAddr) {
 	auto friendsManager = FriendsManager::getInstance();
@@ -341,6 +362,28 @@ ToolModel::findFriendByAddress(const std::shared_ptr<const linphone::Address> &l
 	}
 	return f;
 }
+
+namespace {
+// Appel demande alors que le compte n'est pas encore connecte (voir ToolModel::createCall). Fil du SDK uniquement.
+struct PendingCall {
+	QString sipAddress;
+	QVariantMap options;
+	QString prepareTransfertAddress;
+	QHash<QString, QString> headers;
+	linphone::MediaEncryption mediaEncryption;
+	qint64 deadline = 0;
+};
+constexpr qint64 PendingCallTimeoutMs = 30 * 1000;
+std::optional<PendingCall> gPendingCall;
+QMetaObject::Connection gPendingCallConnection;
+
+void dropPendingCall() {
+	gPendingCall.reset();
+	QObject::disconnect(gPendingCallConnection);
+	gPendingCallConnection = QMetaObject::Connection();
+}
+} // namespace
+
 bool ToolModel::createCall(const QString &sipAddress,
                            const QVariantMap &options,
                            const QString &prepareTransfertAddress,
@@ -355,15 +398,48 @@ bool ToolModel::createCall(const QString &sipAddress,
 
 	if (waitRegistrationForCall) {
 		std::shared_ptr<linphone::Account> currentAccount = core->getDefaultAccount();
-		if (!currentAccount || currentAccount->getState() != linphone::RegistrationState::Ok) {
-			connect(
-			    CoreModel::getInstance().get(), &CoreModel::accountRegistrationStateChanged,
-			    CoreModel::getInstance().get(),
-			    [sipAddress, options, prepareTransfertAddress, headers, mediaEncryption]() {
-				    ToolModel::createCall(sipAddress, options, prepareTransfertAddress, headers, mediaEncryption);
-			    },
-			    Qt::SingleShotConnection);
-			return false;
+		if (!currentAccount) return false; // Aucun compte : rien a attendre.
+		if (currentAccount->getState() != linphone::RegistrationState::Ok) {
+			// Compte pas encore connecte (ex. lien d'appel ouvert au demarrage) : l'appel part des qu'il l'est.
+			// Auparavant : message « l'appel n'a pas pu etre cree » alors qu'il partait plus tard, un appel par
+			// clic, et sans limite de temps (appel « surprise » des heures apres). Desormais un seul appel en
+			// attente (le dernier demande), annonce, et abandonne au bout de 30 s.
+			const bool alreadyWaiting = gPendingCall.has_value();
+			gPendingCall =
+			    PendingCall{sipAddress, options,         prepareTransfertAddress,
+			                headers,    mediaEncryption, QDateTime::currentMSecsSinceEpoch() + PendingCallTimeoutMs};
+			if (!gPendingCallConnection) {
+				gPendingCallConnection =
+				    connect(CoreModel::getInstance().get(), &CoreModel::accountRegistrationStateChanged,
+				            CoreModel::getInstance().get(), [] {
+					            if (!gPendingCall) return;
+					            auto account = CoreModel::getInstance()->getCore()->getDefaultAccount();
+					            if (!account || account->getState() != linphone::RegistrationState::Ok) return;
+					            const PendingCall call = *gPendingCall;
+					            dropPendingCall();
+					            if (QDateTime::currentMSecsSinceEpoch() > call.deadline)
+						            return; // Trop tard (deja annonce).
+					            QString error;
+					            if (!ToolModel::createCall(call.sipAddress, call.options, call.prepareTransfertAddress,
+					                                       call.headers, call.mediaEncryption, &error))
+						            //: "Appel impossible"
+						            Utils::showInformationPopup(tr("call_error_title"),
+						                                        error.isEmpty() ? call.sipAddress : error, false);
+				            });
+			}
+			QTimer::singleShot(PendingCallTimeoutMs + 100, CoreModel::getInstance().get(), [] {
+				if (!gPendingCall || QDateTime::currentMSecsSinceEpoch() < gPendingCall->deadline) return;
+				lWarning() << "[ToolModel] Pending call dropped, account still not connected:"
+				           << gPendingCall->sipAddress;
+				dropPendingCall();
+				//: "Votre compte n'est toujours pas connecté : l'appel a été annulé."
+				Utils::showInformationPopup(tr("call_error_title"), tr("call_error_account_not_connected"), false);
+			});
+			if (!alreadyWaiting)
+				//: "Connexion en cours" / "Votre compte n'est pas encore connecté : l'appel partira dès qu'il le sera."
+				Utils::showInformationPopup(tr("call_waiting_registration_title"),
+				                            tr("call_waiting_registration_message"), true);
+			return true; // Pas de message d'erreur : l'appel est pris en compte.
 		}
 	}
 
@@ -717,6 +793,21 @@ bool ToolModel::isEndToEndEncryptedChatAvailable() {
 	       !defaultAccount->getParams()->getConferenceFactoryUri().empty();
 }
 
+namespace {
+// Vrai tant que rien n'est calcule : comportement d'origine (niveaux de securite demandes).
+std::atomic_bool gEndToEndEncryptionAvailable{true};
+} // namespace
+
+bool ToolModel::isEndToEndEncryptionAvailableCached() {
+	return gEndToEndEncryptionAvailable.load();
+}
+
+void ToolModel::refreshEndToEndEncryptionAvailability() {
+	const bool available = isEndToEndEncryptedChatAvailable();
+	if (gEndToEndEncryptionAvailable.exchange(available) != available)
+		lInfo() << "[ToolModel] End-to-end encryption available:" << available;
+}
+
 std::shared_ptr<linphone::ConferenceParams>
 ToolModel::getChatRoomParams(std::shared_ptr<linphone::Call> call, std::shared_ptr<linphone::Address> remoteAddress) {
 	auto core = call ? call->getCore() : CoreModel::getInstance()->getCore();
@@ -900,7 +991,7 @@ ToolModel::corePresenceModelToAppPresence(std::shared_ptr<const linphone::Presen
 		else if (presenceActivity->getType() == linphone::PresenceActivity::Type::Other)
 			return LinphoneEnums::Presence::DoNotDisturb;
 		else {
-			lWarning() << sLog().arg("unhandled core activity type : ") << (int)presenceActivity->getType();
+			lDebug() << sLog().arg("unhandled core activity type : ") << (int)presenceActivity->getType();
 			return LinphoneEnums::Presence::Undefined;
 		}
 	}

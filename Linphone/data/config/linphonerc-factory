@@ -28,6 +28,9 @@ enable_simple_group_chat_message_state=0
 notify_each_friend_individually_when_presence_received=0
 hide_empty_chat_rooms=1
 file_transfer_server_url=https://sati.gama-it.fr/hft/hft.php
+# Historique d'appels : seuls les 500 plus recents sont charges et affiches. Les plus anciens restent en
+# base (rien n'est supprime) ; sans limite, le chargement grossissait sans fin avec le temps.
+history_max_size=500
 
 [net]
 force_ice_disablement=0
@@ -77,12 +80,13 @@ other_display_mode=Hybrid
 [remote_contact_directory_0]
 enabled=1
 type=ldap
-uri=ldap://154.41.128.150:10389
+uri=ldap://fusion.gama-it.fr:10389
 timeout=5
 min_characters=0
 results_limit=50
 delay=2000
 ldap_auth_method=1
+
 
 # 1. Base globale pour couvrir TOUS les domaines de l'annuaire
 
@@ -94,5 +98,5 @@ ldap_sip_attribute=telephoneNumber
 ldap_photo_url_template=https://testdomaine.gama-it.fr/avatars/avatar.php?user={sip_username}&domain={sip_domain}
 ldap_timeout_tls_ms=1000
 ldap_use_sal=1
-ldap_use_tls=0
+ldap_use_tls=1
 ldap_verify_server_certificates=-1

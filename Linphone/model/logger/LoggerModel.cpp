@@ -67,6 +67,12 @@ void LoggerModel::enableFullLogs(const bool &full) {
 	// Hors journaux complets, belle-sip trace chaque message SIP en entier (presence, abonnements,
 	// enregistrements) : beaucoup d'ecritures disque pour rien. Limite aux avertissements et erreurs.
 	bctbx_set_log_level("belle-sip", full ? BCTBX_LOG_DEBUG : BCTBX_LOG_WARNING);
+	// Journaux complets : passages du nettoyeur de memoire de l'interface (duree, memoire liberee, passages
+	// forces), pour relier les gels mesures par la sonde ([Sonde]) a ce nettoyage.
+	QLoggingCategory::setFilterRules(full ? QStringLiteral("qt.qml.connections.warning=false\n"
+	                                                       "qt.qml.gc.statistics.debug=true\n"
+	                                                       "qt.qml.gc.forcedRuns.debug=true")
+	                                      : QStringLiteral("qt.qml.connections.warning=false"));
 }
 
 bool LoggerModel::qtOnlyEnabled() const {

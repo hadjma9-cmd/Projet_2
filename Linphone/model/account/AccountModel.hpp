@@ -45,7 +45,8 @@ public:
 
 	void setPictureUri(QString uri);
 	void uploadAvatarToRemoteDirectory(const QString &uri);
-	void refreshPresenceSubscriptions();
+	// Porte sur tous les contacts du coeur, pas sur un compte : verification periodique unique (CoreModel).
+	static void refreshPresenceSubscriptions();
 	void setDefault();
 	void removeAccount();
 	std::shared_ptr<linphone::Account> getAccount() const;
@@ -153,7 +154,6 @@ private:
 	static void removeUserData(const std::shared_ptr<linphone::Account> &account);
 
 	bool mToRemove = false;
-	QTimer mPresenceSubscriptionTimer;
 
 	DECLARE_ABSTRACT_OBJECT
 };

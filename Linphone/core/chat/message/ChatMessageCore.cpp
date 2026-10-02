@@ -120,11 +120,12 @@ ChatMessageCore::ChatMessageCore(const std::shared_ptr<linphone::ChatMessage> &c
 		mHasTextContent = mChatMessageModel->getHasTextContent();
 		mTimestamp = QDateTime::fromSecsSinceEpoch(chatmessage->getTime());
 		mIsOutgoing = chatmessage->isOutgoing();
-		mIsRetractable =
-		    chatmessage->isOutgoing() && chatmessage->isRetractable() && !chatmessage->getChatRoom()->isReadOnly();
+		// Conversation retenue par le modele : chatmessage->getChatRoom() plante dans le SDK si elle n'existe plus.
+		auto chatroom = mChatMessageModel->getChatRoom();
+		const bool chatRoomWritable = chatroom && !chatroom->isReadOnly();
+		mIsRetractable = chatmessage->isOutgoing() && chatmessage->isRetractable() && chatRoomWritable;
 		mIsRetracted = chatmessage->isRetracted();
-		mIsEditable =
-		    chatmessage->isOutgoing() && chatmessage->isEditable() && !chatmessage->getChatRoom()->isReadOnly();
+		mIsEditable = chatmessage->isOutgoing() && chatmessage->isEditable() && chatRoomWritable;
 		mIsEdited = chatmessage->isEdited();
 		mIsRemoteMessage = !chatmessage->isOutgoing();
 		mPeerAddress = Utils::coreStringToAppString(chatmessage->getPeerAddress()->asStringUriOnly());
@@ -134,8 +135,7 @@ ChatMessageCore::ChatMessageCore(const std::shared_ptr<linphone::ChatMessage> &c
 		mFromAddress = Utils::coreStringToAppString(fromAddress->asStringUriOnly());
 		mFromName = ToolModel::getDisplayName(chatmessage->getFromAddress());
 		mToName = ToolModel::getDisplayName(chatmessage->getToAddress());
-		auto chatroom = chatmessage->getChatRoom();
-		mIsFromChatGroup = chatroom->hasCapability((int)linphone::ChatRoom::Capabilities::Conference) &&
+		mIsFromChatGroup = chatroom && chatroom->hasCapability((int)linphone::ChatRoom::Capabilities::Conference) &&
 		                   !chatroom->hasCapability((int)linphone::ChatRoom::Capabilities::OneToOne);
 		mIsRead = chatmessage->isRead();
 		mMessageState = LinphoneEnums::fromLinphone(chatmessage->getState());
@@ -260,9 +260,9 @@ void ChatMessageCore::setSelf(QSharedPointer<ChatMessageCore> me) {
 			mChatMessageModel->send();
 			if (firstTime) {
 				auto linMsg = mChatMessageModel->getMonitor();
-				auto chatroom = linMsg->getChatRoom();
+				auto chatroom = mChatMessageModel->getChatRoom();
 				auto eventLog = linMsg->getEventLog();
-				if (eventLog) {
+				if (eventLog && chatroom) {
 					auto eventLogCore = EventLogCore::create(eventLog, chatroom);
 					auto chatCore = App::getInstance()->getChatList()->findChatById(
 					    Utils::coreStringToAppString(chatroom->getIdentifier()));

@@ -29,6 +29,7 @@
 #include "tool/thread/SafeConnection.hpp"
 
 #include <QQuickWindow>
+#include <QRegularExpression>
 
 DEFINE_ABSTRACT_OBJECT(CallCore)
 
@@ -272,8 +273,10 @@ void CallCore::setSelf(QSharedPointer<CallCore> me) {
 	mCallModelConnection->makeConnectToModel(&CallModel::microphoneVolumeChanged, [this](float volume) {
 		mCallModelConnection->invokeToCore([this, volume]() { setMicrophoneVolume(volume); });
 	});
-	mCallModelConnection->makeConnectToModel(
-	    &CallModel::errorMessageChanged, [this](const QString &errorMessage) { setLastErrorMessage(errorMessage); });
+	// Applique dans le fil de l'interface : le texte est affiche par liaison QML (CallLayout.qml).
+	mCallModelConnection->makeConnectToModel(&CallModel::errorMessageChanged, [this](const QString &errorMessage) {
+		mCallModelConnection->invokeToCore([this, errorMessage]() { setLastErrorMessage(errorMessage); });
+	});
 	mCallModelConnection->makeConnectToModel(&CallModel::stateChanged, [this](std::shared_ptr<linphone::Call> call,
 	                                                                          linphone::Call::State state,
 	                                                                          const std::string &message) {
@@ -451,7 +454,9 @@ void CallCore::setSelf(QSharedPointer<CallCore> me) {
 				    audioStats.mJitterBufferSize =
 				        tr("call_stats_jitter_buffer_label").arg(linAudioStats->getJitterBufferSizeMs());
 			    }
-			    setAudioStats(audioStats);
+			    // Dans le fil de l'interface : le panneau Statistiques lit ces textes pendant que le SDK les
+			    // recalcule toutes les quelques secondes.
+			    mCallModelConnection->invokeToCore([this, audioStats]() { setAudioStats(audioStats); });
 		    } else if (stats->getType() == linphone::StreamType::Video) {
 			    VideoStats videoStats;
 			    auto params = call->getCurrentParams();
@@ -461,7 +466,7 @@ void CallCore::setSelf(QSharedPointer<CallCore> me) {
 			    videoStats.mCodec =
 			        tr("call_stats_codec_label").arg(Utils::coreStringToAppString(codecType)).arg(codecRate);
 			    auto linVideoStats = call->getVideoStats();
-			    if (stats) {
+			    if (linVideoStats) {
 				    videoStats.mBandwidth = tr("call_stats_bandwidth_label")
 				                                .arg("↑")
 				                                .arg(round(linVideoStats->getUploadBandwidth()))
@@ -483,7 +488,7 @@ void CallCore::setSelf(QSharedPointer<CallCore> me) {
 			    auto receivedFps = params->getReceivedFramerate();
 			    //: "FPS : %1 %2 %3 %4"
 			    videoStats.mFps = tr("call_stats_fps_label").arg("↑").arg(sentFps).arg("↓").arg(receivedFps);
-			    setVideoStats(videoStats);
+			    mCallModelConnection->invokeToCore([this, videoStats]() { setVideoStats(videoStats); });
 		    }
 	    });
 
@@ -916,16 +921,47 @@ void CallCore::findRemoteFriend(QSharedPointer<CallCore> me) {
 	mRemoteMagicSearchModelConnection = SafeConnection<CallCore, MagicSearchModel>::create(me, mRemoteMagicSearchModel);
 	mRemoteMagicSearchModelConnection->makeConnectToModel(
 	    &MagicSearchModel::searchResultsReceived,
-	    [this, remoteAdress = mRemoteAddress](const std::list<std::shared_ptr<linphone::SearchResult>> &results) {
+	    [this, remoteAdress = mRemoteAddress,
+	     remoteUsername = mRemoteUsername](const std::list<std::shared_ptr<linphone::SearchResult>> &results) {
 		    mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
+		    // L'annuaire est interroge sur une partie du numero : seul un resultat dont une adresse ou un numero
+		    // est exactement celui de l'appelant donne son nom. Auparavant le premier resultat le donnait, meme
+		    // pour un autre numero (appelant 12 affiche sous le nom du poste 120).
+		    auto normalized = [](QString value) {
+			    static const QRegularExpression separators(QStringLiteral("[\\s.()/-]"));
+			    return value.remove(separators);
+		    };
+		    const QString wanted = normalized(remoteUsername);
+		    auto sameNumber = [&](const std::shared_ptr<const linphone::Address> &address) {
+			    return address && normalized(Utils::coreStringToAppString(address->getUsername())) == wanted;
+		    };
+		    auto matches = [&](const std::shared_ptr<linphone::SearchResult> &result) {
+			    if (!result || wanted.isEmpty()) return false;
+			    if (sameNumber(result->getAddress())) return true;
+			    if (normalized(Utils::coreStringToAppString(result->getPhoneNumber())) == wanted) return true;
+			    if (auto resultFriend = result->getFriend()) {
+				    for (const auto &address : resultFriend->getAddresses())
+					    if (sameNumber(address)) return true;
+				    for (const auto &number : resultFriend->getPhoneNumbers())
+					    if (normalized(Utils::coreStringToAppString(number)) == wanted) return true;
+			    }
+			    return false;
+		    };
+		    std::shared_ptr<linphone::SearchResult> match;
+		    for (const auto &result : results) {
+			    if (matches(result)) {
+				    match = result;
+				    break;
+			    }
+		    }
 		    QString name;
 		    auto remoteFriend = ToolModel::findFriendByAddress(remoteAdress); // Priorize what is stored.
-		    if (!remoteFriend && results.size() > 0) remoteFriend = results.front()->getFriend(); // Then result friend.
+		    if (!remoteFriend && match) remoteFriend = match->getFriend();    // Then result friend.
 		    if (remoteFriend) name = Utils::coreStringToAppString(remoteFriend->getName());
-		    else if (results.size() > 0) // Then result address.
-			    name = Utils::coreStringToAppString(Utils::addressDisplayName(results.front()->getAddress()));
-		    if (name.isEmpty() && results.size() > 0)
-			    name = Utils::coreStringToAppString(Utils::addressUsername(results.front()->getAddress()));
+		    else if (match) // Then result address.
+			    name = Utils::coreStringToAppString(Utils::addressDisplayName(match->getAddress()));
+		    if (name.isEmpty() && match)
+			    name = Utils::coreStringToAppString(Utils::addressUsername(match->getAddress()));
 		    if (!name.isEmpty())
 			    mRemoteMagicSearchModelConnection->invokeToCore([this, name]() {
 				    mustBeInMainThread(log().arg(Q_FUNC_INFO));

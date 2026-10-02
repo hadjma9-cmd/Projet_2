@@ -20,7 +20,8 @@ FocusScope {
     property bool showActions: false // Display actions layout (call buttons)
     property bool showContactMenu: true // Display the dot menu for contacts.
     property string highlightText
-    property string addressFromFilter: UtilsCpp.getAddressToDisplay(searchResultItem.core.addresses, highlightText, searchResultItem.core.defaultAddress)
+    // Le contact peut etre momentanement absent pendant une mise a jour de la liste : pas d'erreur dans ce cas.
+    property string addressFromFilter: searchResultItem ? UtilsCpp.getAddressToDisplay(searchResultItem.core.addresses, highlightText, searchResultItem.core.defaultAddress) : ""
 
     // Bold characters in Display name.
     property bool displayNameCapitalization: true // Capitalize display name.
@@ -77,7 +78,7 @@ FocusScope {
                 Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)
                 Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
                 Layout.leftMargin: Utils.getSizeWithScreenRatio(5)
-                contact: searchResultItem
+                contact: searchResultItem || null
                 shadowEnabled: false
             }
             ColumnLayout {
@@ -208,17 +209,17 @@ FocusScope {
                     popup.contentItem: ColumnLayout {
                         IconLabelButton {
                             Layout.fillWidth: true
-                            visible: searchResultItem && searchResultItem.core.isStored
+                            visible: !!searchResultItem && searchResultItem.core.isStored
                                         && !searchResultItem.core.readOnly
                             //: "Enlever des favoris"
-                            text: searchResultItem.core.starred ? qsTr("contact_details_remove_from_favourites")
+                            text: searchResultItem?.core.starred ? qsTr("contact_details_remove_from_favourites")
                                                                     //: "Ajouter aux favoris"
                                                                 : qsTr("contact_details_add_to_favourites")
-                            icon.source: searchResultItem.core.starred ? AppIcons.heartFill : AppIcons.heart
+                            icon.source: searchResultItem?.core.starred ? AppIcons.heartFill : AppIcons.heart
                             spacing: Utils.getSizeWithScreenRatio(10)
                             textColor: DefaultStyle.main2_500_main
-                            hoveredImageColor: searchResultItem.core.starred ? DefaultStyle.main1_700 : DefaultStyle.danger_700
-                            contentImageColor: searchResultItem.core.starred ? DefaultStyle.danger_500_main : DefaultStyle.main2_600
+                            hoveredImageColor: searchResultItem?.core.starred ? DefaultStyle.main1_700 : DefaultStyle.danger_700
+                            contentImageColor: searchResultItem?.core.starred ? DefaultStyle.danger_500_main : DefaultStyle.main2_600
                             onClicked: {
                                 searchResultItem.core.lSetStarred(
                                             !searchResultItem.core.starred)
@@ -259,7 +260,7 @@ FocusScope {
                             text: qsTr("contact_details_delete")
                             icon.source: AppIcons.trashCan
                             spacing: Utils.getSizeWithScreenRatio(10)
-                            visible: searchResultItem && searchResultItem.core.isStored && !searchResultItem.core.readOnly
+                            visible: !!searchResultItem && searchResultItem.core.isStored && !searchResultItem.core.readOnly
                             Layout.fillWidth: true
                             onClicked: {
                                 mainItem.contactDeletionRequested(searchResultItem)

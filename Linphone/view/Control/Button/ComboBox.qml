@@ -233,7 +233,7 @@ Control.ComboBox {
                     }
                     Text {
                         Layout.fillWidth: true
-                        Layout.leftMargin: delegateImg.visible ? 0 : Utils.getSizeWithScreenRatio(flagItem.visble ? 5 : 25)
+                        Layout.leftMargin: delegateImg.visible ? 0 : Utils.getSizeWithScreenRatio(flagItem.visible ? 5 : 25)
                         Layout.rightMargin: Utils.getSizeWithScreenRatio(20)
                         Layout.alignment: Qt.AlignCenter
                         text: delegate.valueText

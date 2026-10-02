@@ -65,14 +65,8 @@ ChatMessageContentCore::ChatMessageContentCore(const std::shared_ptr<linphone::C
 		mFileDuration = content->getFileDuration();
 		mFileOffset = 0;
 		mUtf8Text = Utils::coreStringToAppString(content->getUtf8Text());
-		auto chatRoom = chatMessageModel ? chatMessageModel->getMonitor()->getChatRoom() : nullptr;
+		auto chatRoom = chatMessageModel ? chatMessageModel->getChatRoom() : nullptr;
 		mRichFormatText = ToolModel::encodeTextToQmlRichFormat(mUtf8Text, mSearchedTextPart, {}, chatRoom);
-		connect(this, &ChatMessageContentCore::searchedTextPartChanged, this, [this] {
-			auto chatroom = mChatMessageContentModel->getChatMessageModel()
-			                    ? mChatMessageContentModel->getChatMessageModel()->getMonitor()->getChatRoom()
-			                    : nullptr;
-			setRichFormatText(ToolModel::encodeTextToQmlRichFormat(mUtf8Text, mSearchedTextPart, {}, chatroom));
-		});
 		mWasDownloaded = !mFilePath.isEmpty() && QFileInfo(mFilePath).isFile();
 		mThumbnail = mFilePath.isEmpty() ? QUrl() : QUrl(ThumbnailProvider::thumbnailUrl(mFilePath));
 		mChatMessageContentModel = Utils::makeQObject_ptr<ChatMessageContentModel>(content, chatMessageModel);
@@ -90,6 +84,21 @@ void ChatMessageContentCore::setSelf(QSharedPointer<ChatMessageContentCore> me) 
 		if (Utils::isVideo(mFilePath)) mIsVideo = true;
 		emit isVideoChanged();
 	};
+
+	// Recherche dans la conversation : mise en forme dans le fil du SDK, car elle lit la conversation (mentions).
+	// Faite auparavant dans le fil de l'interface, elle appelait le SDK hors de son fil.
+	mChatMessageContentModelConnection->makeConnectToCore(&ChatMessageContentCore::searchedTextPartChanged, [this]() {
+		mChatMessageContentModelConnection->invokeToModel(
+		    [this, text = mUtf8Text, searchedTextPart = mSearchedTextPart]() {
+			    auto messageModel = mChatMessageContentModel->getChatMessageModel();
+			    auto richFormatText = ToolModel::encodeTextToQmlRichFormat(
+			        text, searchedTextPart, {}, messageModel ? messageModel->getChatRoom() : nullptr);
+			    mChatMessageContentModelConnection->invokeToCore([this, richFormatText, searchedTextPart]() {
+				    // Seul le resultat de la derniere recherche est affiche.
+				    if (searchedTextPart == mSearchedTextPart) setRichFormatText(richFormatText);
+			    });
+		    });
+	});
 
 	mChatMessageContentModelConnection->makeConnectToCore(
 	    &ChatMessageContentCore::lCreateThumbnail, [this](const bool &force = false) {

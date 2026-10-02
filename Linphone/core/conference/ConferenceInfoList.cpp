@@ -125,37 +125,54 @@ void ConferenceInfoList::setSelf(QSharedPointer<ConferenceInfoList> me) {
 	// This is needed because account does not have a contact address until
 	// it is connected, so we can't verify if it is the organizer of a deleted
 	// conference (which must hidden)
+	auto setCurrentAccountCore = [this](QSharedPointer<AccountCore> accountCore) {
+		if (mCurrentAccountCore) {
+			disconnect(mCurrentAccountCore.get(), &AccountCore::registrationStateChanged, this, nullptr);
+			disconnect(mCurrentAccountCore.get(), &AccountCore::conferenceInformationUpdated, this, nullptr);
+		}
+		mCurrentAccountCore = accountCore;
+		if (mCurrentAccountCore) {
+			connect(mCurrentAccountCore.get(), &AccountCore::registrationStateChanged, this,
+			        [this] { emit lUpdate(); });
+			connect(mCurrentAccountCore.get(), &AccountCore::conferenceInformationUpdated, this,
+			        [this] { emit lUpdate(); });
+		}
+	};
+	// Compte courant pris dans la liste des comptes : un seul objet par compte. Chaque copie ajoutait un
+	// ecouteur SDK, un minuteur et une verification de presence. Cree comme avant s'il n'y est pas encore.
+	auto useAccount = [this, setCurrentAccountCore](const QString &address, bool update) {
+		mustBeInMainThread(log().arg(Q_FUNC_INFO));
+		auto accountList = App::getInstance()->getAccountList();
+		auto listed = accountList && !address.isEmpty() ? accountList->findAccountByAddress(address) : nullptr;
+		if (listed || address.isEmpty()) {
+			setCurrentAccountCore(listed);
+			if (update) emit lUpdate();
+			return;
+		}
+		mCoreModelConnection->invokeToModel([this, address, update, setCurrentAccountCore]() {
+			auto account = ToolModel::findAccount(address);
+			auto created = account ? AccountCore::create(account) : nullptr;
+			mCoreModelConnection->invokeToCore([this, created, update, setCurrentAccountCore]() {
+				setCurrentAccountCore(created);
+				if (update) emit lUpdate();
+			});
+		});
+	};
+	auto identityOf = [](const std::shared_ptr<linphone::Account> &account) {
+		auto params = account ? account->getParams() : nullptr;
+		auto identity = params ? params->getIdentityAddress() : nullptr;
+		return identity ? Utils::coreStringToAppString(identity->asStringUriOnly()) : QString();
+	};
 	mCoreModelConnection->makeConnectToModel(
 	    &CoreModel::defaultAccountChanged,
-	    [this](const std::shared_ptr<linphone::Core> &core, const std::shared_ptr<linphone::Account> &account) {
-		    auto accountCore = account ? AccountCore::create(account) : nullptr;
-		    mCoreModelConnection->invokeToCore([this, accountCore] {
-			    if (mCurrentAccountCore) {
-				    disconnect(mCurrentAccountCore.get(), &AccountCore::registrationStateChanged, this, nullptr);
-				    disconnect(mCurrentAccountCore.get(), &AccountCore::conferenceInformationUpdated, this, nullptr);
-			    }
-			    mCurrentAccountCore = accountCore;
-			    if (mCurrentAccountCore) {
-				    connect(mCurrentAccountCore.get(), &AccountCore::registrationStateChanged, this,
-				            [this] { emit lUpdate(); });
-				    connect(mCurrentAccountCore.get(), &AccountCore::conferenceInformationUpdated, this,
-				            [this] { emit lUpdate(); });
-			    }
-			    emit lUpdate();
-		    });
+	    [this, useAccount, identityOf](const std::shared_ptr<linphone::Core> &core,
+	                                   const std::shared_ptr<linphone::Account> &account) {
+		    auto address = identityOf(account);
+		    mCoreModelConnection->invokeToCore([useAccount, address] { useAccount(address, true); });
 	    });
-	mCoreModelConnection->invokeToModel([this] {
-		auto defaultAccount = CoreModel::getInstance()->getCore()->getDefaultAccount();
-		auto accountCore = defaultAccount ? AccountCore::create(defaultAccount) : nullptr;
-		mCoreModelConnection->invokeToCore([this, accountCore] {
-			mCurrentAccountCore = accountCore;
-			if (mCurrentAccountCore) {
-				connect(mCurrentAccountCore.get(), &AccountCore::registrationStateChanged, this,
-				        [this] { emit lUpdate(); });
-				connect(mCurrentAccountCore.get(), &AccountCore::conferenceInformationUpdated, this,
-				        [this] { emit lUpdate(); });
-			}
-		});
+	mCoreModelConnection->invokeToModel([this, useAccount, identityOf] {
+		auto address = identityOf(CoreModel::getInstance()->getCore()->getDefaultAccount());
+		mCoreModelConnection->invokeToCore([useAccount, address] { useAccount(address, false); });
 	});
 
 	mSettingsModelConnection =

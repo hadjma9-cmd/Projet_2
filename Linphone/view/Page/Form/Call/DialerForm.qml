@@ -39,6 +39,12 @@ FocusScope {
 			numberField.remove(numberField.cursorPosition - 1, numberField.cursorPosition)
 		numberField.forceActiveFocus()
 	}
+	// Formulaire garde d'une ouverture a l'autre (CallPage) : numero efface, comme sur une page neuve.
+	function clear() {
+		numberField.clear()
+		searchDelay.stop()
+		mainItem.searchedNumber = ""
+	}
 
 	// Recherche du contact correspondant, lancee une fois la saisie posee.
 	property string searchedNumber: ""

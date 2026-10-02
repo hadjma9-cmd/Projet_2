@@ -61,6 +61,10 @@ AbstractMainPage {
     }
 
     onSelectedRowHistoryGuiChanged: {
+        // Un seul panneau dans la pile : replace() n'echange que l'element du dessus, et le detail
+        // laisse sous une conversation de conference restait en memoire, cache.
+        if (rightPanelStackView.depth > 1)
+            rightPanelStackView.pop(null, Control.StackView.Immediate)
         if (selectedRowHistoryGui)
             rightPanelStackView.replace(contactDetailComp,
                                         Control.StackView.Immediate)
@@ -77,15 +81,34 @@ AbstractMainPage {
                      && listStackView.currentItem.objectName == "historyListItem"
                      && listStackView.currentItem.listView.count === 0 || false
 
+    // Page « Nouvel appel » (Contacts et Clavier) construite une seule fois puis reutilisee : la
+    // recreer a chaque ouverture relancait ses recherches de contacts et figeait l'interface.
+    // Elle est remise a zero en quittant la pile (voir newCallItem), comme une page neuve.
+    property Item newCallPageItem: null
     function goToNewCall() {
-        if (listStackView.currentItem
-                && listStackView.currentItem.objectName != "newCallItem")
-            listStackView.push(newCallItem)
+        if (!listStackView.currentItem || listStackView.currentItem.objectName == "newCallItem")
+            return
+        // Encore en train de sortir (animation de retour) : la repousser maintenant la ferait
+        // disparaitre a la fin de cette animation. Page neuve dans ce cas, comme auparavant.
+        if (newCallPageItem && newCallPageItem.parent !== newCallPageHolder
+                && !listStackView.find(function (item) { return item === mainItem.newCallPageItem }))
+            newCallPageItem = null
+        if (!newCallPageItem)
+            newCallPageItem = newCallItem.createObject(newCallPageHolder)
+        if (!newCallPageItem)
+            return
+        if (newCallPageItem.parent === newCallPageHolder)
+            listStackView.push(newCallPageItem)
+        else // Deja dans la pile, sous le formulaire d'appel de groupe.
+            listStackView.popToItem(newCallPageItem, Control.StackView.PopTransition)
     }
+    // Retour a l'historique, toujours au bas de la pile. replace() n'echangeait que l'element du
+    // dessus : chaque retour empilait une nouvelle liste d'historique sur l'ancienne, et toutes
+    // restaient en memoire, cachees, mises a jour a chaque appel.
     function goToCallHistory() {
-        if (listStackView.currentItem
-                && listStackView.currentItem.objectName != "historyListItem")
-            listStackView.replace(historyListItem)
+        if (listStackView.depth > 1)
+            listStackView.popToIndex(0, mainItem.visible ? Control.StackView.PopTransition
+                                                         : Control.StackView.Immediate)
     }
     // Demande du bouton numeroteur du bandeau (relayee par MainLayout) : page « Nouvel appel »,
     // onglet Clavier, numero pret a etre saisi.
@@ -127,6 +150,11 @@ AbstractMainPage {
             onActiveFocusChanged: if (activeFocus) {
                 currentItem.forceActiveFocus()
             }
+        }
+        // Garde la page « Nouvel appel » tant qu'elle n'est pas affichee (voir goToNewCall).
+        Item {
+            id: newCallPageHolder
+            visible: false
         }
     }
 
@@ -203,7 +231,7 @@ AbstractMainPage {
                         Accessible.name: qsTr("create_new_call_accessible_name")
                         onClicked: {
                             console.debug("[CallPage]User: create new call")
-                            listStackView.push(newCallItem)
+                            mainItem.goToNewCall()
                         }
                     }
                 }
@@ -347,8 +375,20 @@ AbstractMainPage {
                 const focusReason = FocusNavigator.doesLastFocusWasKeyboard() ? Qt.TabFocusReason : Qt.OtherFocusReason
                 newCallPage.focusCurrentMode(focusReason)
             }
+            // Page reutilisee (voir goToNewCall) : en quittant la pile, elle redevient une page neuve,
+            // sans numero ni recherche. Remplacee entre-temps (reouverture pendant son animation de
+            // retour), elle ne sert plus.
+            Control.StackView.onRemoved: {
+                if (mainItem.newCallPageItem !== newCallPage) {
+                    newCallPage.destroy()
+                    return
+                }
+                callContactsList.reset()
+                dialerForm.clear()
+            }
             Connections {
                 target: mainItem
+                enabled: mainItem.newCallPageItem === newCallPage
                 function onDialerFocusRequested() {
                     newCallPage.focusCurrentMode(Qt.OtherFocusReason)
                 }

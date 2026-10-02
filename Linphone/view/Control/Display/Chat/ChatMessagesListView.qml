@@ -137,7 +137,7 @@ ListView {
     Connections {
         target: mainWindow
         function onActiveChanged() {
-            if (mainWindow.active && mainItem.atYEnd) mainItem.chat.core.lMarkAsRead()
+            if (mainWindow.active && mainItem.atYEnd && mainItem.chat) mainItem.chat.core.lMarkAsRead()
         }
     }
 
@@ -213,6 +213,15 @@ ListView {
         }
     }
 
+    // Messages plus hauts que la vue, hors pied de liste : la marge du pied en dependait directement, et le pied
+    // change la hauteur du contenu (boucle signalee dans le journal). Mise a jour differee et sans le pied : stable.
+    property bool contentOverflows: false
+    function updateContentOverflows() {
+        contentOverflows = contentHeight - (footerItem ? footerItem.height : 0) > height
+    }
+    onContentHeightChanged: Qt.callLater(updateContentOverflows)
+    onHeightChanged: Qt.callLater(updateContentOverflows)
+
     footer: RowLayout {
         visible: mainItem.chat && !mainItem.loading
         height: visible ? (headerMessage.height + headerMessage.topMargin + headerMessage.bottomMargin) : Utils.getSizeWithScreenRatio(30)
@@ -221,7 +230,7 @@ ListView {
         Control.Control {
             id: headerMessage
             visible: mainItem.showEncryptedInfo
-            property int topMargin: Utils.getSizeWithScreenRatio(mainItem.contentHeight > mainItem.height ? 30 : 50)
+            property int topMargin: Utils.getSizeWithScreenRatio(mainItem.contentOverflows ? 30 : 50)
             property int bottomMargin: Utils.getSizeWithScreenRatio(30)
             property int sideMargin: Utils.getSizeWithScreenRatio(5)
             Layout.topMargin: topMargin
@@ -280,7 +289,8 @@ ListView {
     header: Control.Control {
         visible: composeLayout.composingName !== "" && composeLayout.composingName !== undefined
         width: mainItem.width
-        height: visible ? composeLayout.height + topPadding + bottomPadding : 0
+        // Taille naturelle de la ligne (implicitHeight) : sa hauteur dependait de celle du bandeau, et inversement.
+        height: visible ? composeLayout.implicitHeight + topPadding + bottomPadding : 0
         z: mainItem.z + 2
         topPadding: Utils.getSizeWithScreenRatio(5)
         bottomPadding: Utils.getSizeWithScreenRatio(5)
@@ -291,7 +301,6 @@ ListView {
         contentItem: RowLayout {
             id: composeLayout
             property var composingName: mainItem.chat?.core.composingName
-            height: childrenRect.height
             Avatar {
                 Layout.preferredWidth: Utils.getSizeWithScreenRatio(20)
                 Layout.preferredHeight: Utils.getSizeWithScreenRatio(20)
@@ -345,7 +354,7 @@ ListView {
 				}
 				MediumButton {
 					id: secondButtonId
-					visible: messageDeletionDialog.chatMessage.core.isOutgoing && messageDeletionDialog.chatMessage.core.isRetractable && !messageDeletionDialog.chatMessage.core.isRetracted
+					visible: !!messageDeletionDialog.chatMessage && messageDeletionDialog.chatMessage.core.isOutgoing && messageDeletionDialog.chatMessage.core.isRetractable && !messageDeletionDialog.chatMessage.core.isRetracted
 					text: qsTr("conversation_dialog_delete_for_everyone_label")
 					style: ButtonStyle.main
 					onClicked: {

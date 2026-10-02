@@ -374,7 +374,7 @@ AbstractWindow {
                                 // TODO : change with broadcast or meeting icon when available
                                 // onImageSourceChanged: console.log("image source changed", imageSource)
                                 imageSource: !mainWindow.call
-                                    ? AppIcons.meeting
+                                    ? AppIcons.videoconference
                                     : (mainWindow.callState === LinphoneEnums.CallState.End || mainWindow.callState === LinphoneEnums.CallState.Released)
                                         ? AppIcons.endCall
                                         : (mainWindow.call.core.paused || mainWindow.callState === LinphoneEnums.CallState.Paused || mainWindow.callState === LinphoneEnums.CallState.PausedByRemote)

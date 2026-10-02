@@ -162,6 +162,9 @@ MagicSearchModel::updateFriendListWithFriend(const std::shared_ptr<linphone::Fri
 				oldVcard->setJobTitle(newVcard->getJobTitle());
 			}
 			existingFriend->done(); // Sans nouveau SUBSCRIBE : l'abonnement actif est conserve.
+			// La fiche affichee est partagee et dure : on la previent pour qu'elle relise nom, societe
+			// et fonction (FriendModel::onUpdated), au lieu d'attendre qu'une fiche neuve soit creee.
+			emit CoreModel::getInstance()->friendUpdated(existingFriend);
 		}
 		return existingFriend;
 	};

@@ -26,7 +26,11 @@ Loader{
 				? contact.core.defaultAddress
 				: ''
 	readonly property var address: SettingsCpp.hideSipAddresses ? UtilsCpp.getUsername(_address) : _address
-	property var displayNameObj: UtilsCpp.getDisplayName(_address)
+	// Requete au moteur SIP seulement si le compte ou la fiche du contact ne donnent pas deja le nom
+	// (chaque avatar en lancait une, meme inutile).
+	property var displayNameObj: (account?.core && account.core.displayName) || (contact && contact.core.fullName)
+		? null
+		: UtilsCpp.getDisplayName(_address)
 	property var displayNameVal: account?.core && account.core.displayName
 		? account.core.displayName
 		: contact && contact.core.fullName
@@ -49,13 +53,22 @@ Loader{
 	property bool avatarLoadFailed: avatarUri.length !== 0 && UtilsCpp.isMissingAvatarUrl(avatarUri)
 	onAvatarUriChanged: avatarLoadFailed = avatarUri.length !== 0 && UtilsCpp.isMissingAvatarUrl(avatarUri)
 	property bool haveAvatar: avatarUri.length !== 0 && !avatarLoadFailed
-	property var avatarObj: UtilsCpp.findAvatarByAddress(_address)
+	// Photo distante : parametre v renouvele toutes les 15 minutes (AppCpp.avatarRevision), pour que le cache
+	// d'images ne serve pas indefiniment une ancienne photo (meme URL). Date.now() n'etait lu qu'a la creation de
+	// l'avatar : un avatar reste affiche gardait l'ancienne photo. Fichiers locaux et fournisseurs d'images : URL
+	// inchangee.
+	readonly property string avatarSource: avatarUri.startsWith("http")
+		? avatarUri + (avatarUri.indexOf("?") === -1 ? "?" : "&") + "v=" + AppCpp.avatarRevision
+		: avatarUri
+	// Photo cherchee seulement sans compte ni fiche de contact : avatarUri ne lit computedAvatarUri
+	// que dans ce cas.
+	property var avatarObj: account?.core || contact ? null : UtilsCpp.findAvatarByAddress(_address)
 	property string computedAvatarUri: avatarObj ? avatarObj.value : ''
 
 	// To get the secured property for a friend using an address to find it,
 	// override it as secured: friendSecurityLevel === LinphoneEnums.SecurityLevel.EndToEndEncryptedAndVerified
 	property var friendSecurityLevelObj: UtilsCpp.getFriendSecurityLevel(_address)
-	property var friendSecurityLevel: friendSecurityLevelObj ? securityLevelObj.value : LinphoneEnums.SecurityLevel.None
+	property var friendSecurityLevel: friendSecurityLevelObj ? friendSecurityLevelObj.value : LinphoneEnums.SecurityLevel.None
 	
 	// To get the secured property for a specific address,
 	// override it as secured: securityLevel === LinphoneEnums.SecurityLevel.EndToEndEncryptedAndVerified
@@ -90,21 +103,20 @@ Loader{
 				shadowColor: DefaultStyle.grey_1000
 				shadowOpacity: 0.1
 			}
-			StackView {
+			Item {
 				id: stackView
-				
-				initialItem: mainItem.haveAvatar ? avatar : initials
 				anchors.fill: parent
-				
-				Connections{
-					target: mainItem
-					onHaveAvatarChanged: {
-						stackView.replace(mainItem.haveAvatar ? avatar : initials, StackView.Immediate)}
+
+				// Photo ou initiales. Un simple chargeur remplace la StackView (une par avatar, lourde pour un seul
+				// element affiche et sans transition) ; il prend la taille de l'element, comme elle.
+				Loader {
+					id: avatarLoader
+					sourceComponent: mainItem.haveAvatar ? avatar : initials
 				}
-				
+
 				Rectangle {
 					visible: mainItem.secured || mainItem.securityBreach
-					anchors.fill: stackView.currentItem
+					anchors.fill: avatarLoader
 					radius: stackView.width / 2
 					z: 1
 					color: "transparent"
@@ -227,11 +239,13 @@ Loader{
 						sourceSize.height: avatarItem.height
 						fillMode: Image.PreserveAspectCrop
 						anchors.centerIn: parent
-						source: mainItem.avatarUri
-						// L'avatar peut etre une URL distante dont le contenu change sans que l'URL
-						// change. Le cache memoire de Qt, indexe par URL, servirait indefiniment
-						// l'ancienne image : on le desactive pour laisser jouer les en-tetes HTTP.
-						cache: false
+						// Cache memoire de Qt actif : la photo n'est plus retelechargee a chaque affichage
+						// (defilement, changement d'onglet). Une photo distante changee sans que son URL
+						// change reste visible grace au parametre de avatarSource, renouvele toutes les 15 min.
+						source: mainItem.avatarSource
+						// Relecture toutes les 15 minutes : l'ancienne photo reste affichee jusqu'a l'arrivee de la
+						// nouvelle, sans passage par une image vide.
+						retainWhileLoading: true
 						onStatusChanged: if (status === Image.Error) {
 							UtilsCpp.markMissingAvatarUrl(mainItem.avatarUri)
 							mainItem.avatarLoadFailed = true

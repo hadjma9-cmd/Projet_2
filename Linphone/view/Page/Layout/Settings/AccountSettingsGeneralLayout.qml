@@ -94,7 +94,6 @@ AbstractSettingsLayout {
 					var avatarPath = UtilsCpp.createAvatar( selectedFile )
 					if(avatarPath){
 						model.core.pictureUri = avatarPath
-						avatar.model = model
 					}
 				}
 			}

@@ -148,8 +148,8 @@ ListView {
             spacing: Utils.getSizeWithScreenRatio(10)
             Avatar {
                 id: historyAvatar
-                property var contactObj: UtilsCpp.findFriendByAddress(modelData.core.remoteAddress)
-                contact: contactObj?.value || null
+                // Fiche tenue par la ligne d'historique (pas de requete par ligne).
+                contact: modelData.core.contact
                 displayNameVal: modelData.core.displayName
                 secured: securityLevel === LinphoneEnums.SecurityLevel.EndToEndEncryptedAndVerified
                 width: Utils.getSizeWithScreenRatio(45)

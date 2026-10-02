@@ -33,11 +33,13 @@
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlFileSelector>
+#include <QQmlIncubator>
 #include <QQuickWindow>
 #include <QStandardPaths>
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QTranslator>
+#include <functional>
 
 #include "core/account/AccountCore.hpp"
 #include "core/account/AccountDeviceGui.hpp"
@@ -279,7 +281,11 @@ void App::setAutoStart(bool enabled) {
 
 void App::setAutoStart(bool enabled) {
 	QSettings settings(AutoStartSettingsFilePath, QSettings::NativeFormat);
-	if (enabled) settings.setValue(EXECUTABLE_NAME, QDir::toNativeSeparators(applicationFilePath()));
+	// Chemin entre guillemets (il contient des espaces : Program Files) et demarrage reduit dans la zone de
+	// notification, comme sous Linux.
+	if (enabled)
+		settings.setValue(EXECUTABLE_NAME,
+		                  QStringLiteral("\"%1\" --minimized").arg(QDir::toNativeSeparators(applicationFilePath())));
 	else settings.remove(EXECUTABLE_NAME);
 
 	mAutoStart = enabled;
@@ -339,6 +345,13 @@ App::App(int &argc, char *argv[])
 	});
 	mEventCountNotifier = new EventCountNotifier(this);
 	mDateUpdateTimer.start();
+	// Compte a partir du demarrage : les postes ne relisent pas tous les photos au meme moment.
+	mAvatarRevisionTimer.setInterval(15 * 60 * 1000);
+	connect(&mAvatarRevisionTimer, &QTimer::timeout, this, [this] {
+		++mAvatarRevision;
+		emit avatarRevisionChanged();
+	});
+	mAvatarRevisionTimer.start();
 	// Mesure des blocages de l'interface (journal : « [Sonde] Fil interface »).
 	new FluidityProbe(QStringLiteral("interface"), true, this);
 
@@ -706,7 +719,8 @@ void App::initCore() {
 			    }
 			    mSettings = settings;
 			    lDebug() << log().arg("Starting HID devices detection");
-			    CoreModel::getInstance()->getCore()->startHidDevicesDetection();
+			    // Dans le fil du SDK : appele d'ici, depuis l'interface, le coeur signalait un acces hors de son fil.
+			    App::postModelAsync([] { CoreModel::getInstance()->getCore()->startHidDevicesDetection(); });
 			    // Provide `+custom` folders for custom components and `5.9` for old components.
 			    QStringList selectors("custom");
 			    const QVersionNumber &version = QLibraryInfo::version();
@@ -782,7 +796,23 @@ void App::initCore() {
 					    else mCallList->lUpdate();
 					    connect(mCallList.get(), &CallList::currentCallChanged, this, [this] {
 						    auto callCore = mCallList->getCurrentCallCore();
-						    if (!callCore || callCore->getDir() == LinphoneEnums::CallDir::Incoming) return;
+						    if (!callCore) return;
+						    if (callCore->getDir() == LinphoneEnums::CallDir::Incoming) {
+							    // Appel entrant : la fenetre d'appel (Accepter / Refuser) s'ouvre d'elle-meme, devant,
+							    // sans prendre le clavier de la fenetre en cours d'utilisation. Rien en « Ne pas
+							    // deranger ». La notification Windows reste affichee en plus.
+							    mCoreModelConnection->invokeToCore([this, callCore] {
+								    if (mSettings && mSettings->dndEnabled()) return;
+								    const auto state = callCore->getState();
+								    if (state != LinphoneEnums::CallState::IncomingReceived &&
+								        state != LinphoneEnums::CallState::IncomingEarlyMedia)
+									    return; // Deja decroche, refuse ou termine.
+								    if (mCallsWindow && mCallsWindow->isVisible()) return; // Deja a l'ecran.
+								    auto win = getOrCreateCallsWindow(QVariant::fromValue(new CallGui(callCore)));
+								    Utils::showWithoutActivating(win);
+							    });
+							    return;
+						    }
 						    lDebug() << "Call created in core, get calls window";
 						    mCoreModelConnection->invokeToCore([this, callCore] {
 							    auto callGui = new CallGui(callCore);
@@ -793,6 +823,8 @@ void App::initCore() {
 							    lDebug() << "App : call created" << callGui;
 						    });
 					    });
+					    // Premiere fenetre d'appel preparee une fois l'application demarree et au calme.
+					    QTimer::singleShot(5000, this, &App::prepareCallsWindow);
 					    if (!mChatList) setChatList(ChatList::create());
 					    else mChatList->lUpdate();
 					    disconnect(this, &App::coreStartedChanged, this, nullptr);
@@ -860,7 +892,8 @@ void App::initCore() {
 #endif // if defined(__APPLE__)
 
 						        static bool firstOpen = true;
-						        if (!firstOpen || !mParser->isSet("minimized")) {
+						        const bool stayMinimized = firstOpen && mParser->isSet("minimized");
+						        if (!stayMinimized) {
 							        lDebug() << log().arg("Openning window");
 							        if (window) window->show();
 						        } else lInfo() << log().arg("Stay minimized");
@@ -906,8 +939,11 @@ void App::initCore() {
 							        }
 						        }
 						        if (mSettings->autoCheckForUpdateOnStart()) checkForUpdate();
-						        window->show();
-						        window->requestActivate();
+						        // Affichage inconditionnel : --minimized (demarrage avec Windows) etait ignore.
+						        if (!stayMinimized) {
+							        window->show();
+							        window->requestActivate();
+						        }
 
 						        //---------------------------------------------------------------------------------------------
 						        lDebug() << log().arg("Creating KeyboardShortcuts");
@@ -1126,6 +1162,7 @@ void App::clean() {
 #ifdef Q_OS_WIN
 	removeNativeEventFilter(mLockEventFilter);
 #endif
+	releaseCallsWindowIncubator(); // Avant le moteur QML qu'elle utilise.
 	if (mEngine) {
 		mEngine->clearComponentCache();
 		mEngine->clearSingletons();
@@ -1325,10 +1362,85 @@ QQuickWindow *App::getCallsWindow() {
 	return mCallsWindow;
 }
 
+namespace {
+const QString CallsWindowUrl = QStringLiteral("qrc:/qt/qml/Linphone/view/Page/Window/Call/CallsWindow.qml");
+
+// Creation progressive : le moteur QML construit la fenetre par tranches de quelques millisecondes entre
+// deux images, au lieu d'un bloc qui figeait l'interface de 0,2 a 1,4 s au lancement de chaque appel.
+class CallsWindowIncubator : public QQmlIncubator {
+public:
+	explicit CallsWindowIncubator(std::function<void(QQmlIncubator::Status)> onStatusChanged)
+	    : QQmlIncubator(QQmlIncubator::Asynchronous), mOnStatusChanged(std::move(onStatusChanged)) {
+	}
+
+protected:
+	void statusChanged(Status status) override {
+		if (mOnStatusChanged) mOnStatusChanged(status);
+	}
+
+private:
+	std::function<void(QQmlIncubator::Status)> mOnStatusChanged;
+};
+} // namespace
+
+bool App::adoptCallsWindow(QObject *object) {
+	auto window = qobject_cast<QQuickWindow *>(object);
+	if (!window) {
+		lCritical() << log().arg("Calls window could not be created.");
+		if (object) object->deleteLater();
+		return false;
+	}
+	object->setParent(mEngine);
+	mCallsWindow = window;
+	connect(mCallsWindow, &QQuickWindow::activeChanged, this, &App::handleAppActivity);
+	return true;
+}
+
+void App::releaseCallsWindowIncubator() {
+	// Interrompt une preparation en cours ; une fenetre deja prete n'est pas detruite (QQmlIncubator::clear).
+	delete mCallsWindowIncubator;
+	mCallsWindowIncubator = nullptr;
+	delete mCallsWindowComponent;
+	mCallsWindowComponent = nullptr;
+}
+
+// Fenetre neuve pour chaque appel (aucun reste du precedent), mais construite a l'avance, masquee, pendant
+// que l'application ne fait rien : au lancement de l'appel, elle n'a plus qu'a s'afficher.
+void App::prepareCallsWindow() {
+	mustBeInMainThread(getClassName());
+	if (mCallsWindow || mCallsWindowIncubator || !mEngine || !mCoreStarted) return;
+	auto component = new QQmlComponent(mEngine, QUrl(CallsWindowUrl));
+	if (!component->isReady()) {
+		lWarning() << log().arg("Calls window cannot be prepared in background:") << component->errors();
+		delete component;
+		return;
+	}
+	mCallsWindowComponent = component;
+	mCallsWindowIncubator = new CallsWindowIncubator([this](QQmlIncubator::Status status) {
+		if (status == QQmlIncubator::Loading || status == QQmlIncubator::Null) return;
+		if (status == QQmlIncubator::Ready) {
+			QObject *object = mCallsWindowIncubator->object();
+			if (mCallsWindow) {
+				if (object) object->deleteLater(); // Une fenetre a ete creee entre-temps.
+			} else if (adoptCallsWindow(object)) {
+				lInfo() << log().arg("Calls window prepared in background.");
+			}
+		} else {
+			lWarning() << log().arg("Calls window background preparation failed:") << mCallsWindowIncubator->errors();
+		}
+		// Pas de destruction de l'incubateur pendant son propre rappel.
+		QTimer::singleShot(0, this, [this] { releaseCallsWindowIncubator(); });
+	});
+	component->create(*mCallsWindowIncubator);
+}
+
 QQuickWindow *App::getOrCreateCallsWindow(QVariant callGui) {
 	mustBeInMainThread(getClassName());
+	// Preparation pas encore terminee : on acheve seulement ce qui reste, au lieu de tout recommencer.
+	if (!mCallsWindow && mCallsWindowIncubator && mCallsWindowIncubator->isLoading())
+		mCallsWindowIncubator->forceCompletion();
 	if (!mCallsWindow) {
-		const QUrl callUrl("qrc:/qt/qml/Linphone/view/Page/Window/Call/CallsWindow.qml");
+		const QUrl callUrl(CallsWindowUrl);
 
 		lInfo() << log().arg("Creating subwindow: `%1`.").arg(callUrl.toString());
 
@@ -1341,28 +1453,11 @@ QQuickWindow *App::getOrCreateCallsWindow(QVariant callGui) {
 		}
 		lInfo() << log().arg("Subwindow status: `%1`.").arg(component.status());
 
-		QObject *object = nullptr;
-		// if (!callGui.isNull() && callGui.isValid()) object = component.createWithInitialProperties({{"call",
-		// callGui}});
-		object = component.create();
-		Q_ASSERT(object);
-		if (!object) {
+		QObject *object = component.create();
+		if (!object || !adoptCallsWindow(object)) {
 			lCritical() << log().arg("Calls window could not be created.");
 			return nullptr;
 		}
-
-		// QQmlEngine::setObjectOwnership(object, QQmlEngine::CppOwnership);
-		object->setParent(mEngine);
-
-		auto window = qobject_cast<QQuickWindow *>(object);
-		Q_ASSERT(window);
-		if (!window) {
-			lCritical() << log().arg("Calls window could not be created.");
-			return nullptr;
-		}
-		// window->setParent(mMainWindow);
-		mCallsWindow = window;
-		connect(mCallsWindow, &QQuickWindow::activeChanged, this, &App::handleAppActivity);
 	}
 	if (!callGui.isNull() && callGui.isValid()) mCallsWindow->setProperty("call", callGui);
 	return mCallsWindow;
@@ -1377,6 +1472,8 @@ void App::closeCallsWindow() {
 		mCallsWindow->close();
 		mCallsWindow->deleteLater();
 		mCallsWindow = nullptr;
+		// Fenetre neuve preparee pour le prochain appel, en arriere-plan.
+		QTimer::singleShot(3000, this, &App::prepareCallsWindow);
 	}
 }
 

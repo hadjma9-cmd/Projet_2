@@ -26,32 +26,50 @@ SOFTWARE.
 #include "core/path/Paths.hpp"
 #include "tool/Constants.hpp"
 
-EmojiModel::EmojiModel() {
-	QFile file(QString(":/data/emoji/emoji.json"));
-	auto open = file.open(QIODevice::ReadOnly);
-	QByteArray data = file.readAll();
-	file.close();
-	QJsonDocument doc = QJsonDocument::fromJson(data);
-	QJsonObject rootObj = doc.object();
-	for (auto category{rootObj.begin()}; category != rootObj.end(); ++category) {
-		emojies[category.key()] = category.value().toArray();
-		QJsonArray &emojiesData = emojies[category.key()];
-		for (auto it{emojiesData.begin()}; it != emojiesData.end(); ++it) {
-			QJsonObject emoji = it->toObject();
-			QJsonArray allKeywords = emoji.value("keywords").toArray();
-			for (auto k{allKeywords.begin()}; k != allKeywords.end(); ++k) {
-				keywords[k->toString()].append(emoji);
+namespace {
+// Liste des emojis lue et indexee une seule fois pour toute l'application. Chaque selecteur relisait et
+// analysait les 560 Ko du fichier, sur le fil de l'interface. Les copies faites par EmojiModel sont
+// partagees (Qt) tant qu'on n'y accede qu'en lecture : d'ou les acces const ci-dessous.
+struct EmojiData {
+	QMap<QString, QJsonArray> emojies;
+	QMap<QString, QVector<QJsonObject>> keywords;
+};
+
+const EmojiData &emojiData() {
+	static const EmojiData data = [] {
+		EmojiData result;
+		QFile file(QString(":/data/emoji/emoji.json"));
+		if (!file.open(QIODevice::ReadOnly)) return result;
+		QByteArray bytes = file.readAll();
+		file.close();
+		QJsonDocument doc = QJsonDocument::fromJson(bytes);
+		QJsonObject rootObj = doc.object();
+		for (auto category{rootObj.begin()}; category != rootObj.end(); ++category) {
+			result.emojies[category.key()] = category.value().toArray();
+			QJsonArray &emojiesData = result.emojies[category.key()];
+			for (auto it{emojiesData.begin()}; it != emojiesData.end(); ++it) {
+				QJsonObject emoji = it->toObject();
+				QJsonArray allKeywords = emoji.value("keywords").toArray();
+				for (auto k{allKeywords.begin()}; k != allKeywords.end(); ++k) {
+					result.keywords[k->toString()].append(emoji);
+				}
 			}
 		}
-	}
+		return result;
+	}();
+	return data;
+}
+} // namespace
+
+EmojiModel::EmojiModel() : emojies(emojiData().emojies), keywords(emojiData().keywords) {
 }
 
 int EmojiModel::count(QString category) {
-	return emojies[category].size();
+	return emojies.value(category).size();
 }
 
 QString EmojiModel::path(QString category, int index, int skinColor) {
-	QJsonObject emoji = emojies[category][index].toObject();
+	QJsonObject emoji = emojies.value(category).at(index).toObject();
 	if (emoji.contains("types") && skinColor != -1) {
 		QJsonArray types = emoji.value("types").toArray();
 		return mIconsPath + types[skinColor].toString() + mIconsType;
@@ -61,10 +79,10 @@ QString EmojiModel::path(QString category, int index, int skinColor) {
 QVector<QString> EmojiModel::search(QString searchKey, int skinColor) {
 	bool foundFirstItem{false};
 	QVector<QString> searchResult;
-	for (auto it{keywords.begin()}; it != keywords.end(); ++it) {
+	for (auto it{keywords.cbegin()}; it != keywords.cend(); ++it) {
 		if (it.key().startsWith(searchKey)) {
-			QVector<QJsonObject> &emojiesData{it.value()};
-			for (auto emoji{emojiesData.begin()}; emoji != emojiesData.end(); ++emoji) {
+			const QVector<QJsonObject> &emojiesData{it.value()};
+			for (auto emoji{emojiesData.cbegin()}; emoji != emojiesData.cend(); ++emoji) {
 				if (emoji->contains("types") && skinColor != -1) {
 					QJsonArray types = emoji->value("types").toArray();
 					QString path = mIconsPath + types[skinColor].toString() + mIconsType;

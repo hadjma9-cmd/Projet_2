@@ -21,6 +21,14 @@ using namespace ABI::Windows::UI::Notifications;
 using namespace ABI::Windows::Foundation;
 using namespace Microsoft::WRL::Wrappers;
 
+namespace {
+// Texte insere dans le XML de la notification : un nom d'appelant contenant & ou < rendait le XML invalide et la
+// notification d'appel ne s'affichait pas.
+std::wstring xmlEscaped(const QString &text) {
+	return text.toHtmlEscaped().toStdWString();
+}
+} // namespace
+
 NotificationBackend::NotificationBackend(QObject *parent) : AbstractNotificationBackend(parent) {
 	connect(App::getInstance(), &App::sessionLockedChanged, this, [this] {
 		if (!App::getInstance()->getSessionLocked()) {
@@ -133,18 +141,18 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 		return;
 	}
 
-	auto displayName = data["displayName"].toString().toStdWString();
-	auto remoteAddress = data["remoteAddress"].toString().toStdWString();
+	auto displayName = xmlEscaped(data["displayName"].toString());
+	auto remoteAddress = xmlEscaped(data["remoteAddress"].toString());
 	int timeout = 2;
 	// AbstractNotificationBackend::Notifications[(int)NotificationType::ReceivedCall].getTimeout();
 
 	// Incoming call
-	auto callDescription = tr("incoming_call").toStdWString();
+	auto callDescription = xmlEscaped(tr("incoming_call"));
 
 	QList<ToastButton> actions;
 	QString declineIcon = Utils::getIconAsPng(Utils::getAppIcon("endCall").toString());
 	QString acceptIcon = Utils::getIconAsPng(Utils::getAppIcon("phone").toString());
-	auto appIcon = Utils::getIconAsPng(Utils::getAppIcon("logo").toString()).toStdWString();
+	auto appIcon = xmlEscaped(Utils::getIconAsPng(Utils::getAppIcon("logo").toString()));
 	//: Accept
 	actions.append(ToastButton(tr("accept_button"), "accept", acceptIcon));
 	//: Decline
@@ -153,9 +161,9 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 	if (!actions.isEmpty()) {
 		wActions += L"<actions>";
 		for (const auto &action : actions) {
-			std::wstring wLabel = action.label.toStdWString();
-			std::wstring wArg = action.argument.toStdWString();
-			std::wstring wIcon = action.icon.toStdWString();
+			std::wstring wLabel = xmlEscaped(action.label);
+			std::wstring wArg = xmlEscaped(action.argument);
+			std::wstring wIcon = xmlEscaped(action.icon);
 			qDebug() << "toast icon action" << wIcon;
 			wActions +=
 			    L"<action content=\"" + wLabel + L"\" arguments=\"" + wArg + L"\" imageUri=\"" + wIcon + L"\"/>";

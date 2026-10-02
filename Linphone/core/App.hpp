@@ -40,6 +40,8 @@ class CallGui;
 class ChatGui;
 class Thread;
 class Notifier;
+class QQmlComponent;
+class QQmlIncubator;
 class QQuickWindow;
 class QSystemTrayIcon;
 class DefaultTranslatorCore;
@@ -62,6 +64,8 @@ class App : public SingleApplication, public AbstractObject {
 	Q_PROPERTY(QString localeAsString READ getLocaleAsString CONSTANT)
 	Q_PROPERTY(int remainingTimeBeforeOidcTimeout MEMBER mRemainingTimeBeforeOidcTimeout NOTIFY
 	               remainingTimeBeforeOidcTimeoutChanged)
+	// Change toutes les 15 minutes : les photos distantes des contacts sont alors relues malgre le cache d'images.
+	Q_PROPERTY(int avatarRevision MEMBER mAvatarRevision NOTIFY avatarRevisionChanged)
 
 public:
 	App(int &argc, char *argv[]);
@@ -166,6 +170,8 @@ public:
 	QQuickWindow *getOrCreateCallsWindow(QVariant callGui = QVariant());
 	void setCallsWindowProperty(const char *id, QVariant property);
 	void closeCallsWindow();
+	// Prepare, masquee et par petits morceaux, la fenetre du prochain appel (voir App.cpp).
+	void prepareCallsWindow();
 
 	QQuickWindow *getMainWindow() const;
 	void setMainWindow(QQuickWindow *data);
@@ -251,6 +257,7 @@ signals:
 	void localeChanged();
 	void lForceOidcTimeout();
 	void remainingTimeBeforeOidcTimeoutChanged();
+	void avatarRevisionChanged();
 	void currentAccountChanged();
 	void restartCoreRequested();
 #ifdef Q_OS_WIN
@@ -275,6 +282,11 @@ private:
 	QSystemTrayIcon *mSystemTrayIcon = nullptr;
 	QQuickWindow *mMainWindow = nullptr;
 	QQuickWindow *mCallsWindow = nullptr;
+	// Preparation en arriere-plan de la fenetre d'appel (creation QML progressive).
+	bool adoptCallsWindow(QObject *object);
+	void releaseCallsWindowIncubator();
+	QQmlComponent *mCallsWindowComponent = nullptr;
+	QQmlIncubator *mCallsWindowIncubator = nullptr;
 	QQuickWindow *mLastActiveWindow = nullptr;
 #ifdef Q_OS_WIN
 	LockEventFilter *mLockEventFilter = nullptr;
@@ -303,6 +315,8 @@ private:
 	float mScreenRatio = 1;
 	QTimer mOIDCRefreshTimer;
 	int mRemainingTimeBeforeOidcTimeout = 0;
+	QTimer mAvatarRevisionTimer;
+	int mAvatarRevision = 0;
 #ifdef Q_OS_WIN
 	bool mSessionLocked = false;
 #endif

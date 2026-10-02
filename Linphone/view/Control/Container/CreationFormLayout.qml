@@ -23,6 +23,14 @@ FocusScope {
     property bool topLayoutVisible: topLayout.children.length > 0
     property int searchBarRightMaring: Utils.getSizeWithScreenRatio(39)
 
+	// Formulaire garde d'une ouverture a l'autre (page « Nouvel appel ») : sans recherche, sans
+	// selection et en haut de la liste, comme un formulaire neuf.
+	function reset() {
+		searchBar.clearText()
+		contactList.resetSelections()
+		contactList.contentY = 0
+	}
+
 	ColumnLayout {
 		anchors.fill: parent
         spacing: Utils.getSizeWithScreenRatio(22)

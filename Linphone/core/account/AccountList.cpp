@@ -89,8 +89,8 @@ void AccountList::setSelf(QSharedPointer<AccountList> me) {
 		    if (account && account->getParams()->getIdentityAddress()) {
 			    auto address =
 			        Utils::coreStringToAppString(account->getParams()->getIdentityAddress()->asStringUriOnly());
-			    auto model = findAccountByAddress(address);
-			    mModelConnection->invokeToCore([this, model]() { setDefaultAccount(model); });
+			    // Recherche dans le fil de l'interface, a qui la liste appartient (elle etait lue ici, fil du SDK).
+			    mModelConnection->invokeToCore([this, address]() { setDefaultAccount(findAccountByAddress(address)); });
 		    } else mModelConnection->invokeToCore([this]() { setDefaultAccount(nullptr); });
 	    });
 	mModelConnection->makeConnectToModel(&CoreModel::accountRemoved, [this] { emit lUpdate(); });

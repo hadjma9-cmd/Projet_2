@@ -44,8 +44,8 @@ void ChatProxy::setSourceModel(QAbstractItemModel *model) {
 	}
 	auto newChatList = dynamic_cast<ChatList *>(model);
 	if (newChatList) {
-		connect(this, &ChatProxy::filterTextChanged, newChatList,
-		        [this, newChatList] { emit newChatList->filterChanged(getFilterText()); });
+		// Plus de transmission du texte de recherche a la liste : elle reconstruisait toutes ses conversations
+		// a chaque touche (et la liste commune pour toutes les vues). Le filtre est fait ici (filterAcceptsRow).
 		connect(newChatList, &ChatList::chatAdded, this, [this](QSharedPointer<ChatCore> chatCore) {
 			if (chatCore) {
 				emit chatAdded(new ChatGui(chatCore));
@@ -54,6 +54,9 @@ void ChatProxy::setSourceModel(QAbstractItemModel *model) {
 		newChatList->lUpdate();
 	}
 	QSortFilterProxyModel::setSourceModel(newChatList);
+	// Liste propre creee par le constructeur, remplacee (ex. par la liste commune de l'application) : elle
+	// restait en memoire avec une copie de toutes les conversations et de leurs ecouteurs SDK.
+	if (mList && mList.get() != newChatList) mList = nullptr;
 	sort(0);
 	emit modelChanged();
 }
@@ -74,6 +77,22 @@ bool ChatProxy::addChatInList(ChatGui *chatGui) {
 	auto chatList = dynamic_cast<ChatList *>(sourceModel());
 	if (chatList && chatGui) {
 		return chatList->addChatInList(chatGui->mCore, true);
+	}
+	return false;
+}
+
+bool ChatProxy::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const {
+	if (mFilterText.isEmpty()) return true;
+	auto chat = getItemAtSource<ChatList, ChatCore>(sourceRow);
+	if (!chat) return false;
+	// Memes criteres que le filtre du SDK (Account::filterChatRooms) : nom du contact ou sujet, adresse,
+	// participants (adresse et nom).
+	auto matches = [this](const QString &text) { return text.contains(mFilterText, Qt::CaseInsensitive); };
+	if (matches(chat->getTitle()) || matches(chat->getChatRoomAddress()) || matches(chat->getParticipantAddress()))
+		return true;
+	for (const auto &participant : chat->getParticipants()) {
+		if (participant && (matches(participant->getSipAddress()) || matches(participant->getDisplayName())))
+			return true;
 	}
 	return false;
 }

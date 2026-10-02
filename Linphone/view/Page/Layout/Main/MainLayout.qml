@@ -762,7 +762,9 @@ Item {
                                 }
                             }
                             onLoaded: {
-                                keptAlive = true
+                                // Differe : pose pendant le chargement, que declenche la liaison « active »,
+                                // il reevaluait cette liaison en cours de route (boucle signalee au journal).
+                                Qt.callLater(function() { keptAlive = true })
                                 if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
                                 focusPageOnNextLoad = false
                             }
@@ -789,7 +791,9 @@ Item {
                                 }
                             }
                             onLoaded: {
-                                keptAlive = true
+                                // Differe : pose pendant le chargement, que declenche la liaison « active »,
+                                // il reevaluait cette liaison en cours de route (boucle signalee au journal).
+                                Qt.callLater(function() { keptAlive = true })
                                 if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
                                 focusPageOnNextLoad = false
                             }
@@ -819,7 +823,9 @@ Item {
                                 }
                             }
                             onLoaded: {
-                                keptAlive = true
+                                // Differe : pose pendant le chargement, que declenche la liaison « active »,
+                                // il reevaluait cette liaison en cours de route (boucle signalee au journal).
+                                Qt.callLater(function() { keptAlive = true })
                                 if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
                                 focusPageOnNextLoad = false
                             }
@@ -847,7 +853,9 @@ Item {
                                 }
                             }
                             onLoaded: {
-                                keptAlive = true
+                                // Differe : pose pendant le chargement, que declenche la liaison « active »,
+                                // il reevaluait cette liaison en cours de route (boucle signalee au journal).
+                                Qt.callLater(function() { keptAlive = true })
                                 if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
                                 focusPageOnNextLoad = false
                             }

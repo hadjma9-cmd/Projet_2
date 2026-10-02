@@ -53,9 +53,14 @@ void SoundPlayerCore::setSelf(QSharedPointer<SoundPlayerCore> me) {
 
 	mCoreModelConnection = SafeConnection<SoundPlayerCore, CoreModel>::create(me, coreModel);
 	mSettingsModelConnection = SafeConnection<SoundPlayerCore, SettingsModel>::create(me, settingsModel);
-	mSettingsModelConnection->makeConnectToModel(&SettingsModel::ringerDeviceChanged, [this, me] {
+	// Reference faible : une copie forte gardee dans la connexion empechait le lecteur d'etre jamais libere
+	// (un lecteur par message vocal affiche, avec son peripherique audio).
+	mSettingsModelConnection->makeConnectToModel(&SettingsModel::ringerDeviceChanged, [this, weak = me.toWeakRef()] {
 		if (mSoundPlayerModel) mSoundPlayerModel->stop(true);
-		else mSettingsModelConnection->invokeToCore([this, me] { buildInternalPlayer(me); });
+		else // Construction dans le fil du SDK (elle etait lancee dans celui de l'interface).
+			mSettingsModelConnection->invokeToModel([this, weak] {
+				if (auto self = weak.toStrongRef()) buildInternalPlayer(self);
+			});
 	});
 
 	mCoreModelConnection->invokeToModel([this, me, settingsModel, coreModel] { buildInternalPlayer(me); });
@@ -92,9 +97,11 @@ void SoundPlayerCore::buildInternalPlayer(QSharedPointer<SoundPlayerCore> me) {
 			mSoundPlayerModel->stop(force);
 		});
 	});
-	mSoundPlayerModelConnection->makeConnectToModel(&SoundPlayerModel::stopped, [this, me](bool force) {
-		if (force) buildInternalPlayer(me);
-	});
+	mSoundPlayerModelConnection->makeConnectToModel(&SoundPlayerModel::stopped,
+	                                                [this, weak = me.toWeakRef()](bool force) {
+		                                                if (!force) return;
+		                                                if (auto self = weak.toStrongRef()) buildInternalPlayer(self);
+	                                                });
 	mSoundPlayerModelConnection->makeConnectToCore(&SoundPlayerCore::lPause, [this]() {
 		mSoundPlayerModelConnection->invokeToModel([this] { mSoundPlayerModel->pause(); });
 	});

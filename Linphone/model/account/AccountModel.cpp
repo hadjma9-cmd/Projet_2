@@ -42,17 +42,8 @@ AccountModel::AccountModel(const std::shared_ptr<linphone::Account> &account, QO
 	mustBeInLinphoneThread(getClassName());
 	connect(CoreModel::getInstance().get(), &CoreModel::defaultAccountChanged, this,
 	        &AccountModel::onDefaultAccountChanged);
-
-	// Un abonnement de presence peut mourir sans que rien ne le retablisse : le serveur
-	// abandonne parfois l'ecriture qui l'enregistre (base interne SQLite, un seul ecrivain),
-	// ou termine le dialogue. La presence du contact resterait alors figee.
-	// Verification periodique : seuls les abonnements termines ou en erreur sont recrees,
-	// ceux qui fonctionnent ne generent aucun trafic.
-	mPresenceSubscriptionTimer.setInterval(3 * 60 * 1000);
-	connect(&mPresenceSubscriptionTimer, &QTimer::timeout, this, [this]() {
-		if (mMonitor && mMonitor->getState() == linphone::RegistrationState::Ok) refreshPresenceSubscriptions();
-	});
-	mPresenceSubscriptionTimer.start();
+	// Verification periodique des abonnements de presence : minuterie unique dans CoreModel::start().
+	// Chaque AccountModel (y compris ceux, temporaires, des notifications) lancait la sienne.
 
 	// Hack because Account doesn't provide callbacks on updated data
 	connect(this, &AccountModel::defaultAccountChanged, this, [this]() {
@@ -110,7 +101,7 @@ void AccountModel::onRegistrationStateChanged(const std::shared_ptr<linphone::Ac
 }
 
 void AccountModel::refreshPresenceSubscriptions() {
-	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
+	mustBeInLinphoneThread(sLog().arg(Q_FUNC_INFO));
 	// Recree uniquement les abonnements morts. L'ancienne version desactivait puis reactivait
 	// des listes entieres : tous les contacts etaient desabonnes (SUBSCRIBE Expires: 0) a chaque
 	// passage et a chaque reenregistrement, sans reabonnement fiable derriere.
@@ -140,7 +131,7 @@ void AccountModel::refreshPresenceSubscriptions() {
 			++restarted;
 		}
 	}
-	lInfo() << log().arg("Presence subscriptions checked: %1 alive, %2 restarted").arg(alive).arg(restarted);
+	lInfo() << sLog().arg("Presence subscriptions checked: %1 alive, %2 restarted").arg(alive).arg(restarted);
 }
 
 void AccountModel::onConferenceInformationUpdated(const std::shared_ptr<linphone::Account> &account,

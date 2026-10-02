@@ -95,6 +95,8 @@ public:
 	Q_INVOKABLE static void closeCallsWindow();
 	Q_INVOKABLE static VariantObject *haveAccount();
 	Q_INVOKABLE static void smartShowWindow(QQuickWindow *window);
+	// Montre la fenetre devant les autres sans l'activer : le clavier reste a la fenetre en cours d'utilisation.
+	static void showWithoutActivating(QQuickWindow *window);
 	Q_INVOKABLE static QString createAvatar(const QUrl &fileUrl); // Return the avatar path
 	Q_INVOKABLE static QString formatElapsedTime(int seconds,
 	                                             bool dotsSeparator = true); // Return the elapsed time formated

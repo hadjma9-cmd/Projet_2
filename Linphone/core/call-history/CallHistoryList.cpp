@@ -89,25 +89,32 @@ void CallHistoryList::setSelf(QSharedPointer<CallHistoryList> me) {
 	mModelConnection->makeConnectToModel(
 	    &CoreModel::callLogUpdated,
 	    [this](const std::shared_ptr<linphone::Core> &core, const std::shared_ptr<linphone::CallLog> &callLog) {
-		    if (!callLog->getLocalAddress()->weakEqual(
-		            CoreModel::getInstance()->getCore()->getDefaultAccount()->getParams()->getIdentityAddress())) {
+		    auto defaultAccount = CoreModel::getInstance()->getCore()->getDefaultAccount();
+		    auto params = defaultAccount ? defaultAccount->getParams() : nullptr;
+		    auto identity = params ? params->getIdentityAddress() : nullptr;
+		    auto localAddress = callLog ? callLog->getLocalAddress() : nullptr;
+		    if (!identity || !localAddress || !localAddress->weakEqual(identity)) {
 			    lInfo() << "call log does not refer to current account, return";
 			    return;
 		    }
-		    mModelConnection->invokeToCore([this]() { lUpdate(false); });
-		    // auto callLogCore = createCallHistoryCore(callLog);
-		    // mModelConnection->invokeToCore([this, callLogCore]() {
-		    //     auto oldLog = std::find_if(mList.begin(), mList.end(), [callLogCore](QSharedPointer<QObject> log)
-		    //     {
-		    // 	    return (callLogCore)->mCallId == log.objectCast<CallHistoryCore>()->mCallId;
-		    //     });
-		    //     toConnect(callLogCore.get());
-		    //     if (oldLog == mList.end()) { // New
-		    // 	    prepend(callLogCore);
-		    //     } else { // Update (status, duration, etc …)
-		    // 	    replace(oldLog->objectCast<CallHistoryCore>(), callLogCore);
-		    //     }
-		    // });
+		    // Mise a jour de la seule ligne de cet appel. Le SDK signale l'historique au debut, au decroche et a
+		    // la fin de chaque appel : tout recharger (lecture de la base, une fiche par ligne, liste reconstruite
+		    // a l'ecran) figeait l'interface a chaque etape, et de plus en plus avec la taille de l'historique.
+		    auto callLogCore = createCallHistoryCore(callLog);
+		    mModelConnection->invokeToCore([this, callLogCore]() {
+			    mustBeInMainThread(log().arg(Q_FUNC_INFO));
+			    toConnect(callLogCore.get());
+			    for (int row = 0; row < mList.size(); ++row) {
+				    auto item = mList[row].objectCast<CallHistoryCore>();
+				    if (item && item->mCallId == callLogCore->mCallId) {
+					    disconnect(item.get(), nullptr, this, nullptr);
+					    mList[row] = callLogCore;
+					    emit dataChanged(index(row, 0), index(row, 0));
+					    return;
+				    }
+			    }
+			    add(callLogCore); // Nouvel appel : le tri par date du proxy le place en tete.
+		    });
 	    });
 	mModelConnection->makeConnectToCore(&CallHistoryList::lRemoveEntriesForAddress, [this](QString address) {
 		mModelConnection->invokeToModel([this, address]() {

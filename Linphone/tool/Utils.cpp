@@ -175,6 +175,12 @@ QString Utils::getInitials(const QString &username, int letterCount) {
 
 VariantObject *Utils::findLocalAccountByAddress(const QString &address) {
 	if (!App::getInstance()->getCoreStarted()) return nullptr;
+	// Compte deja dans la liste des comptes : on reutilise son objet. Chaque fenetre d'appel en recreait un
+	// complet (ecouteur SDK, minuteur et verification de presence, liste des indicatifs pays).
+	if (auto accountList = App::getInstance()->getAccountList()) {
+		if (auto accountCore = accountList->findAccountByAddress(address))
+			return new VariantObject("findLocalAccountByAddress", QVariant::fromValue(new AccountGui(accountCore)));
+	}
 	VariantObject *data = new VariantObject("findLocalAccountByAddress");
 	if (!data) return nullptr;
 	data->makeRequest([address]() {
@@ -303,6 +309,25 @@ void Utils::smartShowWindow(QQuickWindow *window) {
 	window->raise(); // Raise ensure to get focus on Mac
 	lInfo() << "[Utils] : request activate";
 	window->requestActivate();
+}
+
+void Utils::showWithoutActivating(QQuickWindow *window) {
+	if (!window) return;
+	// Lu par le module Windows de Qt au moment de l'affichage : ShowWindow(SW_SHOWNOACTIVATE).
+	window->setProperty("_q_showWithoutActivating", true);
+	window->show();
+	window->setProperty("_q_showWithoutActivating", QVariant());
+#ifdef Q_OS_WIN
+	// Devant les autres fenetres sans activation. QWindow::raise() finit par un SetWindowPos sans
+	// SWP_NOACTIVATE, qui activerait la fenetre ; le passage « tout en haut » puis retour est le moyen
+	// qu'emploie Qt lui-meme pour passer devant depuis une application inactive.
+	auto hwnd = reinterpret_cast<HWND>(window->winId());
+	SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+	SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+#else
+	window->raise();
+#endif
+	lInfo() << "[Utils] : show window without activating" << window;
 }
 
 QString Utils::createAvatar(const QUrl &fileUrl) {
@@ -484,47 +509,26 @@ std::string Utils::addressUsername(const std::shared_ptr<const linphone::Address
 }
 
 namespace {
-// FriendCore partage par adresse. findFriendByAddress est appele par chaque avatar, ligne de conversation
-// ou d'historique : recreer a chaque fois un FriendCore (FriendModel, ecouteur SDK, presence, appareils)
-// coutait cher et multipliait les ecouteurs pour un meme contact. Appele depuis le thread du modele.
-struct SharedFriendCore {
-	QWeakPointer<FriendCore> core;
-	const linphone::Friend *linFriend = nullptr;
-};
-QMutex gSharedFriendCoresMutex;
-QHash<QString, SharedFriendCore> gSharedFriendCores;
-
-QSharedPointer<FriendCore> getSharedFriendCore(const QString &address,
-                                               const std::shared_ptr<linphone::Friend> &linFriend) {
-	{
-		QMutexLocker locker(&gSharedFriendCoresMutex);
-		auto it = gSharedFriendCores.constFind(address);
-		// Un FriendCore vivant garde son contact en vie : comparer les pointeurs est sur.
-		if (it != gSharedFriendCores.constEnd() && it->linFriend == linFriend.get()) {
-			auto core = it->core.toStrongRef();
-			if (core) return core;
-		}
-	}
-	auto core = FriendCore::create(linFriend);
-	QMutexLocker locker(&gSharedFriendCoresMutex);
-	if (gSharedFriendCores.size() > 256) { // Purge des entrees dont le FriendCore a disparu.
-		for (auto i = gSharedFriendCores.begin(); i != gSharedFriendCores.end();)
-			i = i->core.isNull() ? gSharedFriendCores.erase(i) : std::next(i);
-	}
-	SharedFriendCore entry;
-	entry.core = core;
-	entry.linFriend = linFriend.get();
-	gSharedFriendCores.insert(address, entry);
-	return core;
-}
-
-void forgetSharedFriendCore(const QString &address) {
-	QMutexLocker locker(&gSharedFriendCoresMutex);
-	gSharedFriendCores.remove(address);
-}
-
 constexpr qint64 MissingAvatarTtlMs = 10 * 60 * 1000;
 QHash<QString, qint64> gMissingAvatarUrls; // URL -> date de l'echec (ms). Thread graphique uniquement.
+
+// Relance d'une requete (avatar, contact) quand ce contact change. Le gestionnaire s'execute dans le fil du SDK et
+// peut survivre un instant a la requete, que le ramasse-miettes JavaScript libere dans le fil de l'interface : il ne
+// garde que des references faibles. Il gardait le pointeur brut de la requete, parfois deja liberee.
+auto makeFriendUpdateHandler(VariantObject *data, const QString &address) {
+	return [connection = data->mConnection.toWeakRef(), coreObject = data->mCoreObject.toWeakRef(),
+	        address](const std::shared_ptr<linphone::Friend> &f) -> void {
+		if (address.isEmpty() || !f || !f->getAddress()) return;
+		auto target = ToolModel::interpretUrl(address);
+		if (!target || !f->getAddress()->weakEqual(target)) return;
+		if (auto safeConnection = connection.toStrongRef()) {
+			safeConnection->invokeToCore([coreObject]() {
+				auto object = coreObject.toStrongRef();
+				if (object && !object->mDeleted) emit object->requestValue(); // Requete toujours vivante.
+			});
+		}
+	};
+}
 } // namespace
 
 bool Utils::isMissingAvatarUrl(const QString &url) {
@@ -555,10 +559,7 @@ VariantObject *Utils::findAvatarByAddress(const QString &address) {
 		return QVariant(avatar);
 	});
 	// Rebuild avatar if needed
-	auto updateValue = [data, address](const std::shared_ptr<linphone::Friend> &f) -> void {
-		if (f && f->getAddress() && f->getAddress()->weakEqual(ToolModel::interpretUrl(address)))
-			data->invokeRequestValue();
-	};
+	auto updateValue = makeFriendUpdateHandler(data, address);
 	data->makeUpdateCond(CoreModel::getInstance().get(), &CoreModel::friendCreated, updateValue);
 	data->makeUpdateCond(CoreModel::getInstance().get(), &CoreModel::friendRemoved, updateValue);
 	data->makeUpdateCond(CoreModel::getInstance().get(), &CoreModel::friendUpdated, updateValue);
@@ -573,36 +574,14 @@ VariantObject *Utils::findFriendByAddress(const QString &address) {
 	data->makeRequest([address]() {
 		auto core = CoreModel::getInstance()->getCore();
 		if (core->getGlobalState() != linphone::GlobalState::On) return QVariant();
-		auto linFriend = ToolModel::findFriendByAddress(address);
-		// core->findFriend() may return a Friend instance without a presence model (e.g. one
-		// auto-created in the default list), while the instance subscribed to presence (the
-		// app_friends list, the one shown in the Contacts tab) is a different object that
-		// carries the presence. Prefer whichever instance actually has a presence model so the
-		// conversation avatar shows the same presence badge as the Contacts tab.
-		if (linFriend && !linFriend->getPresenceModel()) {
-			auto addr = ToolModel::interpretUrl(address);
-			if (addr) {
-				for (auto &list : core->getFriendsLists()) {
-					auto sameFriend = list->findFriendByAddress(addr);
-					if (sameFriend && sameFriend->getPresenceModel()) {
-						linFriend = sameFriend;
-						break;
-					}
-				}
-			}
-		}
+		auto linFriend = ToolModel::findDisplayedFriendByAddress(address);
 		if (!linFriend) return QVariant();
-		auto friendCore = getSharedFriendCore(address, linFriend);
+		// Fiche partagee avec les listes et les autres avatars (FriendCore::create).
+		auto friendCore = FriendCore::create(linFriend);
 		return QVariant::fromValue(new FriendGui(friendCore));
 	});
 	// Rebuild friend if needed
-	auto updateValue = [data, address](const std::shared_ptr<linphone::Friend> &f) -> void {
-		if (f && f->getAddress() && f->getAddress()->weakEqual(ToolModel::interpretUrl(address))) {
-			// Contact cree, modifie ou supprime : on reconstruit un FriendCore neuf.
-			forgetSharedFriendCore(address);
-			data->invokeRequestValue();
-		}
-	};
+	auto updateValue = makeFriendUpdateHandler(data, address);
 	data->makeUpdateCond(CoreModel::getInstance().get(), &CoreModel::friendCreated, updateValue); // New Friend
 	data->makeUpdateCond(CoreModel::getInstance().get(), &CoreModel::friendRemoved, updateValue); // New Friend
 	data->makeUpdateCond(CoreModel::getInstance().get(), &CoreModel::friendUpdated, updateValue);
@@ -612,6 +591,9 @@ VariantObject *Utils::findFriendByAddress(const QString &address) {
 
 VariantObject *Utils::getFriendSecurityLevel(const QString &address) {
 	if (!App::getInstance()->getCoreStarted()) return nullptr;
+	// Sans chiffrement de bout en bout, le niveau vaut toujours « aucun » : pas de requete (chaque avatar en
+	// faisait deux). L'interface retombe sur la meme valeur quand l'objet est nul.
+	if (!ToolModel::isEndToEndEncryptionAvailableCached()) return nullptr;
 	VariantObject *data = new VariantObject("getFriendAddressSecurityLevel");
 	if (!data) return nullptr;
 	data->makeRequest([address]() {
@@ -633,6 +615,7 @@ VariantObject *Utils::getFriendSecurityLevel(const QString &address) {
 
 VariantObject *Utils::getFriendAddressSecurityLevel(const QString &address) {
 	if (!App::getInstance()->getCoreStarted()) return nullptr;
+	if (!ToolModel::isEndToEndEncryptionAvailableCached()) return nullptr; // Voir getFriendSecurityLevel.
 	VariantObject *data = new VariantObject("getFriendAddressSecurityLevel");
 	if (!data) return nullptr;
 	data->makeRequest([address]() {
@@ -1637,7 +1620,8 @@ void Utils::useFetchConfig(const QString &configUrl) {
 
 void Utils::playDtmf(const QString &dtmf) {
 	const char key = dtmf.constData()[0].toLatin1();
-	App::postModelSync([key]() { CoreModel::getInstance()->getCore()->playDtmf(key, 200); });
+	// Sans attente active (la boucle d'evenements tournait en attendant le fil du SDK).
+	App::postModelAsync([key]() { CoreModel::getInstance()->getCore()->playDtmf(key, 200); });
 }
 
 bool Utils::isInteger(const QString &text) {

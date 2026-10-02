@@ -48,6 +48,12 @@ QSharedPointer<ChatCore> ChatList::createChatCore(const std::shared_ptr<linphone
 ChatList::ChatList(QObject *parent) : ListProxy(parent) {
 	mustBeInMainThread(getClassName());
 	App::getInstance()->mEngine->setObjectOwnership(this, QQmlEngine::CppOwnership);
+	// Index tenu a jour a chaque changement de la liste, quel que soit l'endroit qui la modifie.
+	connect(this, &QAbstractItemModel::modelReset, this, &ChatList::rebuildIndex);
+	connect(this, &QAbstractItemModel::rowsInserted, this, &ChatList::rebuildIndex);
+	connect(this, &QAbstractItemModel::rowsRemoved, this, &ChatList::rebuildIndex);
+	connect(this, &QAbstractItemModel::rowsMoved, this, &ChatList::rebuildIndex);
+	connect(this, &QAbstractItemModel::layoutChanged, this, &ChatList::rebuildIndex);
 }
 
 ChatList::~ChatList() {
@@ -191,11 +197,9 @@ void ChatList::setSelf(QSharedPointer<ChatList> me) {
 			return;
 		}
 		auto identifier = Utils::coreStringToAppString(room->getIdentifier());
-		auto chatList = getSharedList<ChatCore>();
-		auto it = std::find_if(chatList.begin(), chatList.end(), [identifier](const QSharedPointer<ChatCore> item) {
-			return item && item->getIdentifier() == identifier;
-		});
-		if (it == chatList.end()) {
+		// Fil du SDK : recherche dans l'index protege (la liste etait lue ici pendant que l'interface pouvait la
+		// modifier). Deux ajouts simultanes restent sans doublon : addChatInList verifie a nouveau.
+		if (!findChatById(identifier)) {
 			auto chatCore = ChatCore::create(room);
 			mModelConnection->invokeToCore([this, chatCore, sendAddSignal] { addChatInList(chatCore, sendAddSignal); });
 		}
@@ -253,10 +257,20 @@ int ChatList::findChatIndex(ChatGui *chatGui) {
 }
 
 QSharedPointer<ChatCore> ChatList::findChatById(const QString &id) {
-	auto chatList = getSharedList<ChatCore>();
-	auto it = std::find_if(chatList.begin(), chatList.end(),
-	                       [id](const QSharedPointer<ChatCore> item) { return item->getIdentifier() == id; });
-	return it == chatList.end() ? nullptr : *it;
+	// Appele aussi depuis le fil du SDK (notifications, conversation d'un appel) : lecture de l'index protege,
+	// jamais de la liste elle-meme, que l'interface peut modifier au meme moment.
+	QMutexLocker locker(&mIndexMutex);
+	return mIndex.value(id).toStrongRef();
+}
+
+void ChatList::rebuildIndex() {
+	mustBeInMainThread(log().arg(Q_FUNC_INFO));
+	QHash<QString, QWeakPointer<ChatCore>> index;
+	for (const auto &item : mList) {
+		if (auto chat = item.objectCast<ChatCore>()) index.insert(chat->getIdentifier(), chat);
+	}
+	QMutexLocker locker(&mIndexMutex);
+	mIndex = std::move(index);
 }
 
 bool ChatList::addChatInList(QSharedPointer<ChatCore> chatCore, bool emitAddSignal) {

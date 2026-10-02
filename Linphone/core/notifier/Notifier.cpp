@@ -350,12 +350,13 @@ void Notifier::notifyReceivedCall(const shared_ptr<linphone::Call> &call) {
 	auto remoteAddrString = SettingsModel::getInstance()->getHideSipAddresses()
 	                            ? Utils::getUsername(Utils::coreStringToAppString(remoteAddress->asStringUriOnly()))
 	                            : Utils::coreStringToAppString(remoteAddress->asStringUriOnly());
-	// Accessibility alert
-	//: New call from %1
-	AccessibilityHelper::announceMessage(tr("new_call_alert_accessible_name").arg(displayName));
 
 	App::postCoreAsync([this, model, displayName, remoteAddrString]() {
 		mustBeInMainThread(getClassName());
+		// Accessibility alert. Dans le fil de l'interface : l'accessibilite de Qt et la fenetre principale ne
+		// s'utilisent que depuis celui-ci (l'annonce etait faite depuis le fil du SDK).
+		//: New call from %1
+		AccessibilityHelper::announceMessage(tr("new_call_alert_accessible_name").arg(displayName));
 		// En « Ne pas deranger », pas de notification : la copie de l'appel est liberee avec cette tache.
 		// Elle etait auparavant creee quand meme et ne l'etait jamais (ecouteur SDK, appel SIP retenu).
 		auto settings = App::getInstance()->getSettings();

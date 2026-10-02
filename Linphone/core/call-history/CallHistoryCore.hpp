@@ -22,6 +22,7 @@
 #define CALL_HISTORY_CORE_H_
 
 #include "core/conference/ConferenceInfoGui.hpp"
+#include "core/friend/FriendGui.hpp"
 #include "tool/LinphoneEnums.hpp"
 #include "tool/thread/SafeConnection.hpp"
 #include <QDateTime>
@@ -44,6 +45,8 @@ class CallHistoryCore : public QObject, public AbstractObject {
 	Q_PROPERTY(QDateTime date MEMBER mDate CONSTANT)
 	Q_PROPERTY(LinphoneEnums::CallStatus status MEMBER mStatus CONSTANT)
 	Q_PROPERTY(int duration READ getDuration NOTIFY durationChanged)
+	// Fiche du contact de la ligne (partagee), sans requete par ligne depuis l'interface. Nulle si inconnu.
+	Q_PROPERTY(FriendGui *contact READ getContactGui NOTIFY friendUpdated)
 
 public:
 	static QSharedPointer<CallHistoryCore> create(const std::shared_ptr<linphone::CallLog> &callLogs);
@@ -54,6 +57,7 @@ public:
 	ConferenceInfoGui *getConferenceInfoGui() const;
 
 	int getDuration() const;
+	FriendGui *getContactGui() const;
 	QString getDurationString() const;
 
 	QDateTime getStartDate() const;
@@ -86,6 +90,7 @@ private:
 	bool mHasChat = false;
 	std::shared_ptr<CallHistoryModel> mCallHistoryModel;
 	std::shared_ptr<FriendModel> mFriendModel;
+	QSharedPointer<FriendCore> mFriendCore; // Lu et modifie dans le fil de l'interface.
 	QSharedPointer<SafeConnection<CallHistoryCore, FriendModel>> mFriendModelConnection;
 	QSharedPointer<SafeConnection<CallHistoryCore, CallHistoryModel>> mHistoryModelConnection;
 	QSharedPointer<SafeConnection<CallHistoryCore, CoreModel>> mCoreModelConnection;

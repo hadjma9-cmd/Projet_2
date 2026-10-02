@@ -31,6 +31,7 @@
 #include "core/App.hpp"
 #include "core/notifier/Notifier.hpp"
 #include "core/path/Paths.hpp"
+#include "model/account/AccountModel.hpp"
 #include "model/tool/ToolModel.hpp"
 #include "tool/FluidityProbe.hpp"
 #include "tool/Utils.hpp"
@@ -116,10 +117,30 @@ void CoreModel::start() {
 	connect(mIterateTimer, &QTimer::timeout, [this]() { mCore->iterate(); });
 
 	mIterateTimer->start();
+	ToolModel::refreshEndToEndEncryptionAvailability();
 	// Mesure des blocages du moteur SIP (journal : « [Sonde] Fil moteur SIP »). Une seule, meme si le
 	// coeur est redemarre.
 	if (!findChild<QObject *>(QStringLiteral("fluidityProbe"), Qt::FindDirectChildrenOnly))
 		new FluidityProbe(QStringLiteral("moteur SIP"), false, this);
+	// Un abonnement de presence peut mourir sans que rien ne le retablisse : le serveur abandonne parfois
+	// l'ecriture qui l'enregistre (base interne SQLite, un seul ecrivain), ou termine le dialogue. La presence du
+	// contact resterait alors figee. Verification toutes les 3 minutes : seuls les abonnements termines ou en
+	// erreur sont recrees. Une seule minuterie pour toute l'application (une par AccountModel auparavant).
+	if (!findChild<QTimer *>(QStringLiteral("presenceSubscriptionTimer"), Qt::FindDirectChildrenOnly)) {
+		auto presenceTimer = new QTimer(this);
+		presenceTimer->setObjectName(QStringLiteral("presenceSubscriptionTimer"));
+		presenceTimer->setInterval(3 * 60 * 1000);
+		connect(presenceTimer, &QTimer::timeout, this, [this]() {
+			if (!mCore || mCore->getGlobalState() != linphone::GlobalState::On) return;
+			for (const auto &account : mCore->getAccountList()) {
+				if (account->getState() == linphone::RegistrationState::Ok) {
+					AccountModel::refreshPresenceSubscriptions();
+					return;
+				}
+			}
+		});
+		presenceTimer->start();
+	}
 
 	auto linphoneSearch = mCore->createMagicSearch();
 	linphoneSearch->setLimitedSearch(true);
@@ -427,6 +448,7 @@ void CoreModel::onAccountRegistrationStateChanged(const std::shared_ptr<linphone
                                                   const std::shared_ptr<linphone::Account> &account,
                                                   linphone::RegistrationState state,
                                                   const std::string &message) {
+	ToolModel::refreshEndToEndEncryptionAvailability();
 	emit accountRegistrationStateChanged(core, account, state, message);
 }
 void CoreModel::onAuthenticationRequested(const std::shared_ptr<linphone::Core> &core,
@@ -504,8 +526,18 @@ void CoreModel::onCallStateChanged(const std::shared_ptr<linphone::Core> &core,
 			    call->getCallLog() && call->getCallLog()->getConferenceInfo()
 			        ? Utils::coreStringToAppString(call->getCallLog()->getConferenceInfo()->getSubject())
 			        : Utils::coreStringToAppString(call->getRemoteAddress()->getDisplayName());
-			command = command.replace("$1", userName);
-			command = command.replace("$2", displayName);
+			// Identifiant et nom viennent de l'appelant, qui les choisit librement : inseres tels quels, un nom
+			// comme « x & calc » faisait executer une autre commande par cmd.exe (ou /bin/sh). Seuls lettres,
+			// chiffres, espaces et . _ - + @ sont gardes.
+			auto commandLineSafe = [](const QString &value) {
+				QString safe;
+				for (const QChar c : value)
+					if (c.isLetterOrNumber() || c == ' ' || c == '.' || c == '_' || c == '-' || c == '+' || c == '@')
+						safe.append(c);
+				return safe;
+			};
+			command = command.replace("$1", commandLineSafe(userName));
+			command = command.replace("$2", commandLineSafe(displayName));
 			Utils::runCommandLine(command);
 		}
 	}
@@ -560,6 +592,7 @@ void CoreModel::onConfiguringStatus(const std::shared_ptr<linphone::Core> &core,
 }
 void CoreModel::onDefaultAccountChanged(const std::shared_ptr<linphone::Core> &core,
                                         const std::shared_ptr<linphone::Account> &account) {
+	ToolModel::refreshEndToEndEncryptionAvailability();
 	emit defaultAccountChanged(core, account);
 }
 void CoreModel::onDtmfReceived(const std::shared_ptr<linphone::Core> &lc,

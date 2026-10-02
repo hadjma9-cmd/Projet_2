@@ -24,7 +24,10 @@
 #include "../proxy/ListProxy.hpp"
 #include "tool/AbstractObject.hpp"
 #include "tool/thread/SafeConnection.hpp"
+#include <QHash>
 #include <QLocale>
+#include <QMutex>
+#include <QWeakPointer>
 
 class ChatGui;
 class ChatCore;
@@ -54,6 +57,11 @@ signals:
 	void chatUpdated();
 
 private:
+	// Index identifiant -> conversation, lisible depuis le fil du SDK (notifications, ajout de conversation) :
+	// la liste elle-meme ne doit etre lue que dans le fil de l'interface.
+	void rebuildIndex();
+	mutable QMutex mIndexMutex;
+	QHash<QString, QWeakPointer<ChatCore>> mIndex;
 	QString mFilter;
 	QSharedPointer<SafeConnection<ChatList, CoreModel>> mModelConnection;
 	DECLARE_ABSTRACT_OBJECT

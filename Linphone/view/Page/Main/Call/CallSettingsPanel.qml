@@ -37,7 +37,8 @@ Control.Page {
 	header: Control.Control {
 		id: pageHeader
 		width: mainItem.width
-        implicitHeight: Math.max(headerStack.height, Utils.getSizeWithScreenRatio(67))
+        // implicitHeight du contenu : sa hauteur (height) decoulait de celle du bandeau, d'ou une boucle.
+        implicitHeight: Math.max(headerStack.implicitHeight, Utils.getSizeWithScreenRatio(67))
         leftPadding: Utils.getSizeWithScreenRatio(10)
         rightPadding: Utils.getSizeWithScreenRatio(10)
 		background: Rectangle {
@@ -151,8 +152,8 @@ Control.Page {
 		Control.Control {
 			id: contentControl
 			rightPadding: scrollbar.visible ? scrollbar.width + Utils.getSizeWithScreenRatio(10) : 0
-			anchors.left: scrollview.left
-			anchors.right: scrollview.right
+			// Pas d'ancrage sur scrollview : ce n'est ni le parent ni un frere (ancrage refuse par Qt a chaque
+			// ouverture). La largeur suffit.
 			width: scrollview.width
 			// parent: scrollview
 			padding: 0

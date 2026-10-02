@@ -197,18 +197,17 @@ ApplicationWindow {
         }
     }
 
-    // Confirmation avant un appel lance depuis un contact : « Souhaitez-vous appeler le poste
-    // 878 (Lucas Louis) ? ». Quand le contact a plusieurs adresses, le choix de l'adresse fait
-    // deja office de confirmation : on n'en demande pas une seconde.
+    // Confirmation avant un appel lance depuis un contact : « Souhaitez-vous appeler Lucas Louis
+    // (878) ? ». Quand le contact a plusieurs adresses, le choix de l'adresse fait deja office de
+    // confirmation : on n'en demande pas une seconde.
     function confirmCallWithContact(contact, address, videoEnabled) {
         var username = UtilsCpp.getUsername(address)
-        // Meme regle que la fiche contact (ContactPage.isExtension) : 1 a 5 chiffres = un poste.
-        var target = /^[0-9]{1,5}$/.test(username)
-            //: "le poste %1"
-            ? qsTr("call_confirmation_extension").arg(username)
-            : (SettingsCpp.hideSipAddresses ? username : address)
+        // Meme regle que la fiche contact (ContactPage.isExtension) : 1 a 5 chiffres = un poste,
+        // affiche seul ; sinon l'adresse complete, sauf si les adresses SIP sont masquees.
+        var number = (/^[0-9]{1,5}$/.test(username) || SettingsCpp.hideSipAddresses) ? username : address
+        // Le nom d'abord, le numero entre parentheses.
         var name = contact.core.fullName
-        if (name.length !== 0 && name !== username) target += " (" + name + ")"
+        var target = (name.length !== 0 && name !== username) ? name + " (" + number + ")" : number
         var question = videoEnabled
             //: "Souhaitez-vous lancer un appel vidéo avec %1 ?"
             ? qsTr("call_confirmation_video_question").arg(target)
@@ -270,13 +269,10 @@ ApplicationWindow {
     function removeFromPopupLayout(index) {
         popupLayout.popupList.splice(index, 1)
     }
+    // Petits messages verts (succes) et rouges (erreur) affiches apres une action : retires a la demande. Toutes les
+    // demandes, C++ comme QML, passent par ici ; le message reste ecrit dans le journal.
     function showInformationPopup(title, description, isSuccess) {
-        if (isSuccess == undefined) isSuccess = true
-        var infoPopup = popupComp.createObject(popupLayout, {"title": title, "description": description, "isSuccess": isSuccess})
-        infoPopup.index = popupLayout.popupList.length
-        popupLayout.popupList.push(infoPopup)
-        infoPopup.open()
-        infoPopup.closePopup.connect(removeFromPopupLayout)
+        console.info("[Information] " + (isSuccess === false ? "erreur" : "succes") + " : " + title + " - " + description)
     }
     function showLoadingPopup(text, cancelButtonVisible, callback) {
         if (cancelButtonVisible == undefined) cancelButtonVisible = false

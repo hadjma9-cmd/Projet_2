@@ -79,8 +79,14 @@ AbstractMainPage {
         // sans elle, un contact supprime, ou ajoute directement dans le LDAP, n'apparaitrait
         // qu'a la recherche suivante. Les autres onglets n'en ont pas besoin, leurs listes
         // etant alimentees en continu par les signaux du SDK.
-        contactList.refresh()
+        // Au plus une fois toutes les 2 minutes : chaque retour sur l'onglet interrogeait l'annuaire.
+        var now = Date.now()
+        if (now - mainItem.lastDirectoryRefresh >= 120000) {
+            mainItem.lastDirectoryRefresh = now
+            contactList.refresh()
+        }
     }
+    property double lastDirectoryRefresh: 0
     function goToContactDetails(focusEditButton=false) {
         if (selectedContact) {
             var firstItem = rightPanelStackView.get(0)

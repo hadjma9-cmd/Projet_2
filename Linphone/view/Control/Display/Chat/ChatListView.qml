@@ -223,7 +223,7 @@ ListView {
                         visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isReply && !remoteComposingInfo.visible
                         fillMode: Image.PreserveAspectFit
                         imageSource: AppIcons.reply
-                        colorizationColor: DefaultStyle.main2_500
+                        colorizationColor: DefaultStyle.main2_500_main
                         Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
                         Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
                     }
@@ -232,7 +232,7 @@ ListView {
                         visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isForward && !remoteComposingInfo.visible
                         fillMode: Image.PreserveAspectFit
                         imageSource: AppIcons.forward
-                        colorizationColor: DefaultStyle.main2_500
+                        colorizationColor: DefaultStyle.main2_500_main
                         Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
                         Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
                     }
@@ -241,7 +241,7 @@ ListView {
                         visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.hasFileContent && !remoteComposingInfo.visible
                         fillMode: Image.PreserveAspectFit
                         imageSource: AppIcons.paperclip
-                        colorizationColor: DefaultStyle.main2_500
+                        colorizationColor: DefaultStyle.main2_500_main
                         Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
                         Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
                     }
@@ -250,7 +250,7 @@ ListView {
                         visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isVoiceRecording && !remoteComposingInfo.visible
                         fillMode: Image.PreserveAspectFit
                         imageSource: AppIcons.waveform
-                        colorizationColor: DefaultStyle.main2_500
+                        colorizationColor: DefaultStyle.main2_500_main
                         Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
                         Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
                     }
@@ -259,7 +259,7 @@ ListView {
                         visible: modelData != undefined && modelData.core.lastMessage && modelData.core.lastMessage.core.isCalendarInvite && !remoteComposingInfo.visible
                         fillMode: Image.PreserveAspectFit
                         imageSource: AppIcons.calendarBlank
-                        colorizationColor: DefaultStyle.main2_500
+                        colorizationColor: DefaultStyle.main2_500_main
                         Layout.preferredHeight: Utils.getSizeWithScreenRatio(14)
                         Layout.preferredWidth: Utils.getSizeWithScreenRatio(14)
                     }

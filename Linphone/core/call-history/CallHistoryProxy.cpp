@@ -69,5 +69,10 @@ bool CallHistoryProxy::SortFilterList::filterAcceptsRow(int sourceRow, const QMo
 }
 
 bool CallHistoryProxy::SortFilterList::lessThan(const QModelIndex &sourceLeft, const QModelIndex &sourceRight) const {
-	return true;
+	// Ordre chronologique, affiche en decroissant (le plus recent en haut). Le comparateur renvoyait toujours
+	// vrai : ordre non garanti, et une ligne ajoutee a la volee pouvait se placer n'importe ou.
+	auto left = getItemAtSource<CallHistoryList, CallHistoryCore>(sourceLeft.row());
+	auto right = getItemAtSource<CallHistoryList, CallHistoryCore>(sourceRight.row());
+	if (left && right && left->mDate != right->mDate) return left->mDate < right->mDate;
+	return sourceLeft.row() < sourceRight.row();
 }

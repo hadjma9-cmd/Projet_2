@@ -24,7 +24,10 @@
 #include "model/tool/ToolModel.hpp"
 #include "tool/Utils.hpp"
 #include "tool/thread/SafeConnection.hpp"
+#include <QMutex>
 #include <QRegularExpression>
+#include <map>
+#include <tuple>
 
 DEFINE_ABSTRACT_OBJECT(FriendCore)
 
@@ -34,12 +37,47 @@ const QString _addressLabel = FriendCore::tr("sip_address");
 //: "Téléphone"
 const QString _phoneLabel = FriendCore::tr("device_id");
 
+namespace {
+// Une seule fiche par contact SDK : listes de contacts, avatars, historique et conversations
+// partagent le meme FriendCore. Chaque copie etait un ecouteur SDK de plus, mise a jour a chaque
+// presence et a chaque fin d'appel : jusqu'a 30 copies d'un meme contact ont ete mesurees dans une
+// journee, d'ou des gels croissants. La cle reprend aussi isStored et les sources de recherche, qui
+// fixent l'etat de la fiche : deux reglages differents gardent deux fiches, comme avant.
+using SharedCoreKey = std::tuple<const linphone::Friend *, bool, int>;
+QMutex gSharedCoresMutex;
+std::map<SharedCoreKey, QWeakPointer<FriendCore>> gSharedCores;
+} // namespace
+
 QSharedPointer<FriendCore>
 FriendCore::create(const std::shared_ptr<linphone::Friend> &contact, bool isStored, int sourceFlags) {
+	// Seules les sources annuaire (LDAP, CardDAV) changent la fiche (mIsLdap, mIsCardDAV).
+	const int sharedSourceFlags = sourceFlags & ((int)linphone::MagicSearch::Source::LdapServers |
+	                                             (int)linphone::MagicSearch::Source::RemoteCardDAV);
+	const SharedCoreKey key{contact.get(), isStored, sharedSourceFlags};
+	if (contact) {
+		QMutexLocker locker(&gSharedCoresMutex);
+		auto it = gSharedCores.find(key);
+		if (it != gSharedCores.end()) {
+			auto existing = it->second.toStrongRef();
+			// Meme contact SDK toujours suivi : un contact supprime lache son objet SDK, dont l'adresse
+			// memoire peut alors etre reprise par un autre contact.
+			if (existing && existing->mFriendModel && existing->mFriendModel->getFriend() == contact &&
+			    existing->mIsStored == isStored)
+				return existing;
+		}
+	}
 	auto sharedPointer =
 	    QSharedPointer<FriendCore>(new FriendCore(contact, isStored, sourceFlags), &QObject::deleteLater);
 	sharedPointer->setSelf(sharedPointer);
 	sharedPointer->moveToThread(App::getInstance()->thread());
+	if (contact) {
+		QMutexLocker locker(&gSharedCoresMutex);
+		if (gSharedCores.size() > 512) { // Purge des fiches disparues.
+			for (auto it = gSharedCores.begin(); it != gSharedCores.end();)
+				it = it->second.isNull() ? gSharedCores.erase(it) : std::next(it);
+		}
+		gSharedCores[key] = sharedPointer;
+	}
 	return sharedPointer;
 }
 
@@ -214,14 +252,19 @@ void FriendCore::setSelf(QSharedPointer<FriendCore> me) {
 					addr.append(Utils::createFriendAddressVariant(
 					    tr("sip_address"), Utils::coreStringToAppString(num->asStringUriOnly())));
 				}
-				mFriendModelConnection->invokeToCore([this, addr]() { resetPhoneNumbers(addr); });
+				// Adresses SIP : elles remplacaient la liste des numeros de telephone (resetPhoneNumbers).
+				mFriendModelConnection->invokeToCore([this, addr]() { resetAddresses(addr); });
 			});
 			mFriendModelConnection->makeConnectToModel(&FriendModel::phoneNumbersChanged, [this]() {
 				auto numbers = mFriendModel->getPhoneNumbers();
 				QList<QVariant> addr;
 				for (auto &num : numbers) {
-					addr.append(Utils::createFriendAddressVariant(tr("device_id"),
-					                                              Utils::coreStringToAppString(num->getPhoneNumber())));
+					// Libelle conserve (« Mobile »...), comme a la creation de la fiche ; il etait remplace
+					// par le libelle par defaut a chaque mise a jour.
+					auto label = Utils::coreStringToAppString(num->getLabel());
+					if (label.isEmpty()) label = tr("device_id");
+					addr.append(
+					    Utils::createFriendAddressVariant(label, Utils::coreStringToAppString(num->getPhoneNumber())));
 				}
 				mFriendModelConnection->invokeToCore([this, addr]() { resetPhoneNumbers(addr); });
 			});
@@ -241,6 +284,19 @@ void FriendCore::setSelf(QSharedPointer<FriendCore> me) {
 			    [this](const std::shared_ptr<linphone::Core> &core, const std::shared_ptr<linphone::Call> &call,
 			           linphone::Call::State state, const std::string &message) {
 				    if (state != linphone::Call::State::End && state != linphone::Call::State::Released) return;
+				    // Seul le contact de cet appel peut voir ses appareils changer (verification de securite en
+				    // appel) : chaque fiche vivante refaisait sinon ce calcul a chaque fin d'appel.
+				    auto contact = mFriendModel ? mFriendModel->getFriend() : nullptr;
+				    auto remoteAddress = call ? call->getRemoteAddress() : nullptr;
+				    if (!contact || !remoteAddress) return;
+				    bool isThisContact = false;
+				    for (auto &address : contact->getAddresses()) {
+					    if (address && address->weakEqual(remoteAddress)) {
+						    isThisContact = true;
+						    break;
+					    }
+				    }
+				    if (!isThisContact) return;
 				    auto devices = mFriendModel->getDevices();
 				    QVariantList devicesList;
 				    for (auto &device : devices) {

@@ -316,13 +316,13 @@ void FriendModel::onPresenceReceived(const std::shared_ptr<linphone::Friend> &co
 		// pas pendant la sonnerie (ToolModel::isAnsweredCallPresence). Dans tous les cas, le statut
 		// choisi reste intact et revient avec la notification de fin d'appel.
 		const bool answered = ToolModel::isAnsweredCallPresence(contact->getPresenceModel());
-		lInfo() << log().arg(answered ? "call in progress for contact" : "call ringing for contact")
-		        << Utils::addressUriOnly(contact->getAddress());
+		lDebug() << log().arg(answered ? "call in progress for contact" : "call ringing for contact")
+		         << Utils::addressUriOnly(contact->getAddress());
 		emit inCallChanged(answered);
 		return;
 	}
-	lInfo() << log().arg("presence received for contact")
-	        << (contact ? Utils::addressUriOnly(contact->getAddress()) : "NULL") << getPresence(contact);
+	lDebug() << log().arg("presence received for contact")
+	         << (contact ? Utils::addressUriOnly(contact->getAddress()) : "NULL") << getPresence(contact);
 	emit inCallChanged(false);
 	emit presenceReceived(getPresence(contact), getPresenceNote(contact));
 }
@@ -425,6 +425,8 @@ void FriendModel::onUpdated(const std::shared_ptr<linphone::Friend> &data) {
 		emit organizationChanged(getOrganization());
 		emit jobChanged(getJob());
 		emit pictureUriChanged(getPictureUri());
+		// Numeros relus aussi : l'annuaire peut les changer, et la fiche du contact est partagee et durable.
+		emit phoneNumbersChanged();
 		emit updated();
 	}
 };

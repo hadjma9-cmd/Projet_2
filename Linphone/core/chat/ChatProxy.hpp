@@ -38,6 +38,7 @@ public:
 
 	void setSourceModel(QAbstractItemModel *sourceModel) override;
 
+	bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;
 	bool lessThan(const QModelIndex &sourceLeft, const QModelIndex &sourceRight) const override;
 
 	Q_INVOKABLE int findChatIndex(ChatGui *chatGui);

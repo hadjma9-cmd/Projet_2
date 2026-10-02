@@ -89,16 +89,21 @@ void EventLogList::connectItem(const QSharedPointer<EventLogCore> &item) {
 			if (mChatCore) emit mChatCore->lUpdateUnreadCount();
 		});
 		connect(message.get(), &ChatMessageCore::edited, this, [this, item] {
+			// Conversation lue ici, dans le fil de l'interface a qui elle appartient. Lue auparavant dans le fil du
+			// SDK, elle pouvait avoir change (ou etre nulle) si l'on changeait de conversation entre-temps.
+			auto chatCore = mChatCore;
+			auto chatModel = chatCore ? chatCore->getModel() : nullptr;
 			auto eventLogModel = item->getModel();
-			mCoreModelConnection->invokeToModel([this, eventLogModel, item]() {
-				auto chatRoom = mChatCore->getModel()->getMonitor();
-				auto newEventLog = EventLogCore::create(eventLogModel->getEventLog(), chatRoom);
-				bool wasLastMessage =
-				    mChatCore->getModel()->getLastChatMessage() == eventLogModel->getEventLog()->getChatMessage();
-				mCoreModelConnection->invokeToCore([this, newEventLog, wasLastMessage, item] {
+			if (!chatModel || !eventLogModel) return;
+			mCoreModelConnection->invokeToModel([this, chatCore, chatModel, eventLogModel, item]() {
+				auto newEventLog = EventLogCore::create(eventLogModel->getEventLog(), chatModel->getMonitor());
+				bool wasLastMessage = chatModel->getLastChatMessage() == eventLogModel->getEventLog()->getChatMessage();
+				mCoreModelConnection->invokeToCore([this, chatCore, newEventLog, wasLastMessage, item] {
+					// Le message modifie appartient a chatCore, meme si une autre conversation est affichee.
+					if (wasLastMessage) chatCore->setLastMessage(newEventLog->getChatMessageCore());
+					if (mChatCore != chatCore) return;
 					connectItem(newEventLog);
 					replace(item, newEventLog);
-					if (wasLastMessage) mChatCore->setLastMessage(newEventLog->getChatMessageCore());
 				});
 			});
 		});

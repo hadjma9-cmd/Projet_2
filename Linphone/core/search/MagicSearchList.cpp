@@ -28,6 +28,22 @@
 
 // =============================================================================
 
+namespace {
+// When mShowMe is false, hide from the list the SIP address(es) of the local
+// account(s) currently signed in on this profile: each user must not see his
+// own SIP account (but still sees everyone else). To be called in the SDK thread.
+bool isOwnAccountAddress(const std::shared_ptr<linphone::Core> &core,
+                         const std::shared_ptr<const linphone::Address> &addr) {
+	if (!addr) return false;
+	for (auto &account : core->getAccountList()) {
+		auto params = account->getParams();
+		auto identity = params ? params->getIdentityAddress() : nullptr;
+		if (identity && identity->weakEqual(addr)) return true;
+	}
+	return false;
+}
+} // namespace
+
 DEFINE_ABSTRACT_OBJECT(MagicSearchList)
 
 QSharedPointer<MagicSearchList> MagicSearchList::create() {
@@ -56,23 +72,29 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 	mCoreModelConnection = SafeConnection<MagicSearchList, CoreModel>::create(me, CoreModel::getInstance());
 	mCoreModelConnection->makeConnectToModel(
 	    &CoreModel::friendCreated, [this](const std::shared_ptr<linphone::Friend> &f) {
+		    // Liste recreee (annuaire LDAP enregistre...) : meme masquage du compte local que pour les resultats
+		    // de recherche, sinon son propre compte reapparaissait dans Contacts et au Clavier.
+		    if (!mShowMe && f && isOwnAccountAddress(CoreModel::getInstance()->getCore(), f->getAddress())) return;
 		    auto friendCore = FriendCore::create(f);
-		    auto haveContact =
-		        std::find_if(mList.begin(), mList.end(), [friendCore](const QSharedPointer<QObject> &item) {
-			        auto itemCore = item.objectCast<FriendCore>();
-			        auto itemModel = itemCore->getModel();
-			        auto friendModel = friendCore->getModel();
-			        return itemCore->getDefaultAddress().length() > 0 &&
-			                   itemCore->getDefaultAddress() == friendCore->getDefaultAddress() ||
-			               itemModel && friendModel && itemModel->getFriend() == friendModel->getFriend() &&
-			                   itemModel->getFriend()->getFriendList()->getDisplayName() ==
-			                       friendModel->getFriend()->getFriendList()->getDisplayName();
-		        });
-		    if (haveContact == mList.end()) {
-			    connect(friendCore.get(), &FriendCore::removed, this, qOverload<QObject *>(&MagicSearchList::remove));
-			    add(friendCore);
-			    emit friendCreated(getCount() - 1, new FriendGui(friendCore));
-		    }
+		    // Suite dans le fil de l'interface, a qui la liste appartient : elle etait parcourue et modifiee ici, dans
+		    // le fil du SDK, pendant que l'interface pouvait la lire (plantage aleatoire).
+		    mCoreModelConnection->invokeToCore([this, friendCore]() {
+			    // Meme contact deja affiche : meme fiche (FriendCore::create la partage) ou meme adresse SIP.
+			    auto haveContact =
+			        std::find_if(mList.begin(), mList.end(), [friendCore](const QSharedPointer<QObject> &item) {
+				        auto itemCore = item.objectCast<FriendCore>();
+				        if (!itemCore) return false;
+				        if (itemCore == friendCore) return true;
+				        return !itemCore->getDefaultAddress().isEmpty() &&
+				               itemCore->getDefaultAddress() == friendCore->getDefaultAddress();
+			        });
+			    if (haveContact == mList.end()) {
+				    connect(friendCore.get(), &FriendCore::removed, this,
+				            qOverload<QObject *>(&MagicSearchList::remove));
+				    add(friendCore);
+				    emit friendCreated(getCount() - 1, new FriendGui(friendCore));
+			    }
+		    });
 	    });
 	mCoreModelConnection->invokeToModel([this] {
 		auto linphoneSearch = CoreModel::getInstance()->getCore()->createMagicSearch();
@@ -109,18 +131,6 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 				    auto *contacts = new QList<QSharedPointer<FriendCore>>();
 				    auto ldapContacts = ToolModel::getLdapFriendList();
 				    auto core = CoreModel::getInstance()->getCore();
-				    // When mShowMe is false, hide from the list the SIP address(es) of the local
-				    // account(s) currently signed in on this profile: each user must not see his
-				    // own SIP account (but still sees everyone else).
-				    auto isOwnAccountAddress = [core](const std::shared_ptr<const linphone::Address> &addr) -> bool {
-					    if (!addr) return false;
-					    for (auto &account : core->getAccountList()) {
-						    auto params = account->getParams();
-						    auto identity = params ? params->getIdentityAddress() : nullptr;
-						    if (identity && identity->weakEqual(addr)) return true;
-					    }
-					    return false;
-				    };
 				    for (auto it : results) {
 					    QSharedPointer<FriendCore> contact;
 					    auto linphoneFriend = it->getFriend();
@@ -137,8 +147,8 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 						    }
 					    }
 					    if (linphoneFriend) {
-						    if (!mShowMe && isOwnAccountAddress(linphoneFriend->getAddress())) {
-							    lWarning() << log().arg("do not show my own address in this contact list");
+						    if (!mShowMe && isOwnAccountAddress(core, linphoneFriend->getAddress())) {
+							    lDebug() << log().arg("do not show my own address in this contact list");
 							    continue;
 						    }
 						    isStored =
@@ -146,8 +156,8 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 						    contact = FriendCore::create(linphoneFriend, isStored, it->getSourceFlags());
 						    contacts->append(contact);
 					    } else if (auto address = it->getAddress()) {
-						    if (!mShowMe && isOwnAccountAddress(address)) {
-							    lWarning() << log().arg("do not show my own address in this contact list");
+						    if (!mShowMe && isOwnAccountAddress(core, address)) {
+							    lDebug() << log().arg("do not show my own address in this contact list");
 							    continue;
 						    }
 						    auto linphoneFriend = core->createFriend();

@@ -41,6 +41,9 @@ public:
 	                                                              linphone::AudioDevice::Capabilities capability);
 	static std::shared_ptr<linphone::Account> findAccount(const std::shared_ptr<const linphone::Address> &address);
 	static std::shared_ptr<linphone::Account> findAccount(const QString &address);
+	// Contact a afficher pour une adresse : de preference l'instance qui porte la presence (celle de l'onglet
+	// Contacts), pour que la pastille soit la meme partout.
+	static std::shared_ptr<linphone::Friend> findDisplayedFriendByAddress(const QString &address);
 	static bool isMe(const QString &address);
 	static bool isLocal(const QString &address);
 	static bool isMe(const std::shared_ptr<const linphone::Address> &address);
@@ -101,6 +104,9 @@ public:
 	static std::shared_ptr<linphone::ChatRoom> lookupCurrentCallChat(std::shared_ptr<CallModel> callModel);
 	static std::shared_ptr<linphone::ChatRoom> createCurrentCallChat(std::shared_ptr<CallModel> callModel);
 	static bool isEndToEndEncryptedChatAvailable();
+	// Meme information, memorisee par le fil du SDK pour etre lue sans requete depuis l'interface.
+	static bool isEndToEndEncryptionAvailableCached();
+	static void refreshEndToEndEncryptionAvailability();
 	static std::shared_ptr<linphone::ChatRoom> lookupChatForAddress(std::shared_ptr<linphone::Address> remoteAddress);
 	static std::shared_ptr<linphone::ChatRoom> createChatForAddress(std::shared_ptr<linphone::Address> remoteAddress);
 	static std::shared_ptr<linphone::ChatRoom>

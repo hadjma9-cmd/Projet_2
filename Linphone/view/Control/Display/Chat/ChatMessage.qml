@@ -571,15 +571,24 @@ Control.Control {
                             icon.source: AppIcons.plusCircle
                             popup.width: Utils.getSizeWithScreenRatio(393)
                             popup.height: Utils.getSizeWithScreenRatio(291)
-                            popup.contentItem: EmojiPicker {
-                                id: emojiPicker
-                                onEmojiClicked: (emoji) => {
-                                    if (mainItem.chatMessage) {
-                                        if (mainItem.ownReaction === emoji) mainItem.chatMessage.core.lRemoveReaction()
-                                            else mainItem.chatMessage.core.lSendReaction(emoji)
+                            // Selecteur construit au premier clic, puis garde. Chaque bulle de message en
+                            // construisait un d'office (liste complete des emojis), ce qui figeait l'ouverture
+                            // des conversations.
+                            popup.onAboutToShow: emojiPickerLoader.active = true
+                            popup.contentItem: Loader {
+                                id: emojiPickerLoader
+                                active: false
+                                focus: true
+                                sourceComponent: EmojiPicker {
+                                    id: emojiPicker
+                                    onEmojiClicked: (emoji) => {
+                                        if (mainItem.chatMessage) {
+                                            if (mainItem.ownReaction === emoji) mainItem.chatMessage.core.lRemoveReaction()
+                                                else mainItem.chatMessage.core.lSendReaction(emoji)
+                                        }
+                                        emojiPickerButton.close()
+                                        emojiButton.close()
                                     }
-                                    emojiPickerButton.close()
-                                    emojiButton.close()
                                 }
                             }
                         }

@@ -50,6 +50,9 @@ public:
 
 	bool isRead() const;
 	void markAsRead();
+	// Conversation du message, retenue a sa creation. Ne pas la redemander au message (getChatRoom()) : le SDK
+	// plante quand elle n'existe plus (linphone_chat_message_get_chat_room ne teste pas le nul).
+	std::shared_ptr<linphone::ChatRoom> getChatRoom() const;
 
 	void deleteMessageFromChatRoom(bool deletedByUser);
 	void retractMessageFromChatRoom();
@@ -102,7 +105,8 @@ signals:
 private:
 	linphone::ChatMessage::State mMessageState;
 	QTimer mEphemeralTimer;
-	std::weak_ptr<linphone::ChatRoom> mChatRoom;
+	// Reference forte : la conversation reste en memoire tant que le message est suivi, donc toujours valide.
+	std::shared_ptr<linphone::ChatRoom> mChatRoom;
 
 	DECLARE_ABSTRACT_OBJECT
 

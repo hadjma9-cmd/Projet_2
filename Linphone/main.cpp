@@ -69,9 +69,12 @@ int main(int argc, char *argv[]) {
 	auto ignoreVSync = QSurfaceFormat::defaultFormat();
 	ignoreVSync.setSwapInterval(0);
 	QSurfaceFormat::setDefaultFormat(ignoreVSync);
-	// Disable QML cache. Avoid malformed cache.
-	lDebug() << "[Main] Disabling QML disk cache";
-	qputenv("QML_DISABLE_DISK_CACHE", "true");
+	// Interface QML : bytecode compile a l'avance dans le programme (qmlcachegen), sans aucun cache sur disque.
+	// QML_DISABLE_DISK_CACHE (reglage precedent, contre les caches .qmlc corrompus) ecartait aussi ce bytecode :
+	// toute l'interface etait recompilee a chaque lancement. « aot-bytecode » ne lit ni n'ecrit de fichier de
+	// cache, le probleme de cache corrompu ne peut donc pas revenir.
+	lDebug() << "[Main] QML: ahead-of-time bytecode only, no disk cache";
+	qputenv("QML_DISK_CACHE", "aot-bytecode");
 	lDebug() << "[Main] Setting application to UTF8";
 	setlocale(LC_CTYPE, ".UTF8");
 	lDebug() << "[Main] Creating application";

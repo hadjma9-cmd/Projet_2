@@ -70,6 +70,9 @@ CallHistoryCore::CallHistoryCore(const std::shared_ptr<linphone::CallLog> &callL
 		if (linphoneFriend) {
 			mFriendModel = Utils::makeQObject_ptr<FriendModel>(linphoneFriend);
 			mDisplayName = mFriendModel->getFullName();
+			// Fiche partagee affichee par la ligne (avatar, pastille) : plus de requete par ligne.
+			if (auto shown = ToolModel::findDisplayedFriendByAddress(mRemoteAddress))
+				mFriendCore = FriendCore::create(shown);
 		} else {
 			mDisplayName = ToolModel::getDisplayName(addr);
 		}
@@ -111,8 +114,11 @@ void CallHistoryCore::setSelf(QSharedPointer<CallHistoryCore> me) {
 		if (!isThisFriend) return;
 		auto friendModel = Utils::makeQObject_ptr<FriendModel>(updatedFriend);
 		auto displayName = friendModel->getFullName();
-		mCoreModelConnection->invokeToCore([this, friendModel, displayName]() {
+		auto shown = ToolModel::findDisplayedFriendByAddress(remoteAddress);
+		QSharedPointer<FriendCore> friendCore = shown ? FriendCore::create(shown) : nullptr;
+		mCoreModelConnection->invokeToCore([this, friendModel, displayName, friendCore]() {
 			mFriendModel = friendModel;
+			mFriendCore = friendCore;
 			auto me = mCoreModelConnection->mCore.mQData; // Locked from previous call.
 			mFriendModelConnection = SafeConnection<CallHistoryCore, FriendModel>::create(me, mFriendModel);
 			mFriendModelConnection->makeConnectToModel(&FriendModel::fullNameChanged, [this]() {
@@ -158,6 +164,10 @@ int CallHistoryCore::getDuration() const {
 	return mDuration;
 }
 
+FriendGui *CallHistoryCore::getContactGui() const {
+	return mFriendCore ? new FriendGui(mFriendCore) : nullptr;
+}
+
 QString CallHistoryCore::getDurationString() const {
 	return mDurationString;
 }
@@ -190,6 +200,10 @@ void CallHistoryCore::onRemoved(const std::shared_ptr<linphone::Friend> &updated
 			}
 		}
 	if (isThisFriend) {
+		mCoreModelConnection->invokeToCore([this]() {
+			mFriendCore = nullptr;
+			emit friendUpdated();
+		});
 		mFriendModel = nullptr;
 		mFriendModelConnection = nullptr;
 		mDisplayName = ToolModel::getDisplayName(fAddress);

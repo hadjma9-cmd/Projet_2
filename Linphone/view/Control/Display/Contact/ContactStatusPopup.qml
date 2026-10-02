@@ -6,11 +6,13 @@ import QtQuick.Controls.Basic as Control
 
 
 import Linphone
+import CustomControls 1.0
 import UtilsCpp
 import SettingsCpp
 import 'qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js' as Utils
 import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 
+// CustomControls : FocusHelper (etat du focus clavier), absent jusqu'ici d'ou une erreur a chaque affichage.
 PopupButton {
     id: presenceAndRegistrationItem
     // Le compte est passe explicitement. Ce composant le lisait auparavant sur un parent

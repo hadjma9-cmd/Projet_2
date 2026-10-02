@@ -63,12 +63,6 @@
         <translation>Do you want to start a video call with %1?</translation>
     </message>
     <message>
-        <location filename="../../view/Page/Window/AbstractWindow.qml" line="208"/>
-        <source>call_confirmation_extension</source>
-        <extracomment>&quot;le poste %1&quot;</extracomment>
-        <translation>extension %1</translation>
-    </message>
-    <message>
         <location filename="../../view/Page/Window/AbstractWindow.qml" line="221"/>
         <source>dialog_call</source>
         <extracomment>&quot;Appeler&quot;</extracomment>
@@ -6776,6 +6770,26 @@ To enable them in a commercial project, please contact us.</translation>
 </context>
 <context>
     <name>ToolModel</name>
+    <message>
+        <location filename="../../model/tool/ToolModel.cpp" line="360"/>
+        <source>call_waiting_registration_title</source>
+        <translation>Connecting</translation>
+    </message>
+    <message>
+        <location filename="../../model/tool/ToolModel.cpp" line="360"/>
+        <source>call_waiting_registration_message</source>
+        <translation>Your account is not connected yet: the call will start as soon as it is.</translation>
+    </message>
+    <message>
+        <location filename="../../model/tool/ToolModel.cpp" line="360"/>
+        <source>call_error_account_not_connected</source>
+        <translation>Your account is still not connected: the call was cancelled.</translation>
+    </message>
+    <message>
+        <location filename="../../model/tool/ToolModel.cpp" line="360"/>
+        <source>call_error_title</source>
+        <translation>Call failed</translation>
+    </message>
     <message>
         <location filename="../../model/tool/ToolModel.cpp" line="341"/>
         <source>call_error_uninterpretable_sip_address</source>

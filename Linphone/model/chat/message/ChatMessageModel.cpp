@@ -48,8 +48,8 @@ ChatMessageModel::ChatMessageModel(const std::shared_ptr<linphone::ChatMessage> 
 	// We need to force this signal sending because there is no callback to know when a message has been read
 	connect(CoreModel::getInstance().get(), &CoreModel::chatRoomRead, this,
 	        [this](const std::shared_ptr<linphone::Core> &core, const std::shared_ptr<linphone::ChatRoom> &chatRoom) {
-		        if (!mMonitor || !mChatRoom.lock()) return;
-		        if (chatRoom == mChatRoom.lock()) {
+		        if (!mMonitor || !mChatRoom) return;
+		        if (chatRoom == mChatRoom) {
 			        if (mMonitor->isRead()) {
 				        emit messageRead(mMonitor);
 			        }
@@ -100,24 +100,28 @@ bool ChatMessageModel::isRead() const {
 	return mMonitor->isRead();
 }
 
+std::shared_ptr<linphone::ChatRoom> ChatMessageModel::getChatRoom() const {
+	return mChatRoom;
+}
+
+// Conversation retenue a la creation (mChatRoom) et jamais redemandee au message : pour un message d'une
+// conversation supprimee, mMonitor->getChatRoom() plantait dans le SDK (plantage du 17/09).
 void ChatMessageModel::markAsRead() {
 	mMonitor->markAsRead();
 	emit messageRead(mMonitor);
-	emit CoreModel::getInstance()->messageReadInChatRoom(mMonitor->getChatRoom());
+	emit CoreModel::getInstance()->messageReadInChatRoom(mChatRoom);
 }
 
 void ChatMessageModel::deleteMessageFromChatRoom(bool deletedByUser) {
-	auto chatRoom = mMonitor->getChatRoom();
-	if (chatRoom) {
-		chatRoom->deleteMessage(mMonitor);
+	if (mChatRoom) {
+		mChatRoom->deleteMessage(mMonitor);
 		emit messageDeleted(deletedByUser);
 	}
 }
 
 void ChatMessageModel::retractMessageFromChatRoom() {
-	auto chatRoom = mMonitor->getChatRoom();
-	if (chatRoom) {
-		chatRoom->retractMessage(mMonitor);
+	if (mChatRoom) {
+		mChatRoom->retractMessage(mMonitor);
 	}
 }
 
