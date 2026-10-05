@@ -29,6 +29,11 @@ AbstractWindow {
 
 	// TODO : use this to make the border transparent
 	flags: Qt.Window
+
+	// Barre du haut sans barre de titre Windows (deplacement, reduire, agrandir, fermer).
+	header: WindowTitleBar {
+		window: mainWindow
+	}
 	// menuBar: Rectangle {
 	// 	width: parent.width
     // 	height: Utils.getSizeWithScreenRatio(40)

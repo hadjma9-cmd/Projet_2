@@ -16,6 +16,14 @@ AbstractWindow {
     minimumWidth: Utils.getSizeWithScreenRatio(1020)
     minimumHeight: Utils.getSizeWithScreenRatio(700)
 
+    // Barre du haut bleu nuit sans barre de titre Windows (deplacement, reduire, agrandir, fermer).
+    header: WindowTitleBar {
+        id: callTitleBar
+        window: mainWindow
+        dark: true
+        visible: frame.active && mainWindow.visibility !== Window.FullScreen
+    }
+
     // modality: Qt.WindowModal
     property CallGui call
 

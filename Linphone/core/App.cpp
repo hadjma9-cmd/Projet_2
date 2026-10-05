@@ -109,6 +109,7 @@
 #include "tool/crash_reporter/CrashReporter.hpp"
 #endif
 #include "tool/native/DesktopTools.hpp"
+#include "tool/native/WindowFrame.hpp"
 #include "tool/providers/AvatarProvider.hpp"
 #include "tool/providers/EmojiProvider.hpp"
 #include "tool/providers/ImageProvider.hpp"
@@ -1040,6 +1041,7 @@ void App::initCppInterfaces() {
 	qmlRegisterType<FocusHelper>("CustomControls", 1, 0, "FocusHelper");
 
 	qmlRegisterType<DashRectangle>(Constants::MainQmlUri, 1, 0, "DashRectangle");
+	qmlRegisterType<WindowFrame>(Constants::MainQmlUri, 1, 0, "WindowFrame");
 	qmlRegisterType<PhoneNumberProxy>(Constants::MainQmlUri, 1, 0, "PhoneNumberProxy");
 	qmlRegisterType<VariantObject>(Constants::MainQmlUri, 1, 0, "VariantObject");
 	qmlRegisterType<VariantList>(Constants::MainQmlUri, 1, 0, "VariantList");

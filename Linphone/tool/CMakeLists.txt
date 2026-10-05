@@ -19,6 +19,7 @@ list(APPEND _LINPHONEAPP_SOURCES
 	# tool/providers/VideoFrameGrabber.cpp
 	
 	tool/native/DesktopTools.hpp
+	tool/native/WindowFrame.cpp
 
 	tool/request/RequestDialog.cpp
 	tool/request/CallbackHelper.cpp

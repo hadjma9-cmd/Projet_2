@@ -89,5 +89,20 @@ QtObject {
     property var groupCallButtonColor: "#EEF7F8"
 
     property var placeholders: '#CACACA'	// No name in design
-    
+
+    // Barre du haut des fenetres sans cadre Windows (WindowTitleBar) : fond des boutons au survol et a l'appui,
+    // rouge de fermeture de Windows 11.
+    property color titleBarButtonHovered: Qt.rgba(0, 0, 0, 0.06)
+    property color titleBarButtonPressed: Qt.rgba(0, 0, 0, 0.1)
+    property color titleBarButtonHoveredDark: Qt.rgba(1, 1, 1, 0.08)
+    property color titleBarButtonPressedDark: Qt.rgba(1, 1, 1, 0.14)
+    property color titleBarClose: "#C42B1C"
+    property color titleBarClosePressed: "#B22A1C"
+
+    // Fenetre d'appel bleu nuit : fond, boutons ronds au repos, et halo de la photo du correspondant.
+    property color callBackground: "#14213A"
+    property color callButton: "#1E3150"
+    property color callButtonHovered: "#29406A"
+    property color callHalo: "#187FA3"
+
 }

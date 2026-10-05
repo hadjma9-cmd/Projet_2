@@ -198,29 +198,11 @@ Item {
     Item {
         anchors.fill: parent
 
-        Popup {
-            id: currentCallNotif
-            background: Item {}
-            closePolicy: Control.Popup.NoAutoClose
-            visible: currentCall && currentCall.core.state != LinphoneEnums.CallState.Idle && currentCall.core.state != LinphoneEnums.CallState.IncomingReceived && currentCall.core.state != LinphoneEnums.CallState.PushIncomingReceived
-            x: mainItem.width / 2 - width / 2
-            y: contentItem.height / 2
-            property var currentCall: callsModel.currentCall ? callsModel.currentCall : null
-            property string remoteName: currentCall ? currentCall.core.remoteName : ""
-            contentItem: MediumButton {
-                style: ButtonStyle.toast
-                text: currentCallNotif.currentCall ? currentCallNotif.currentCall.core.conference ? ("Réunion en cours : ") + currentCallNotif.currentCall.core.conference.core.subject : (("Appel en cours : ") + currentCallNotif.remoteName) : "appel en cours"
-                onClicked: {
-                    var callsWindow = UtilsCpp.getOrCreateCallsWindow(currentCallNotif.currentCall);
-                    UtilsCpp.smartShowWindow(callsWindow);
-                }
-            }
-        }
-
+        // Plus de bande vide en haut : la barre de la fenetre (WindowTitleBar) la remplace, et la bulle « Appel en
+        // cours », qu'elle accueillait, est passee dans le bandeau, a droite du statut.
         RowLayout {
             anchors.fill: parent
             spacing: 0
-            anchors.topMargin: Utils.getSizeWithScreenRatio(25)
 
             VerticalTabBar {
                 id: tabbar
@@ -448,6 +430,20 @@ Item {
                             }
                         }
                     }
+                    // Appel en cours : bulle a droite du statut, un clic ramene la fenetre d'appel.
+                    MediumButton {
+                        id: currentCallNotif
+                        property var currentCall: callsModel.currentCall ? callsModel.currentCall : null
+                        property string remoteName: currentCall ? currentCall.core.remoteName : ""
+                        visible: !!currentCall && currentCall.core.state != LinphoneEnums.CallState.Idle && currentCall.core.state != LinphoneEnums.CallState.IncomingReceived && currentCall.core.state != LinphoneEnums.CallState.PushIncomingReceived
+                        Layout.leftMargin: Utils.getSizeWithScreenRatio(20)
+                        style: ButtonStyle.toast
+                        text: currentCall ? currentCall.core.conference ? ("Réunion en cours : ") + currentCall.core.conference.core.subject : (("Appel en cours : ") + remoteName) : "appel en cours"
+                        onClicked: {
+                            var callsWindow = UtilsCpp.getOrCreateCallsWindow(currentCall);
+                            UtilsCpp.smartShowWindow(callsWindow);
+                        }
+                    }
                     Item {
                         Layout.fillWidth: true
                     }
@@ -524,10 +520,13 @@ Item {
                             icon.source: AppIcons.menuBars
                             icon.width: mainItem.headerIconSize
                             icon.height: mainItem.headerIconSize
-                            // Jamais de rond autour de l'icone : le style par defaut colorait le fond
-                            // tant que le bouton gardait le focus, soit jusqu'au clic suivant ailleurs.
-                            // Seule l'icone fonce au survol et a l'appui, comme ses voisines.
+                            // Ombre claire derriere l'icone au survol et menu ouvert, curseur en main (Button).
+                            // Jamais selon le focus : le fond restait affiche apres un clic, jusqu'au clic
+                            // suivant ailleurs.
                             style: ButtonStyle.noBackground
+                            hoveredColor: DefaultStyle.main2_100
+                            pressedColor: DefaultStyle.main2_200
+                            backgroundColor: checked ? pressedColor : hovered ? hoveredColor : color
                             shadowEnabled: false
                             contentItem: EffectImage {
                                 imageSource: settingsMenuButton.icon.source

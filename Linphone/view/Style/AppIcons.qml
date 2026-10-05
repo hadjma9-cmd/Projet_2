@@ -3,6 +3,11 @@ import QtQuick
 
 QtObject {
 	property string welcomeLinphoneLogo: "image://internal/linphone.svg"
+	// Petite fenetre : epingle « toujours au premier plan », pictogrammes de bascule entre les deux fenetres.
+	property string pushPin: "image://internal/push-pin.svg"
+	property string pushPinFill: "image://internal/push-pin-fill.svg"
+	property string windowSmall: "image://internal/window-small.svg"
+	property string windowLarge: "image://internal/window-large.svg"
 	property string logo: "image://internal/logo.svg"
 	property string welcomeLock: "image://internal/secured.svg"
 	property string lock: "image://internal/lock.svg"
