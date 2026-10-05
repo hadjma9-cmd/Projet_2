@@ -60,6 +60,7 @@ QtObject {
 	// Conversations sans rien a afficher : illustration sobre aux couleurs du theme bleu_gama.
 	property string noConversationImage: "image://internal/no-conversation.svg"
 	property string verticalDots: "image://internal/dots-three-vertical.svg"
+	property string horizontalDots: "image://internal/dots-three.svg"
 	// Menu du bandeau : trois barres (l'engrenage est deja l'entree Parametres du menu).
 	property string menuBars: "image://internal/list-bars.svg"
 	property string plusCircle: "image://internal/plus-circle.svg"

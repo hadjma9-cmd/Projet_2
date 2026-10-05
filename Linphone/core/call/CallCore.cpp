@@ -273,6 +273,9 @@ void CallCore::setSelf(QSharedPointer<CallCore> me) {
 	mCallModelConnection->makeConnectToModel(&CallModel::microphoneVolumeChanged, [this](float volume) {
 		mCallModelConnection->invokeToCore([this, volume]() { setMicrophoneVolume(volume); });
 	});
+	mCallModelConnection->makeConnectToModel(&CallModel::playVolumeChanged, [this](float level) {
+		mCallModelConnection->invokeToCore([this, level]() { setRemoteVolume(level); });
+	});
 	// Applique dans le fil de l'interface : le texte est affiche par liaison QML (CallLayout.qml).
 	mCallModelConnection->makeConnectToModel(&CallModel::errorMessageChanged, [this](const QString &errorMessage) {
 		mCallModelConnection->invokeToCore([this, errorMessage]() { setLastErrorMessage(errorMessage); });
@@ -838,6 +841,27 @@ void CallCore::setMicrophoneVolume(float vol) {
 		mMicrophoneVolume = vol;
 		emit microphoneVolumeChanged();
 	}
+}
+
+float CallCore::getRemoteVolume() const {
+	return mRemoteVolume;
+}
+void CallCore::setRemoteVolume(float volume) {
+	if (mRemoteVolume != volume) {
+		mRemoteVolume = volume;
+		emit remoteVolumeChanged();
+	}
+}
+
+// Plusieurs affichages peuvent demander la mesure (fenetre d'appel, petite fenetre) : elle tourne tant qu'au moins un
+// la demande.
+void CallCore::requestRemoteVolume(bool enabled) {
+	const bool wasMonitoring = mRemoteVolumeRequests > 0;
+	mRemoteVolumeRequests = std::max(0, mRemoteVolumeRequests + (enabled ? 1 : -1));
+	const bool monitoring = mRemoteVolumeRequests > 0;
+	if (monitoring == wasMonitoring || !mCallModelConnection) return;
+	mCallModelConnection->invokeToModel([this, monitoring]() { mCallModel->setPlayVolumeMonitoring(monitoring); });
+	if (!monitoring) setRemoteVolume(0.f);
 }
 
 LinphoneEnums::CallState CallCore::getTransferState() const {

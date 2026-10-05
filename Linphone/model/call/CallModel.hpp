@@ -89,6 +89,9 @@ public:
 
 	void sendDtmf(const QString &dtmf);
 
+	// Mesure du volume de la voix du correspondant (halo de la fenetre d'appel), seulement quand il est affiche.
+	void setPlayVolumeMonitoring(bool enabled);
+
 	void updateCallErrorFromReason(linphone::Reason reason);
 
 signals:
@@ -97,6 +100,7 @@ signals:
 	void durationChanged(int);
 	void qualityUpdated(float quality);
 	void microphoneVolumeChanged(float);
+	void playVolumeChanged(float level);
 	void pausedChanged(bool paused);
 	void remoteVideoEnabledChanged(bool remoteVideoEnabled);
 	void cameraEnabledChanged(bool enalbed);
@@ -114,6 +118,7 @@ signals:
 private:
 	QTimer mDurationTimer;
 	QTimer mMicroVolumeTimer;
+	QTimer mPlayVolumeTimer;
 	std::shared_ptr<linphone::Conference> mConference;
 	LinphoneEnums::ConferenceLayout mConferenceVideoLayout;
 	static constexpr int gDtmfSoundDelay = 200;

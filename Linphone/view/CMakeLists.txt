@@ -32,6 +32,8 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Container/TabBar.qml
 	view/Control/Container/VerticalTabBar.qml
 	view/Control/Container/WindowTitleBar.qml
+	view/Control/Display/Call/VoiceHalo.qml
+	view/Control/Button/CallRoundButton.qml
 	view/Control/Container/Call/ActiveSpeakerLayout.qml
 	view/Control/Container/Call/CallHistoryLayout.qml
 	view/Control/Container/Call/CallLayout.qml

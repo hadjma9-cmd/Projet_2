@@ -21,6 +21,7 @@
 #include "CallModel.hpp"
 
 #include <QDebug>
+#include <algorithm>
 
 #include "core/path/Paths.hpp"
 #include "model/core/CoreModel.hpp"
@@ -44,6 +45,15 @@ CallModel::CallModel(const std::shared_ptr<linphone::Call> &call, QObject *paren
 	        [this]() { this->microphoneVolumeChanged(Utils::computeVu(mMonitor->getRecordVolume())); });
 	// Pas demarre : aucun ecran n'affiche le volume du micro. Il tournait 20 fois par seconde pour chaque
 	// appel, sans jamais s'arreter, meme apres la fin de l'appel. A demarrer si un vumetre est ajoute.
+
+	// Voix du correspondant, de -45 dB (silence) a -5 dB (forte voix) : plage plus large que celle du vumetre pour
+	// que le halo suive aussi une voix calme. Demarre seulement pendant l'affichage du halo.
+	mPlayVolumeTimer.setInterval(50);
+	mPlayVolumeTimer.setSingleShot(false);
+	connect(&mPlayVolumeTimer, &QTimer::timeout, this, [this]() {
+		const float db = mMonitor->getPlayVolume();
+		emit playVolumeChanged(std::clamp((db + 45.f) / 40.f, 0.f, 1.f));
+	});
 }
 
 CallModel::~CallModel() {
@@ -203,6 +213,15 @@ void CallModel::setRecordFile(const std::string &path) {
 	auto params = core->createCallParams(mMonitor);
 	params->setRecordFile(path);
 	mMonitor->update(params);
+}
+
+void CallModel::setPlayVolumeMonitoring(bool enabled) {
+	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
+	if (enabled) mPlayVolumeTimer.start();
+	else {
+		mPlayVolumeTimer.stop();
+		emit playVolumeChanged(0.f);
+	}
 }
 
 float CallModel::getMicrophoneVolume() const {
@@ -488,6 +507,7 @@ void CallModel::onStateChanged(const std::shared_ptr<linphone::Call> &call,
 		updateConferenceVideoLayout();
 	} else if (state == linphone::Call::State::End || state == linphone::Call::State::Error) {
 		mDurationTimer.stop();
+		mPlayVolumeTimer.stop();
 		updateCallErrorFromReason(call->getReason());
 	}
 	emit stateChanged(call, state, message);

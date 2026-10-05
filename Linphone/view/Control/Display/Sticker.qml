@@ -17,6 +17,8 @@ Item {
 	height: 300
 	width: 200
 	property bool previewEnabled
+	// Appel a deux sans video : halo qui suit la voix du correspondant autour de sa photo (VoiceHalo).
+	property bool haloEnabled: false
 	property bool securityBreach
 	property CallGui call: null
 	property ConferenceGui conference: call && call.core.conference || null
@@ -109,6 +111,13 @@ Item {
 					? background.minSize * 142 / 372
                     : Utils.getSizeWithScreenRatio(120)
 				width: height
+				VoiceHalo {
+					anchors.centerIn: parent
+					baseSize: centerItem.height
+					call: mainItem.call
+					active: mainItem.haloEnabled && !mainItem.previewEnabled && !mainItem.conference
+					visible: active && avatar.visible
+				}
 				Avatar{
 					id: avatar
 					anchors.fill: parent
@@ -277,6 +286,8 @@ Item {
 	}
 	MultiEffect {
 		id: shadow
+		// Pas d'ombre pour une vignette transparente (appel a deux sur le fond de la fenetre d'appel).
+		visible: mainItem.color.a > 0
 		source: background
 		anchors.fill: background
 		shadowEnabled: true

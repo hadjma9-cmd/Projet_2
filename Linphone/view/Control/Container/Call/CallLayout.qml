@@ -116,10 +116,11 @@ Item {
 		&& mainItem.participantDeviceCount <= 2
         height: Utils.getSizeWithScreenRatio(180)
         width: Utils.getSizeWithScreenRatio(300)
+		// En haut a droite : le bas de l'image est occupe par la barre de boutons de la video.
 		anchors.right: mainItem.right
-		anchors.bottom: mainItem.bottom
+		anchors.top: mainItem.top
         anchors.rightMargin: Utils.getSizeWithScreenRatio(20)
-        anchors.bottomMargin: Utils.getSizeWithScreenRatio(10)
+        anchors.topMargin: Utils.getSizeWithScreenRatio(10)
 		onVideoEnabledChanged: console.log("Preview : " +videoEnabled + " / " +visible +" / " +mainItem.call)
 		property var accountObj: UtilsCpp.findLocalAccountByAddress(mainItem.localAddress)
         account: accountObj && accountObj.value || null
@@ -134,9 +135,9 @@ Item {
             margin: Utils.getSizeWithScreenRatio(10)
 			function resetPosition(){
 				preview.anchors.right = mainItem.right
-				preview.anchors.bottom = mainItem.bottom
+				preview.anchors.top = mainItem.top
 				preview.anchors.rightMargin = previewMouseArea.margin
-				preview.anchors.bottomMargin = previewMouseArea.margin
+				preview.anchors.topMargin = previewMouseArea.margin
 			}
 			onVisibleChanged: if(!visible){
 				resetPosition()
@@ -144,7 +145,7 @@ Item {
 			drag.target: preview
 			onDraggingChanged: if(dragging) {
 				preview.anchors.right = undefined
-				preview.anchors.bottom = undefined
+				preview.anchors.top = undefined
 			}
 			onRequestResetPosition: resetPosition()
 		}

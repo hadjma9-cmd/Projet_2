@@ -2062,6 +2062,66 @@
         <extracomment>&quot;Désactiver le son&quot;</extracomment>
         <translation>Lautsprecher stummschalten</translation>
     </message>
+    <message>
+        <source>call_status_in_progress</source>
+        <extracomment>&quot;Appel en cours&quot;</extracomment>
+        <translation>Anruf läuft</translation>
+    </message>
+    <message>
+        <source>call_button_microphone</source>
+        <extracomment>&quot;Micro&quot;</extracomment>
+        <translation>Mikrofon</translation>
+    </message>
+    <message>
+        <source>call_button_speaker</source>
+        <extracomment>&quot;Son&quot;</extracomment>
+        <translation>Ton</translation>
+    </message>
+    <message>
+        <source>call_button_hold</source>
+        <extracomment>&quot;Attente&quot;</extracomment>
+        <translation>Halten</translation>
+    </message>
+    <message>
+        <source>call_button_dialer</source>
+        <extracomment>&quot;Clavier&quot;</extracomment>
+        <translation>Tastatur</translation>
+    </message>
+    <message>
+        <source>call_button_transfer</source>
+        <extracomment>&quot;Transfert&quot;</extracomment>
+        <translation>Weiterleiten</translation>
+    </message>
+    <message>
+        <source>call_button_camera</source>
+        <extracomment>&quot;Caméra&quot;</extracomment>
+        <translation>Kamera</translation>
+    </message>
+    <message>
+        <source>call_button_share_screen</source>
+        <extracomment>&quot;Partager l&apos;écran&quot;</extracomment>
+        <translation>Bildschirm teilen</translation>
+    </message>
+    <message>
+        <source>call_button_more</source>
+        <extracomment>&quot;Plus&quot;</extracomment>
+        <translation>Mehr</translation>
+    </message>
+    <message>
+        <source>call_button_decline</source>
+        <extracomment>&quot;Refuser&quot;</extracomment>
+        <translation>Ablehnen</translation>
+    </message>
+    <message>
+        <source>call_button_hang_up</source>
+        <extracomment>&quot;Raccrocher&quot;</extracomment>
+        <translation>Auflegen</translation>
+    </message>
+    <message>
+        <source>call_button_answer</source>
+        <extracomment>&quot;Répondre&quot;</extracomment>
+        <translation>Annehmen</translation>
+    </message>
 </context>
 <context>
     <name>CarddavSettingsLayout</name>

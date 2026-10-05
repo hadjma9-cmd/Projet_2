@@ -2030,6 +2030,66 @@
         <extracomment>&quot;Désactiver le son&quot;</extracomment>
         <translation>Mute speaker</translation>
     </message>
+    <message>
+        <source>call_status_in_progress</source>
+        <extracomment>&quot;Appel en cours&quot;</extracomment>
+        <translation>Call in progress</translation>
+    </message>
+    <message>
+        <source>call_button_microphone</source>
+        <extracomment>&quot;Micro&quot;</extracomment>
+        <translation>Microphone</translation>
+    </message>
+    <message>
+        <source>call_button_speaker</source>
+        <extracomment>&quot;Son&quot;</extracomment>
+        <translation>Sound</translation>
+    </message>
+    <message>
+        <source>call_button_hold</source>
+        <extracomment>&quot;Attente&quot;</extracomment>
+        <translation>Hold</translation>
+    </message>
+    <message>
+        <source>call_button_dialer</source>
+        <extracomment>&quot;Clavier&quot;</extracomment>
+        <translation>Keypad</translation>
+    </message>
+    <message>
+        <source>call_button_transfer</source>
+        <extracomment>&quot;Transfert&quot;</extracomment>
+        <translation>Transfer</translation>
+    </message>
+    <message>
+        <source>call_button_camera</source>
+        <extracomment>&quot;Caméra&quot;</extracomment>
+        <translation>Camera</translation>
+    </message>
+    <message>
+        <source>call_button_share_screen</source>
+        <extracomment>&quot;Partager l&apos;écran&quot;</extracomment>
+        <translation>Share screen</translation>
+    </message>
+    <message>
+        <source>call_button_more</source>
+        <extracomment>&quot;Plus&quot;</extracomment>
+        <translation>More</translation>
+    </message>
+    <message>
+        <source>call_button_decline</source>
+        <extracomment>&quot;Refuser&quot;</extracomment>
+        <translation>Decline</translation>
+    </message>
+    <message>
+        <source>call_button_hang_up</source>
+        <extracomment>&quot;Raccrocher&quot;</extracomment>
+        <translation>Hang up</translation>
+    </message>
+    <message>
+        <source>call_button_answer</source>
+        <extracomment>&quot;Répondre&quot;</extracomment>
+        <translation>Answer</translation>
+    </message>
 </context>
 <context>
     <name>CarddavSettingsLayout</name>

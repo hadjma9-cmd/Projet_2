@@ -48,6 +48,9 @@ Item {
 			property var address: participantDevice && participantDevice.core.address
 			videoEnabled: (participantDevice && participantDevice.core.videoEnabled) || (!participantDevice && call && call.core.remoteVideoEnabled)
 			qmlName: 'AS'
+			// Appel a deux : photo posee sur le fond bleu nuit, entouree du halo de la voix.
+			color: mainItem.conference ? DefaultStyle.grey_600 : "transparent"
+			haloEnabled: !mainItem.conference
 			securityBreach: !mainItem.conference && mainItem.call?.core.isMismatch || false
 			displayPresence: false
 			Binding {
