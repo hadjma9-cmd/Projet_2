@@ -23,6 +23,8 @@ FocusScope {
     property bool replyingToMessage: false
     property bool editingMessage: false
     property bool backButtonVisible: false
+    // Petite fenetre (audio seulement) : pas de bouton d'appel video.
+    property bool videoCallEnabled: true
     property string lastChar
     property AccountGui currentAccount: AppCpp.currentAccount
     property bool showEncryptedInfo: currentAccount && currentAccount.core.limeServerUrl !== "" && currentAccount.core.conferenceFactoryAddress !== ""
@@ -209,7 +211,7 @@ FocusScope {
                         RoundButton {
                             style: ButtonStyle.noBackground
                             icon.source: AppIcons.videoCamera
-                            visible: !mainItem.chat?.core.isGroupChat && !mainItem.call
+                            visible: mainItem.videoCallEnabled && !mainItem.chat?.core.isGroupChat && !mainItem.call
                             onPressed: mainItem.oneOneCall(true)
                         }
                         RoundButton {

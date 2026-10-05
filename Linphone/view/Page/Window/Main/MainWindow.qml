@@ -1,3 +1,4 @@
+import QtCore
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Window
@@ -30,10 +31,75 @@ AbstractWindow {
 	// TODO : use this to make the border transparent
 	flags: Qt.Window
 
-	// Barre du haut sans barre de titre Windows (deplacement, reduire, agrandir, fermer).
+	// Barre du haut sans barre de titre Windows (deplacement, reduire, agrandir, fermer). Petite fenetre : taille
+	// fixe, epingle « toujours au premier plan » ; bleu nuit pendant un appel.
 	header: WindowTitleBar {
 		window: mainWindow
+		maximizable: !mainWindow.compact
+		pinnable: mainWindow.compact
+		pinned: AppCpp.compactPinned
+		onPinClicked: AppCpp.compactPinned = !AppCpp.compactPinned
+		dark: mainWindow.compact && !!compactLoader.item && compactLoader.item.callVisible
 	}
+
+	// ------------------------------------------------------------------------------------------------------------
+	//  Petite fenetre (format telephone, comme 3CX : 414 x 632 a l'interieur)
+	// ------------------------------------------------------------------------------------------------------------
+	readonly property int compactWidth: 414
+	readonly property int compactHeight: 632
+	// Seulement une fois connecte : les pages de connexion restent dans la grande fenetre.
+	readonly property bool compact: AppCpp.compactMode && compactLoader.active
+	property rect normalGeometry: Qt.rect(0, 0, 0, 0)
+	property bool normalWasMaximized: false
+	Settings {
+		id: compactPosition
+		category: "compact"
+		property int x: -1000000
+		property int y: -1000000
+	}
+	onCompactChanged: applyWindowMode()
+	function applyWindowMode() {
+		if (mainWindow.compact) {
+			mainWindow.normalWasMaximized = mainWindow.visibility === Window.Maximized
+			if (mainWindow.normalWasMaximized) mainWindow.showNormal()
+			mainWindow.normalGeometry = Qt.rect(mainWindow.x, mainWindow.y, mainWindow.width, mainWindow.height)
+			mainWindow.minimumWidth = 0
+			mainWindow.minimumHeight = 0
+			mainWindow.maximumWidth = mainWindow.compactWidth
+			mainWindow.maximumHeight = mainWindow.compactHeight
+			mainWindow.width = mainWindow.compactWidth
+			mainWindow.height = mainWindow.compactHeight
+			mainWindow.minimumWidth = mainWindow.compactWidth
+			mainWindow.minimumHeight = mainWindow.compactHeight
+			// Premiere fois : en bas a droite de l'ecran, pres de l'horloge ; ensuite la ou on l'a laissee.
+			if (compactPosition.x > -1000000) {
+				mainWindow.x = compactPosition.x
+				mainWindow.y = compactPosition.y
+			} else {
+				mainWindow.x = Screen.virtualX + Screen.desktopAvailableWidth - mainWindow.compactWidth - 16
+				mainWindow.y = Screen.virtualY + Screen.desktopAvailableHeight - mainWindow.compactHeight - 48
+			}
+		} else {
+			if (mainWindow.width === mainWindow.compactWidth && mainWindow.height === mainWindow.compactHeight) {
+				compactPosition.x = mainWindow.x
+				compactPosition.y = mainWindow.y
+			}
+			mainWindow.maximumWidth = 16777215
+			mainWindow.maximumHeight = 16777215
+			mainWindow.minimumWidth = Utils.getSizeWithScreenRatio(1020)
+			mainWindow.minimumHeight = Utils.getSizeWithScreenRatio(700)
+			if (mainWindow.normalGeometry.width > 0) {
+				mainWindow.x = mainWindow.normalGeometry.x
+				mainWindow.y = mainWindow.normalGeometry.y
+				mainWindow.width = mainWindow.normalGeometry.width
+				mainWindow.height = mainWindow.normalGeometry.height
+			}
+			if (mainWindow.normalWasMaximized) mainWindow.showMaximized()
+		}
+	}
+	// Position de la petite fenetre gardee pour la prochaine fois.
+	onXChanged: if (mainWindow.compact) compactPosition.x = mainWindow.x
+	onYChanged: if (mainWindow.compact) compactPosition.y = mainWindow.y
 	// menuBar: Rectangle {
 	// 	width: parent.width
     // 	height: Utils.getSizeWithScreenRatio(40)
@@ -70,6 +136,10 @@ AbstractWindow {
 		mainStackViewLoader.item?.currentItem.displayChatPage(contactAddress)
 	}
 	function openChat(chat) {
+		if (mainWindow.compact) {
+			compactLoader.item.openChat(chat)
+			return
+		}
 		openMainPage()
 		mainStackViewLoader.item?.currentItem.openChat(chat)
 	}
@@ -89,6 +159,15 @@ AbstractWindow {
 	
 	function goToLogin() {
 		mainStackViewLoader.item.replace(sipLoginPage)
+	}
+
+	function openSettings() {
+		openMainPage()
+		mainStackViewLoader.item.currentItem.openSettings()
+	}
+	function openHelp() {
+		openMainPage()
+		mainStackViewLoader.item.currentItem.openHelp()
 	}
 
 	function scheduleMeeting(subject, addresses) {
@@ -158,7 +237,27 @@ AbstractWindow {
 		id: mainStackViewLoader
 		active: AppCpp.coreStarted
 		anchors.fill: parent
+		// Masquee (gardee en memoire) pendant la petite fenetre : retour instantane a la grande.
+		visible: !compactLoader.active
 		sourceComponent: mainStackViewComp
+	}
+
+	// Petite fenetre, par-dessus la grande une fois connecte.
+	Loader {
+		id: compactLoader
+		anchors.fill: parent
+		active: AppCpp.compactMode && !!mainStackViewLoader.item && !!mainStackViewLoader.item.currentItem
+			&& mainStackViewLoader.item.currentItem.objectName === "mainPage"
+		sourceComponent: CompactLayout {
+			onOpenSettingsRequested: {
+				AppCpp.compactMode = false
+				mainWindow.openSettings()
+			}
+			onOpenHelpRequested: {
+				AppCpp.compactMode = false
+				mainWindow.openHelp()
+			}
+		}
 	}
 
 	Loader {

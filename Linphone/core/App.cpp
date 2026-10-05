@@ -95,6 +95,7 @@
 #include "core/translator/DefaultTranslatorCore.hpp"
 #include "core/variant/VariantList.hpp"
 #include "core/videoSource/VideoSourceDescriptorGui.hpp"
+#include "model/call/CallModel.hpp"
 #include "model/friend/FriendsManager.hpp"
 #include "model/object/VariantObject.hpp"
 #include "model/tool/ToolModel.hpp"
@@ -102,9 +103,11 @@
 #include "tool/EnumsToString.hpp"
 #include "tool/FluidityProbe.hpp"
 #include "tool/Utils.hpp"
+
 #include "tool/accessibility/AccessibilityHelper.hpp"
 #include "tool/accessibility/FocusHelper.hpp"
 #include "tool/accessibility/KeyboardShortcuts.hpp"
+#include <QSettings>
 #ifdef HAVE_CRASH_HANDLER
 #include "tool/crash_reporter/CrashReporter.hpp"
 #endif
@@ -353,6 +356,12 @@ App::App(int &argc, char *argv[])
 		emit avatarRevisionChanged();
 	});
 	mAvatarRevisionTimer.start();
+	{
+		QSettings settings;
+		mCompactMode = settings.value("compact/enabled", false).toBool();
+		mCompactPinned = settings.value("compact/pinned", false).toBool();
+	}
+	CallModel::setAudioOnly(mCompactMode);
 	// Mesure des blocages de l'interface (journal : « [Sonde] Fil interface »).
 	new FluidityProbe(QStringLiteral("interface"), true, this);
 
@@ -808,6 +817,12 @@ void App::initCore() {
 								    if (state != LinphoneEnums::CallState::IncomingReceived &&
 								        state != LinphoneEnums::CallState::IncomingEarlyMedia)
 									    return; // Deja decroche, refuse ou termine.
+								    // Petite fenetre : l'appel s'y affiche ; elle passe devant, sans prendre le
+								    // clavier.
+								    if (mCompactMode) {
+									    if (mMainWindow) Utils::showWithoutActivating(mMainWindow);
+									    return;
+								    }
 								    if (mCallsWindow && mCallsWindow->isVisible()) return; // Deja a l'ecran.
 								    auto win = getOrCreateCallsWindow(QVariant::fromValue(new CallGui(callCore)));
 								    Utils::showWithoutActivating(win);
@@ -816,6 +831,10 @@ void App::initCore() {
 						    }
 						    lDebug() << "Call created in core, get calls window";
 						    mCoreModelConnection->invokeToCore([this, callCore] {
+							    if (mCompactMode) { // L'appel s'affiche dans la petite fenetre.
+								    if (mMainWindow) Utils::smartShowWindow(mMainWindow);
+								    return;
+							    }
 							    auto callGui = new CallGui(callCore);
 							    auto win = getOrCreateCallsWindow(QVariant::fromValue(callGui));
 							    Utils::smartShowWindow(win);
@@ -1280,6 +1299,41 @@ void App::sendCommand(bool firstStart) {
 
 bool App::getCoreStarted() const {
 	return mCoreStarted;
+}
+
+bool App::getCompactMode() const {
+	return mCompactMode;
+}
+
+// Un appel en cours suit la fenetre : en petite fenetre, il s'affiche dans celle-ci (fenetre d'appel masquee, camera
+// coupee : audio seulement) ; de retour en grande fenetre, la fenetre d'appel revient.
+void App::setCompactMode(bool compact) {
+	if (mCompactMode == compact) return;
+	mCompactMode = compact;
+	QSettings settings;
+	settings.setValue("compact/enabled", compact);
+	CallModel::setAudioOnly(compact);
+	auto callCore = mCallList ? mCallList->getCurrentCallCore() : nullptr;
+	if (compact) {
+		if (mCallsWindow && mCallsWindow->isVisible()) mCallsWindow->hide();
+		if (callCore && callCore->getCameraEnabled()) emit callCore->lSetCameraEnabled(false);
+	} else if (callCore) {
+		auto window = getOrCreateCallsWindow(QVariant::fromValue(new CallGui(callCore)));
+		Utils::smartShowWindow(window);
+	}
+	emit compactModeChanged();
+}
+
+bool App::getCompactPinned() const {
+	return mCompactPinned;
+}
+
+void App::setCompactPinned(bool pinned) {
+	if (mCompactPinned == pinned) return;
+	mCompactPinned = pinned;
+	QSettings settings;
+	settings.setValue("compact/pinned", pinned);
+	emit compactPinnedChanged();
 }
 
 void App::setCoreStarted(bool started) {

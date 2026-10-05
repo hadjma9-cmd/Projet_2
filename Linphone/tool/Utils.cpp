@@ -242,6 +242,11 @@ void Utils::setupConference(ConferenceInfoGui *confGui) {
 }
 
 void Utils::openCallsWindow(CallGui *call) {
+	// Petite fenetre : l'appel s'y affiche, pas de fenetre d'appel.
+	if (call && App::getInstance()->getCompactMode()) {
+		smartShowWindow(App::getInstance()->getMainWindow());
+		return;
+	}
 	if (call) {
 		auto window = App::getInstance()->getOrCreateCallsWindow(QVariant::fromValue(call));
 		if (!window) return;

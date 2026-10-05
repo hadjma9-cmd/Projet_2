@@ -128,6 +128,9 @@ public:
 	// Voix du correspondant, de 0 a 1 (halo de la fenetre d'appel) : mesuree seulement entre requestRemoteVolume(true)
 	// et requestRemoteVolume(false).
 	Q_PROPERTY(float remoteVolume READ getRemoteVolume NOTIFY remoteVolumeChanged)
+	// Petite fenetre : le correspondant a voulu passer en video (refusee) ; remis a faux par le bandeau.
+	Q_PROPERTY(bool remoteVideoRequested READ getRemoteVideoRequested WRITE setRemoteVideoRequested NOTIFY
+	               remoteVideoRequestedChanged)
 	Q_PROPERTY(LinphoneEnums::CallState transferState READ getTransferState NOTIFY transferStateChanged)
 	Q_PROPERTY(ConferenceGui *conference READ getConferenceGui NOTIFY conferenceChanged)
 	Q_PROPERTY(bool isConference READ isConference NOTIFY isConferenceChanged)
@@ -230,6 +233,9 @@ public:
 	void setRemoteVolume(float volume);
 	Q_INVOKABLE void requestRemoteVolume(bool enabled);
 
+	bool getRemoteVideoRequested() const;
+	void setRemoteVideoRequested(bool requested);
+
 	QString getInputDeviceName() const;
 	void setInputDeviceName(const QString &id);
 
@@ -279,6 +285,7 @@ signals:
 	void recordableChanged();
 	void microphoneVolumeChanged();
 	void remoteVolumeChanged();
+	void remoteVideoRequestedChanged();
 	void conferenceChanged();
 	void isConferenceChanged();
 	void conferenceVideoLayoutChanged();
@@ -366,6 +373,7 @@ private:
 	float mMicrophoneVolume;
 	float mRemoteVolume = 0.f;
 	int mRemoteVolumeRequests = 0;
+	bool mRemoteVideoRequested = false;
 	QSharedPointer<SafeConnection<CallCore, CallModel>> mCallModelConnection;
 	ZrtpStats mZrtpStats;
 	AudioStats mAudioStats;

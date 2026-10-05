@@ -28,6 +28,7 @@
 
 #include <QObject>
 #include <QTimer>
+#include <atomic>
 #include <linphone++/linphone.hh>
 
 class CallModel : public ::Listener<linphone::Call, linphone::CallListener>,
@@ -92,6 +93,10 @@ public:
 	// Mesure du volume de la voix du correspondant (halo de la fenetre d'appel), seulement quand il est affiche.
 	void setPlayVolumeMonitoring(bool enabled);
 
+	// Petite fenetre : appels en audio seulement. Une demande de video du correspondant est repondue sans video et
+	// signalee (remoteVideoRequested), pour proposer de passer en grande fenetre.
+	static void setAudioOnly(bool audioOnly);
+
 	void updateCallErrorFromReason(linphone::Reason reason);
 
 signals:
@@ -101,6 +106,7 @@ signals:
 	void qualityUpdated(float quality);
 	void microphoneVolumeChanged(float);
 	void playVolumeChanged(float level);
+	void remoteVideoRequested();
 	void pausedChanged(bool paused);
 	void remoteVideoEnabledChanged(bool remoteVideoEnabled);
 	void cameraEnabledChanged(bool enalbed);
@@ -119,6 +125,7 @@ private:
 	QTimer mDurationTimer;
 	QTimer mMicroVolumeTimer;
 	QTimer mPlayVolumeTimer;
+	static std::atomic<bool> gAudioOnly;
 	std::shared_ptr<linphone::Conference> mConference;
 	LinphoneEnums::ConferenceLayout mConferenceVideoLayout;
 	static constexpr int gDtmfSoundDelay = 200;

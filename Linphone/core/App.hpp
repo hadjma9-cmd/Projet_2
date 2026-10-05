@@ -66,6 +66,10 @@ class App : public SingleApplication, public AbstractObject {
 	               remainingTimeBeforeOidcTimeoutChanged)
 	// Change toutes les 15 minutes : les photos distantes des contacts sont alors relues malgre le cache d'images.
 	Q_PROPERTY(int avatarRevision MEMBER mAvatarRevision NOTIFY avatarRevisionChanged)
+	// Petite fenetre (format telephone, appels audio seulement) au lieu de la grande ; choix retenu d'un lancement a
+	// l'autre, comme l'epingle « toujours au premier plan ».
+	Q_PROPERTY(bool compactMode READ getCompactMode WRITE setCompactMode NOTIFY compactModeChanged)
+	Q_PROPERTY(bool compactPinned READ getCompactPinned WRITE setCompactPinned NOTIFY compactPinnedChanged)
 
 public:
 	App(int &argc, char *argv[]);
@@ -156,6 +160,11 @@ public:
 	void sendCommand(bool firstStart = true);
 
 	bool getCoreStarted() const;
+
+	bool getCompactMode() const;
+	void setCompactMode(bool compact);
+	bool getCompactPinned() const;
+	void setCompactPinned(bool pinned);
 	void setCoreStarted(bool started);
 
 	int getCoreGlobalState() const;
@@ -260,6 +269,8 @@ signals:
 	void avatarRevisionChanged();
 	void currentAccountChanged();
 	void restartCoreRequested();
+	void compactModeChanged();
+	void compactPinnedChanged();
 #ifdef Q_OS_WIN
 	void sessionLockedChanged();
 #endif
@@ -317,6 +328,8 @@ private:
 	int mRemainingTimeBeforeOidcTimeout = 0;
 	QTimer mAvatarRevisionTimer;
 	int mAvatarRevision = 0;
+	bool mCompactMode = false;
+	bool mCompactPinned = false;
 #ifdef Q_OS_WIN
 	bool mSessionLocked = false;
 #endif

@@ -130,6 +130,14 @@ Item {
         }
     }
 
+    // Ouvertes depuis la petite fenetre (menu des parametres) : la grande fenetre revient sur ces pages.
+    function openSettings() {
+        openContextualMenuComponent(settingsPageComponent.createObject(mainItem));
+    }
+    function openHelp() {
+        openContextualMenuComponent(helpPageComponent.createObject(mainItem));
+    }
+
     function openAccountSettings(account) {
         var page = accountSettingsPageComponent.createObject(parent, {
             "account": account
@@ -286,6 +294,16 @@ Item {
                         },
                         "action": function () {
                             mainItem.openVoicemail();
+                        }
+                    },
+                    // Passage a la petite fenetre (format telephone), a la suite des autres entrees.
+                    {
+                        "icon": AppIcons.windowSmall,
+                        "selectedIcon": AppIcons.windowSmall,
+                        "label": "Petite fenêtre",
+                        "accessibilityLabel": "Petite fenêtre",
+                        "action": function () {
+                            AppCpp.compactMode = true;
                         }
                     }
                 ]

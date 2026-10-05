@@ -273,6 +273,9 @@ void CallCore::setSelf(QSharedPointer<CallCore> me) {
 	mCallModelConnection->makeConnectToModel(&CallModel::microphoneVolumeChanged, [this](float volume) {
 		mCallModelConnection->invokeToCore([this, volume]() { setMicrophoneVolume(volume); });
 	});
+	mCallModelConnection->makeConnectToModel(&CallModel::remoteVideoRequested, [this]() {
+		mCallModelConnection->invokeToCore([this]() { setRemoteVideoRequested(true); });
+	});
 	mCallModelConnection->makeConnectToModel(&CallModel::playVolumeChanged, [this](float level) {
 		mCallModelConnection->invokeToCore([this, level]() { setRemoteVolume(level); });
 	});
@@ -862,6 +865,16 @@ void CallCore::requestRemoteVolume(bool enabled) {
 	if (monitoring == wasMonitoring || !mCallModelConnection) return;
 	mCallModelConnection->invokeToModel([this, monitoring]() { mCallModel->setPlayVolumeMonitoring(monitoring); });
 	if (!monitoring) setRemoteVolume(0.f);
+}
+
+bool CallCore::getRemoteVideoRequested() const {
+	return mRemoteVideoRequested;
+}
+void CallCore::setRemoteVideoRequested(bool requested) {
+	if (mRemoteVideoRequested != requested) {
+		mRemoteVideoRequested = requested;
+		emit remoteVideoRequestedChanged();
+	}
 }
 
 LinphoneEnums::CallState CallCore::getTransferState() const {

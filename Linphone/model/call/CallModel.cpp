@@ -30,6 +30,12 @@
 
 DEFINE_ABSTRACT_OBJECT(CallModel)
 
+std::atomic<bool> CallModel::gAudioOnly{false};
+
+void CallModel::setAudioOnly(bool audioOnly) {
+	gAudioOnly = audioOnly;
+}
+
 CallModel::CallModel(const std::shared_ptr<linphone::Call> &call, QObject *parent)
     : ::Listener<linphone::Call, linphone::CallListener>(call, parent) {
 	lDebug() << "[CallModel] new" << this << " / SDKModel=" << call.get();
@@ -488,6 +494,21 @@ void CallModel::onInfoMessageReceived(const std::shared_ptr<linphone::Call> &cal
 void CallModel::onStateChanged(const std::shared_ptr<linphone::Call> &call,
                                linphone::Call::State state,
                                const std::string &message) {
+	// Petite fenetre, audio seulement : video proposee par le correspondant (a l'appel ou en cours d'appel) refusee
+	// et signalee.
+	if (gAudioOnly && (state == linphone::Call::State::UpdatedByRemote || state == linphone::Call::State::Connected)) {
+		auto remoteParams = call->getRemoteParams();
+		auto currentParams = call->getCurrentParams();
+		if (remoteParams && remoteParams->videoEnabled() && (!currentParams || !currentParams->videoEnabled())) {
+			if (state == linphone::Call::State::UpdatedByRemote) {
+				call->deferUpdate();
+				auto params = CoreModel::getInstance()->getCore()->createCallParams(call);
+				params->enableVideo(false);
+				call->acceptUpdate(params);
+			}
+			emit remoteVideoRequested();
+		}
+	}
 	if (state == linphone::Call::State::StreamsRunning) {
 		setConference(call->getConference());
 		mDurationTimer.start();

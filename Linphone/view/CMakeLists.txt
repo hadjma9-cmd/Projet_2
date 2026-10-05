@@ -152,6 +152,8 @@ list(APPEND _LINPHONEAPP_QML_FILES
 
 	view/Page/Layout/Login/LoginLayout.qml
 	view/Page/Layout/Main/MainLayout.qml
+	view/Page/Layout/Main/CompactLayout.qml
+	view/Page/Layout/Main/CompactCallView.qml
 	view/Page/Layout/Settings/AbstractSettingsLayout.qml
 	view/Page/Layout/Settings/AccountSettingsGeneralLayout.qml
 	view/Page/Layout/Settings/AccountSettingsParametersLayout.qml
