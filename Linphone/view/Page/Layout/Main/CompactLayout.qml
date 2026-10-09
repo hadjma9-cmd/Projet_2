@@ -78,9 +78,10 @@ Item {
 				mainItem.currentIndex = bandButton.pageIndex
 			bandButton.triggered()
 		}
+		// 38 et icone de 22 (42 et 24 auparavant) : bande plus fine, accordee aux listes resserrees du Combiné.
 		Layout.alignment: Qt.AlignHCenter
-		Layout.preferredWidth: Utils.getSizeWithScreenRatio(42)
-		Layout.preferredHeight: Utils.getSizeWithScreenRatio(42)
+		Layout.preferredWidth: Utils.getSizeWithScreenRatio(38)
+		Layout.preferredHeight: Utils.getSizeWithScreenRatio(38)
 		activeFocusOnTab: true
 		Accessible.role: Accessible.Button
 		Accessible.name: label
@@ -92,7 +93,7 @@ Item {
 		}
 		Rectangle {
 			anchors.fill: parent
-			radius: Utils.getSizeWithScreenRatio(10)
+			radius: Utils.getSizeWithScreenRatio(9)
 			color: bandButton.selected
 				? Qt.rgba(1, 1, 1, 0.2)
 				: bandArea.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
@@ -101,7 +102,7 @@ Item {
 		}
 		Item {
 			anchors.centerIn: parent
-			width: Utils.getSizeWithScreenRatio(24)
+			width: Utils.getSizeWithScreenRatio(22)
 			height: width
 			EffectImage {
 				anchors.fill: parent
@@ -124,8 +125,96 @@ Item {
 		ToolTip {
 			text: bandButton.label
 			visible: bandArea.containsMouse
-			delay: 400
+			delay: 300
 		}
+	}
+
+	// Clic sur une personne (Equipe, Contacts) : appeler ou lui ecrire, au choix.
+	function chooseContactAction(contact) {
+		if (!contact)
+			return
+		var address = contact.core.defaultAddress
+		var username = UtilsCpp.getUsername(address)
+		// Meme ecriture que la confirmation d'appel : un poste seul, sinon l'adresse (ou le numero si les adresses
+		// SIP sont masquees) ; le nom d'abord.
+		var number = (/^[0-9]{1,5}$/.test(username) || SettingsCpp.hideSipAddresses) ? username : address
+		var name = contact.core.fullName
+		contactActionDialog.contact = contact
+		contactActionDialog.target = (name.length !== 0 && name !== username) ? name + " (" + number + ")" : number
+		contactActionDialog.open()
+	}
+	// « Message » : conversation recuperee (ou creee) par le SDK, puis ouverte dans l'onglet Messages.
+	property var pendingChatObj: null
+	property ChatGui pendingContactChat: pendingChatObj ? pendingChatObj.value : null
+	onPendingContactChatChanged: if (pendingContactChat) {
+		var chat = pendingContactChat
+		pendingChatObj = null
+		mainItem.openChat(chat)
+	}
+	function messageContact(contact) {
+		if (!contact || contact.core.defaultAddress.length === 0)
+			return
+		messageAddress(contact.core.defaultAddress)
+	}
+	function messageAddress(address) {
+		if (address.length === 0)
+			return
+		pendingChatObj = UtilsCpp.getChatForAddress(address)
+	}
+	Dialog {
+		id: contactActionDialog
+		property FriendGui contact: null
+		property string target
+		// Nom en gras ; echappe pour qu'un « & » ou un « < » dans un nom ne casse pas le texte.
+		textFormat: Text.StyledText
+		text: "Que souhaitez-vous faire avec <b>" + target.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</b> ?"
+		onOpened: callChoiceButton.forceActiveFocus()
+		buttons: [
+			MediumButton {
+				id: callChoiceButton
+				text: "Appeler"
+				style: ButtonStyle.main
+				leftPadding: Utils.getSizeWithScreenRatio(14)
+				rightPadding: Utils.getSizeWithScreenRatio(14)
+				topPadding: Utils.getSizeWithScreenRatio(8)
+				bottomPadding: Utils.getSizeWithScreenRatio(8)
+				KeyNavigation.right: messageChoiceButton
+				onClicked: {
+					var contact = contactActionDialog.contact
+					contactActionDialog.close()
+					// Choix explicite : pas de seconde confirmation.
+					UtilsCpp.getMainWindow().startCallWithContact(contact, false, mainItem, false)
+				}
+			},
+			MediumButton {
+				id: messageChoiceButton
+				visible: !SettingsCpp.disableChatFeature
+				text: "Message"
+				style: ButtonStyle.secondary
+				leftPadding: Utils.getSizeWithScreenRatio(14)
+				rightPadding: Utils.getSizeWithScreenRatio(14)
+				topPadding: Utils.getSizeWithScreenRatio(8)
+				bottomPadding: Utils.getSizeWithScreenRatio(8)
+				KeyNavigation.left: callChoiceButton
+				KeyNavigation.right: cancelChoiceButton
+				onClicked: {
+					var contact = contactActionDialog.contact
+					contactActionDialog.close()
+					mainItem.messageContact(contact)
+				}
+			},
+			MediumButton {
+				id: cancelChoiceButton
+				text: "Annuler"
+				style: ButtonStyle.secondary
+				leftPadding: Utils.getSizeWithScreenRatio(14)
+				rightPadding: Utils.getSizeWithScreenRatio(14)
+				topPadding: Utils.getSizeWithScreenRatio(8)
+				bottomPadding: Utils.getSizeWithScreenRatio(8)
+				KeyNavigation.left: messageChoiceButton
+				onClicked: contactActionDialog.close()
+			}
+		]
 	}
 
 	// Page chargee a sa premiere ouverture, puis gardee : on retrouve l'onglet tel qu'on l'a laisse.
@@ -136,6 +225,23 @@ Item {
 		onLoaded: Qt.callLater(function () {
 			keptAlive = true
 		})
+		// Preparation en arriere-plan, construite par petits morceaux pour ne rien figer.
+		function preload() {
+			if (active)
+				return
+			asynchronous = true
+			keptAlive = true
+		}
+	}
+	// Equipe et Contacts prepares juste apres l'ouverture de la petite fenetre : prets avant le premier clic (leur
+	// liste et la recherche dans l'annuaire prenaient un temps visible).
+	Timer {
+		interval: 400
+		running: true
+		onTriggered: {
+			teamLazyPage.preload()
+			contactsLazyPage.preload()
+		}
 	}
 
 	RowLayout {
@@ -147,7 +253,7 @@ Item {
 		// ---------------------------------------------------------------------------------------------------------
 		Rectangle {
 			Layout.fillHeight: true
-			Layout.preferredWidth: Utils.getSizeWithScreenRatio(58)
+			Layout.preferredWidth: Utils.getSizeWithScreenRatio(54)
 			gradient: Gradient {
 				GradientStop {
 					position: 0.0
@@ -162,15 +268,16 @@ Item {
 				anchors.fill: parent
 				anchors.topMargin: Utils.getSizeWithScreenRatio(12)
 				anchors.bottomMargin: Utils.getSizeWithScreenRatio(10)
-				spacing: Utils.getSizeWithScreenRatio(8)
+				spacing: Utils.getSizeWithScreenRatio(6)
 
 				// Compte : photo et pastille de statut ; un clic pour changer de statut.
 				PopupButton {
 					id: accountButton
 					Layout.alignment: Qt.AlignHCenter
 					Layout.bottomMargin: Utils.getSizeWithScreenRatio(6)
-					Layout.preferredWidth: Utils.getSizeWithScreenRatio(40)
-					Layout.preferredHeight: Utils.getSizeWithScreenRatio(40)
+					// Sa propre photo : 42 et pastille d'environ 13, lisibles dans une bande fine (les listes, elles, sont en 45).
+					Layout.preferredWidth: Utils.getSizeWithScreenRatio(42)
+					Layout.preferredHeight: Utils.getSizeWithScreenRatio(42)
 					style: ButtonStyle.noBackground
 					shadowEnabled: false
 					enabled: !!mainItem.account && mainItem.account.core.registrationState === LinphoneEnums.RegistrationState.Ok
@@ -180,6 +287,7 @@ Item {
 							anchors.fill: parent
 							account: mainItem.account
 							shadowEnabled: false
+							presenceScale: 0.3
 						}
 					}
 					popup.contentItem: FocusScope {
@@ -194,6 +302,12 @@ Item {
 						}
 					}
 				}
+				// Equipe en premier, comme dans la grande fenetre (page 4, ajoutee apres les autres).
+				BandButton {
+					iconSource: AppIcons.usersThree
+					label: "Équipe"
+					pageIndex: 4
+				}
 				BandButton {
 					iconSource: AppIcons.adressBook
 					label: "Contacts"
@@ -204,8 +318,9 @@ Item {
 					label: "Clavier"
 					pageIndex: 1
 				}
+				// Historique des appels : horloge, comme dans la grande fenetre.
 				BandButton {
-					iconSource: AppIcons.phone
+					iconSource: AppIcons.callHistory
 					label: "Appels"
 					pageIndex: 2
 					badgeCount: mainItem.account ? Math.max(0, mainItem.account.core.unreadCallNotifications) : 0
@@ -224,28 +339,35 @@ Item {
 					badgeCount: mainItem.account && mainItem.account.core.showMwi ? mainItem.account.core.voicemailCount : 0
 					onTriggered: mainItem.openVoicemail()
 				}
-				BandButton {
-					iconSource: AppIcons.windowLarge
-					label: "Grande fenêtre"
-					onTriggered: AppCpp.compactMode = false
-				}
 				Item {
 					Layout.fillHeight: true
+				}
+				// Retour en mode bureau : en bas de la bande, a part, au meme endroit que le bouton de la grande fenetre.
+				Rectangle {
+					Layout.alignment: Qt.AlignHCenter
+					Layout.preferredWidth: Utils.getSizeWithScreenRatio(30)
+					Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
+					color: Qt.rgba(1, 1, 1, 0.3)
+				}
+				BandButton {
+					iconSource: AppIcons.modeDesktop
+					label: "Revenir en mode bureau"
+					onTriggered: AppCpp.compactMode = false
 				}
 				// Parametres : petit menu (parametres et aide dans la grande fenetre, notifications, quitter).
 				PopupButton {
 					id: settingsButton
 					Layout.alignment: Qt.AlignHCenter
-					Layout.preferredWidth: Utils.getSizeWithScreenRatio(42)
-					Layout.preferredHeight: Utils.getSizeWithScreenRatio(42)
+					Layout.preferredWidth: Utils.getSizeWithScreenRatio(38)
+					Layout.preferredHeight: Utils.getSizeWithScreenRatio(38)
 					style: ButtonStyle.noBackground
 					shadowEnabled: false
 					hoveredColor: Qt.rgba(1, 1, 1, 0.1)
 					pressedColor: Qt.rgba(1, 1, 1, 0.2)
 					backgroundColor: checked ? pressedColor : hovered ? hoveredColor : color
 					icon.source: AppIcons.settings
-					icon.width: Utils.getSizeWithScreenRatio(24)
-					icon.height: Utils.getSizeWithScreenRatio(24)
+					icon.width: Utils.getSizeWithScreenRatio(22)
+					icon.height: Utils.getSizeWithScreenRatio(22)
 					contentImageColor: DefaultStyle.main1_100
 					hoveredImageColor: DefaultStyle.grey_0
 					pressedImageColor: DefaultStyle.grey_0
@@ -316,15 +438,29 @@ Item {
 			Layout.fillHeight: true
 			currentIndex: mainItem.currentIndex
 
-			// Contacts : recherche, favoris et annuaire ; un clic appelle.
+			// Contacts : recherche, favoris et annuaire, sans les postes internes (onglet Equipe) ; un clic appelle.
 			LazyPage {
+				id: contactsLazyPage
 				pageIndex: 0
 				sourceComponent: Item {
+					// Petite fenetre gardee en memoire : la liste est relue quand on l'affiche (onglet ou retour en
+					// Combiné), au plus toutes les 10 minutes, comme dans la grande fenetre. Une extension creee entre-temps
+					// apparait ainsi.
+					property double lastRefresh: Date.now()
+					onVisibleChanged: if (visible && Date.now() - lastRefresh >= 10 * 60 * 1000) {
+						lastRefresh = Date.now()
+						contactsForm.refreshContacts()
+					}
 					CreationFormLayout {
+						id: contactsForm
+						autoRefresh: true
+						dense: true
+						showCallButton: true
 						anchors.fill: parent
 						anchors.topMargin: Utils.getSizeWithScreenRatio(14)
 						anchors.leftMargin: Utils.getSizeWithScreenRatio(12)
 						anchors.rightMargin: Utils.getSizeWithScreenRatio(4)
+						showTeam: false
 						startGroupButtonVisible: false
 						searchBarRightMaring: Utils.getSizeWithScreenRatio(8)
 						onContactClicked: contact => UtilsCpp.getMainWindow().startCallWithContact(contact, false, mainItem)
@@ -335,6 +471,9 @@ Item {
 			LazyPage {
 				pageIndex: 1
 				sourceComponent: DialerForm {
+					// Fenetre basse : deux suggestions, le pave reste entier.
+					maxSuggestions: 2
+					suggestionAvatarSize: Utils.getSizeWithScreenRatio(45)
 					onCallRequested: number => UtilsCpp.createCall(number)
 				}
 			}
@@ -354,6 +493,7 @@ Item {
 					CallHistoryListView {
 						Layout.fillWidth: true
 						Layout.fillHeight: true
+						avatarSize: Utils.getSizeWithScreenRatio(45)
 						Layout.leftMargin: Utils.getSizeWithScreenRatio(6)
 						Layout.rightMargin: Utils.getSizeWithScreenRatio(6)
 						searchBar: historySearchBar
@@ -396,6 +536,7 @@ Item {
 							}
 							ChatListView {
 								id: chatListView
+								avatarSize: Utils.getSizeWithScreenRatio(45)
 								Layout.fillWidth: true
 								Layout.fillHeight: true
 								chatProxy.model: AppCpp.chats
@@ -419,6 +560,33 @@ Item {
 					}
 				}
 			}
+			// Equipe : les collegues (postes internes) tries par statut ; un clic appelle.
+			LazyPage {
+				id: teamLazyPage
+				pageIndex: 4
+				sourceComponent: Item {
+					// Relue quand on l'affiche, au plus toutes les 10 minutes (voir Contacts).
+					property double lastRefresh: Date.now()
+					onVisibleChanged: if (visible && Date.now() - lastRefresh >= 10 * 60 * 1000) {
+						lastRefresh = Date.now()
+						teamForm.refreshContacts()
+					}
+					CreationFormLayout {
+						id: teamForm
+						autoRefresh: true
+						dense: true
+						showCallButton: true
+						anchors.fill: parent
+						anchors.topMargin: Utils.getSizeWithScreenRatio(14)
+						anchors.leftMargin: Utils.getSizeWithScreenRatio(12)
+						anchors.rightMargin: Utils.getSizeWithScreenRatio(4)
+						teamMode: true
+						startGroupButtonVisible: false
+						searchBarRightMaring: Utils.getSizeWithScreenRatio(8)
+						onContactClicked: contact => mainItem.chooseContactAction(contact)
+					}
+				}
+			}
 		}
 	}
 
@@ -427,7 +595,9 @@ Item {
 		id: callLoader
 		anchors.fill: parent
 		z: 10
-		active: !!callsModel.currentCall
+		// Seulement en Combiné : gardee en memoire pendant la grande fenetre, elle ne doit pas y construire un
+		// ecran d'appel cache.
+		active: AppCpp.compactMode && !!callsModel.currentCall
 		sourceComponent: CompactCallView {
 			call: callsModel.currentCall
 		}
