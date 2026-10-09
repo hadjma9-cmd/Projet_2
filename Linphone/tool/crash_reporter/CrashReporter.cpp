@@ -35,7 +35,9 @@ CrashReporter::CrashReporter(QObject *parent) : QObject(parent) {
 	mHandlerPath = base::FilePath(Utils::getNativeString(Paths::getCrashpadHandlerFilePath()));
 	mDatabasePath = base::FilePath(Utils::getNativeString(Paths::getCrashpadDirPath()));
 	mMetricsPath = base::FilePath(Utils::getNativeString(Paths::getMetricsDirPath()));
-	mBugsplatUrl = Constants::BugsplatUrl;
+	// Aucun envoi : l'adresse etait celle du BugSplat de Linphone (base « Linphone »), qui recevait chaque plantage
+	// avec les journaux joints (echanges SIP, numeros, contacts). Les rapports restent sur le poste (mDatabasePath).
+	mBugsplatUrl.clear();
 
 	mAnnotations["format"] = "minidump";          // Required: Crashpad setting to save crash as a minidump
 	mAnnotations["database"] = BUGSPLAT_DATABASE; // Required: BugSplat database
@@ -103,7 +105,9 @@ bool CrashReporter::enable(const bool &on) {
 		lInfo() << "[CrashReporter] No Crashpad settings, return";
 		return false;
 	}
-	settings->SetUploadsEnabled(on);
+	// Rapports gardes sur le poste, jamais envoyes (voir le constructeur). Remet aussi a faux le reglage d'une
+	// installation precedente, pour qu'un rapport en attente ne parte pas.
+	settings->SetUploadsEnabled(false);
 
 	if (on) {
 		lInfo() << "[CrashReporter] Run Crashpad";

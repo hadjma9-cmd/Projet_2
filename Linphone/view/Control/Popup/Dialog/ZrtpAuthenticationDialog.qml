@@ -195,7 +195,6 @@ Dialog {
                                 textSize: Utils.getSizeWithScreenRatio(32)
                                 textWeight: Utils.getSizeWithScreenRatio(400)
 								text: modelData
-								onTextChanged: console.log("token changed", text)
                                 shadowEnabled: true
                                 radius: Utils.getSizeWithScreenRatio(71)
 								textColor: DefaultStyle.main2_600

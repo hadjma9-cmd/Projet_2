@@ -25,6 +25,7 @@
 #include <QRegularExpression>
 #include <QScreen>
 #include <QSvgRenderer>
+#include <QUrlQuery>
 
 #include "core/App.hpp"
 
@@ -41,8 +42,18 @@ using namespace std;
 
 const QString ImageProvider::ProviderId = "internal";
 
-ImageAsyncImageResponse::ImageAsyncImageResponse(const QString &id, const QSize &requestedSize) {
+ImageAsyncImageResponse::ImageAsyncImageResponse(const QString &requestId, const QSize &requestedSize) {
 	QString path = ":/data/image/";
+	// « phone.svg?color=ffffff » : icone livree deja dans cette couleur (forme et transparence du dessin, couleur
+	// unie), ce que faisait l'effet de colorisation d'EffectImage, sans effet graphique a l'affichage.
+	QString id = requestId;
+	QColor color;
+	const auto queryIndex = requestId.indexOf('?');
+	if (queryIndex != -1) {
+		id = requestId.left(queryIndex);
+		const QString colorValue = QUrlQuery(requestId.mid(queryIndex + 1)).queryItemValue(QStringLiteral("color"));
+		if (!colorValue.isEmpty()) color = QColor(QStringLiteral("#") + colorValue);
+	}
 	//  Snippet for external images (useful for Chats). Do not use it for internal because of performance issue.
 	// QStringList filters;
 	//  filters << "*.svg";
@@ -106,6 +117,13 @@ ImageAsyncImageResponse::ImageAsyncImageResponse(const QString &id, const QSize 
 			}
 		}
 	} else image = QImage(mPath);
+	if (!image.isNull() && color.isValid()) {
+		if (image.format() != QImage::Format_ARGB32_Premultiplied)
+			image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+		QPainter painter(&image);
+		painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+		painter.fillRect(image.rect(), color);
+	}
 	if (!image.isNull()) imageGrabbed(image);
 	else imageGrabbed(QImage(":/data/image/warning-circle.svg"));
 }

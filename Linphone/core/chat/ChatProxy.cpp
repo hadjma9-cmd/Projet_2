@@ -28,8 +28,16 @@
 DEFINE_ABSTRACT_OBJECT(ChatProxy)
 
 ChatProxy::ChatProxy(QObject *parent) {
-	mList = ChatList::create();
+	// Liste propre, chargee seulement si elle sert : les vues la remplacent presque toujours, des leur creation,
+	// par la liste commune (AppCpp.chats). Elle chargeait auparavant deux fois toutes les conversations
+	// (a sa creation, puis ici) pour etre jetee aussitot.
+	mList = ChatList::create(false);
+	mLoadingOwnList = true;
 	setSourceModel(mList.get());
+	mLoadingOwnList = false;
+	QTimer::singleShot(0, this, [this]() {
+		if (mList && sourceModel() == mList.get()) mList->lUpdate();
+	});
 }
 
 ChatProxy::~ChatProxy() {
@@ -51,7 +59,9 @@ void ChatProxy::setSourceModel(QAbstractItemModel *model) {
 				emit chatAdded(new ChatGui(chatCore));
 			}
 		});
-		newChatList->lUpdate();
+		// Liste recue (la liste commune) : rechargee, sinon elle peut rester vide (correctif Linphone 2ae5bb9ce).
+		// La liste propre, elle, est chargee plus tard, si elle n'a pas ete remplacee entre-temps (constructeur).
+		if (!mLoadingOwnList) newChatList->lUpdate();
 	}
 	QSortFilterProxyModel::setSourceModel(newChatList);
 	// Liste propre creee par le constructeur, remplacee (ex. par la liste commune de l'application) : elle

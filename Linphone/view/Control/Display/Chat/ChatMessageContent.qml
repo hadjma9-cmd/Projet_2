@@ -27,6 +27,11 @@ ColumnLayout {
 	signal endOfVoiceRecordingReached()
 	signal requestAutoPlayVoiceRecording()
 	property string selectedText
+	// Bulle recyclee pour un autre message : selection et dimensions de l'image animee du precedent oubliees.
+	function resetForReuse() {
+		selectedText = ""
+		singleAnimatedImageFile.initialization = true
+	}
 	
 	property color textColor
 	property string searchedTextPart
@@ -162,7 +167,10 @@ ColumnLayout {
 		id: messagesTextsList
 		visible: count > 0
 		// width: mainItem.maxWidth
-		property bool isOnlyEmojis: count === 1 && itemAt(0).isOnlyEmojis
+		// Calcule sur le texte du message, et non sur itemAt(0) : cette lecture n'etait pas refaite quand la bulle passait
+		// a un autre message (bulle recyclee), et un texte heritait du « emoji seul » du precedent (bulle sans fond).
+		property bool isOnlyEmojis: count === 1 && !!mainItem.chatMessageGui
+			&& UtilsCpp.isOnlyEmojis(mainItem.chatMessageGui.core.text)
 		model: ChatMessageContentProxy {
 			filterType: ChatMessageContentProxy.FilterContentType.Text
 			chatMessageGui: mainItem.chatMessageGui

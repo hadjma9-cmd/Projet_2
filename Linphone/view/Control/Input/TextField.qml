@@ -104,7 +104,6 @@ Control.TextField {
         }
         if (mainItem.propertyName && isValid(text)) {
             if (mainItem.propertyOwnerGui) {
-                console.log("DEBUG updateText:", mainItem.propertyName, "old=", mainItem.propertyOwnerGui.core[mainItem.propertyName], "new=", text)
                 if (mainItem.propertyOwnerGui.core[mainItem.propertyName] != text) {
                     mainItem.propertyOwnerGui.core[mainItem.propertyName] = text
                 }

@@ -71,8 +71,9 @@ void KeyboardShortcuts::onAcceptCallShortcut() {
 	auto currentPendingCall = callList->getFirstIncommingPendingCall();
 	if (!currentPendingCall.isNull()) {
 		lInfo() << "Accept call with shortcut :" << currentPendingCall;
-		auto gui = new CallGui(currentPendingCall);
-		Utils::openCallsWindow(gui);
+		// Petite fenetre : l'appel s'y affiche ; un CallGui cree ici ne serait jamais libere.
+		if (App::getInstance()->getCompactMode()) Utils::smartShowWindow(App::getInstance()->getMainWindow());
+		else Utils::openCallsWindow(new CallGui(currentPendingCall));
 		currentPendingCall->lAccept(false);
 	}
 }

@@ -36,12 +36,13 @@ class ChatCore;
 class ChatList : public ListProxy, public AbstractObject {
 	Q_OBJECT
 public:
-	static QSharedPointer<ChatList> create();
+	// loadNow : chargement immediat des conversations (sinon au premier lUpdate, cf. ChatProxy).
+	static QSharedPointer<ChatList> create(bool loadNow = true);
 	// Create a ChatCore and make connections to List.
 	QSharedPointer<ChatCore> createChatCore(const std::shared_ptr<linphone::ChatRoom> &chatroom);
 	ChatList(QObject *parent = Q_NULLPTR);
 	~ChatList();
-	void setSelf(QSharedPointer<ChatList> me);
+	void setSelf(QSharedPointer<ChatList> me, bool loadNow = true);
 	void connectItem(QSharedPointer<ChatCore> chat);
 	void disconnectItem(QSharedPointer<ChatCore> chat);
 

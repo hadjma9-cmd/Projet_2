@@ -145,6 +145,16 @@ AbstractWindow {
     // Chat related to call
     property var chatObj
     property ChatGui chat: chatObj && chatObj.value || null
+    // Appel pour lequel la conversation a ete cherchee : un autre appel en demande une nouvelle.
+    property var chatCallCore: null
+    // Conversation cherchee, ou creee, seulement a l'ouverture du chat : elle l'etait a chaque appel etabli, meme
+    // sans jamais ouvrir le chat (une conversation vide par numero appele, *97 compris).
+    function requestCallChat() {
+        if (!mainWindow.call) return
+        if (mainWindow.chat && mainWindow.chatCallCore === mainWindow.call.core) return
+        mainWindow.chatCallCore = mainWindow.call.core
+        mainWindow.chatObj = UtilsCpp.getCurrentCallChat(mainWindow.call)
+    }
 
     property int conferenceLayout: call && call.core.conferenceVideoLayout || 0
     property bool cameraEnabled: call && call.core.cameraEnabled
@@ -196,9 +206,6 @@ AbstractWindow {
                                                     || call.core.isMismatch)) {
                 zrtpValidation.open()
             }
-        } else if (callState === LinphoneEnums.CallState.StreamsRunning) {
-            if (!mainWindow.chat && (!mainWindow.conference || mainWindow.conference.core.isChatEnabled))
-                mainWindow.chatObj = UtilsCpp.getCurrentCallChat(mainWindow.call)
         } else if (callState === LinphoneEnums.CallState.Error
                    || callState === LinphoneEnums.CallState.End) {
             zrtpValidation.close()
@@ -860,6 +867,7 @@ AbstractWindow {
                                             text: qsTr("call_open_chat_hint")
                                             onClicked: {
                                                 moreOptionsPopup.close()
+                                                mainWindow.requestCallChat()
                                                 mainWindow.toggleRightPanel(chatPanel, "chatPanel")
                                             }
                                         }
@@ -1015,8 +1023,8 @@ AbstractWindow {
                                     rightPanel.headerTitleText = qsTr("call_action_start_new_call")
                                 }
                                 else if (rightPanel.contentLoader.item.objectName === "dialerPanel") {
-                                    //: "Pavé numérique"
-                                    rightPanel.headerTitleText = qsTr("call_action_show_dialer")
+                                    // Meme nom que le bouton qui l'ouvre.
+                                    rightPanel.headerTitleText = "Clavier"
                                 }
                                 else if (rightPanel.contentLoader.item.objectName === "changeLayoutPanel") {
                                     //: "Modifier la disposition"
@@ -1188,96 +1196,22 @@ AbstractWindow {
                         rightPanel.visible = false
                         event.accepted = true
                     }
+                    // Chiffres tapes en grand en haut, pave juste dessous (DtmfPad) ; clavier de l'ordinateur :
+                    // pave numerique seulement.
                     FocusScope {
                         width: parent.width
                         height: rightPanel.contentItemHeight
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: Utils.getSizeWithScreenRatio(41)
-                            Item{Layout.fillHeight: true}
-                            SearchBar {
-                                id: searchBar
-                                height: Utils.getSizeWithScreenRatio(45)
-                                magnifierVisible: false
-                                color: DefaultStyle.grey_0
-                                borderColor: DefaultStyle.grey_200
-                                placeholderText: ""
-                                numericPadPopup: numPad
-                                numericPadButton.visible: false
-                                enabled: false
-                            }
-                            NumericPad {
-                                id: numPad
-                                Layout.alignment: Qt.AlignHCenter | Qt.AlignBottom
-                                Layout.bottomMargin: Utils.getSizeWithScreenRatio(18)
-                                currentCall: callsModel.currentCall
-                                lastRowVisible: false
-                                onLaunchCall: {
-                                    UtilsCpp.createCall(dialerTextInput.text)
-                                }
-                                Component.onCompleted: parent.height = height
-                                Connections {
-                                    target: mainWindow
-                                    function onKeyPressedOnDialer(event) {
-                                        if (event.modifiers & Qt.KeypadModifier) {
-                                            if (event.key === Qt.Key_0) {
-                                                numPad.keypadKeyPressedAtIndex(10)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_1) {
-                                                numPad.keypadKeyPressedAtIndex(0)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_2) {
-                                                numPad.keypadKeyPressedAtIndex(1)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_3) {
-                                                numPad.keypadKeyPressedAtIndex(2)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_4) {
-                                                numPad.keypadKeyPressedAtIndex(3)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_5) {
-                                                numPad.keypadKeyPressedAtIndex(4)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_6) {
-                                                numPad.keypadKeyPressedAtIndex(5)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_7) {
-                                                numPad.keypadKeyPressedAtIndex(6)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_8) {
-                                                numPad.keypadKeyPressedAtIndex(7)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_9) {
-                                                numPad.keypadKeyPressedAtIndex(8)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_Asterisk) {
-                                                numPad.keypadKeyPressedAtIndex(9)
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_Plus) {
-                                                numPad.buttonPressed("+")
-                                                event.accepted = true
-                                            }
-                                            if (event.key === Qt.Key_Enter) {
-                                                numPad.launchCall()
-                                                event.accepted = true
-                                            }
-                                        }
-                                        if (event.key === Qt.Key_Backspace) {
-                                            numPad.wipe()
-                                            event.accepted = true
-                                        }
-                                    }
+                        DtmfPad {
+                            id: dtmfPad
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            call: callsModel.currentCall
+                            Connections {
+                                target: mainWindow
+                                function onKeyPressedOnDialer(event) {
+                                    dtmfPad.handleKeyPadEvent(event)
                                 }
                             }
                         }

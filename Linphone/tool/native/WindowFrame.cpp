@@ -22,7 +22,9 @@
 
 #include <QCoreApplication>
 #include <QMargins>
+#include <QPlatformSurfaceEvent>
 #include <QScreen>
+#include <QTimer>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -83,10 +85,15 @@ QQuickWindow *WindowFrame::getWindow() const {
 
 void WindowFrame::setWindow(QQuickWindow *window) {
 	if (mWindow == window) return;
-	if (mWindow) disconnect(mWindow, nullptr, this, nullptr);
+	if (mWindow) {
+		disconnect(mWindow, nullptr, this, nullptr);
+		mWindow->removeEventFilter(this);
+	}
 	mWindow = window;
 #ifdef Q_OS_WIN
 	if (mWindow) {
+		// Creation de la fenetre native (eventFilter) : la zone cliente doit y etre recalculee.
+		mWindow->installEventFilter(this);
 		if (!mWindow->handle()) {
 			// Lu par Qt a la creation de la fenetre native : la barre de titre et le bord du haut sont retires
 			// (zone cliente etendue jusqu'en haut), et Qt en tient compte dans ses calculs de position et de taille.
@@ -101,6 +108,7 @@ void WindowFrame::setWindow(QQuickWindow *window) {
 			if (!visible) return;
 			applyNativeStyle();
 			applyStayOnTop();
+			QTimer::singleShot(0, this, &WindowFrame::nudgeClientArea);
 		});
 		if (mWindow->handle()) {
 			applyNativeStyle();
@@ -218,6 +226,48 @@ void WindowFrame::applyStayOnTop() {
 #endif
 }
 
+// Zone cliente sans barre de titre prise en compte par Windows. Selon Microsoft (« Custom Window Frame Using DWM »),
+// la zone calculee dans WM_NCCALCSIZE n'est appliquee qu'une fois la zone cliente redimensionnee, ou si le recalcul est
+// demande a la creation de la fenetre ; sinon la fenetre s'affiche avec le cadre standard. D'ou, a l'ouverture, une
+// bande claire de 31 px en haut (l'ancienne barre de titre) et des clics decales d'autant, jusqu'a un clic ou un
+// agrandissement. Les deux remedes sont appliques : recalcul a la creation (eventFilter), puis, apres l'affichage, zone
+// cliente reduite d'un pixel puis remise (vaut aussi pour la petite fenetre, de taille fixe).
+bool WindowFrame::eventFilter(QObject *watched, QEvent *event) {
+#ifdef Q_OS_WIN
+	if (watched == mWindow && event->type() == QEvent::PlatformSurface &&
+	    static_cast<QPlatformSurfaceEvent *>(event)->surfaceEventType() == QPlatformSurfaceEvent::SurfaceCreated) {
+		applyNativeStyle();
+		// Zone cliente reduite d'un pixel puis remise, fenetre encore cachee : Qt, qui recalcule ses marges a chaque
+		// changement de taille, prend la bonne zone avant le premier affichage. Mesure (journal) : a l'ouverture de la
+		// fenetre d'appel, Qt la croyait 31 px plus bas (y 31, 931 de haut) que la zone reelle (y 0, 962), et ne
+		// s'alignait qu'au recalage apres affichage.
+		setClientTopShift(1);
+		setClientTopShift(0);
+	}
+#endif
+	return QObject::eventFilter(watched, event);
+}
+
+void WindowFrame::nudgeClientArea() {
+#ifdef Q_OS_WIN
+	if (!mWindow || !mWindow->handle() || !mWindow->isVisible()) return;
+	if (IsIconic(reinterpret_cast<HWND>(mWindow->winId()))) return;
+	setClientTopShift(1);
+	QTimer::singleShot(50, this, [this]() { setClientTopShift(0); });
+#endif
+}
+
+void WindowFrame::setClientTopShift(int shift) {
+#ifdef Q_OS_WIN
+	if (!mWindow || !mWindow->handle()) return;
+	mClientTopShift = shift;
+	SetWindowPos(reinterpret_cast<HWND>(mWindow->winId()), nullptr, 0, 0, 0, 0,
+	             SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
+#else
+	Q_UNUSED(shift)
+#endif
+}
+
 // Element cliquable sous le curseur dans la barre de titre (bouton) : il garde ses clics, la barre ne deplace la
 // fenetre que depuis ses zones vides.
 bool WindowFrame::isInteractiveAt(const QPointF &scenePos) const {
@@ -243,20 +293,28 @@ bool WindowFrame::nativeEventFilter(const QByteArray &eventType, void *message, 
 	if (eventType != "windows_generic_MSG" || !mWindow || !mWindow->handle()) return false;
 	auto msg = static_cast<MSG *>(message);
 	if (!msg || msg->hwnd != reinterpret_cast<HWND>(mWindow->winId())) return false;
+	// Messages de la souris et du clavier : Qt les filtre a leur sortie de la file, sans resultat a renvoyer
+	// (result nul) ; les ecarter (true) suffit. Ecrire dans result faisait planter l'application au survol du
+	// bouton agrandir.
+	qintptr unusedResult = 0;
+	if (!result) result = &unusedResult;
 
 	switch (msg->message) {
 		case WM_NCCALCSIZE: {
-			if (!msg->wParam) return false;
 			// Calcul par defaut (bords lateraux et du bas conserves), puis zone cliente remontee jusqu'en haut de la
 			// fenetre : plus de barre de titre. Agrandie, la fenetre deborde de l'ecran de l'epaisseur du bord : on la
-			// rentre en haut comme Windows le fait sur les autres cotes.
-			auto params = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam);
-			const LONG originalTop = params->rgrc[0].top;
+			// rentre en haut comme Windows le fait sur les autres cotes. Les deux formes du message (wParam vrai :
+			// changement de taille ; faux : simple question sur la zone cliente) recoivent la meme reponse ; la seconde
+			// renvoyait la zone avec barre de titre, 31 px plus bas.
+			RECT *clientRect = msg->wParam ? &reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam)->rgrc[0]
+			                               : reinterpret_cast<RECT *>(msg->lParam);
+			if (!clientRect) return false;
+			const LONG originalTop = clientRect->top;
+			// Resultat de Windows garde tel quel : le rendre a Qt (false) lui ferait refaire le calcul par-dessus.
 			const LRESULT defaultResult = DefWindowProcW(msg->hwnd, msg->message, msg->wParam, msg->lParam);
-			if (defaultResult != 0) return false;
-			params->rgrc[0].top = originalTop;
-			if (IsZoomed(msg->hwnd)) params->rgrc[0].top += frameThickness(GetDpiForWindow(msg->hwnd));
-			*result = 0;
+			clientRect->top = originalTop + mClientTopShift;
+			if (IsZoomed(msg->hwnd)) clientRect->top += frameThickness(GetDpiForWindow(msg->hwnd));
+			*result = defaultResult;
 			return true;
 		}
 		case WM_NCHITTEST: {

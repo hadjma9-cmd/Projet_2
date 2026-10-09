@@ -67,6 +67,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Display/Chat/ChatTextContent.qml
 	view/Control/Display/Chat/ChatListView.qml
 	view/Control/Display/Chat/ChatMessage.qml
+	view/Control/Display/Chat/ChatMessageActions.qml
 	view/Control/Display/Chat/ChatMessageInvitationBubble.qml
 	view/Control/Display/Chat/ChatMessagesListView.qml
 	view/Control/Display/Chat/Event.qml
@@ -103,6 +104,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Input/DecoratedTextField.qml
 	view/Control/Input/DigitInput.qml
 	view/Control/Input/NumericPad.qml
+	view/Control/Input/DtmfPad.qml
 	view/Control/Input/PhoneNumberInput.qml
 	view/Control/Input/SearchBar.qml
 	view/Control/Input/TextArea.qml
@@ -123,14 +125,8 @@ list(APPEND _LINPHONEAPP_QML_FILES
 
 	view/Control/Tool/MovableMouseArea.qml
 	view/Control/Tool/Helper/utils.js
-# Prototypes
-	view/Control/Tool/Prototype/AccountsPrototype.qml
-	view/Control/Tool/Prototype/CallPrototype.qml
-	view/Control/Tool/Prototype/CameraPrototype.qml
-	view/Control/Tool/Prototype/CanvasCircle.qml
-	view/Control/Tool/Prototype/FriendPrototype.qml
-	view/Control/Tool/Prototype/ItemPrototype.qml
-	view/Control/Tool/Prototype/PhoneNumberPrototype.qml
+# Prototypes (view/Control/Tool/Prototype) : maquettes de developpement, utilisees nulle part, retirees de la
+# compilation (fichiers gardes).
 
 	view/Page/Form/Call/DialerForm.qml
 	view/Page/Form/Call/NewCallForm.qml

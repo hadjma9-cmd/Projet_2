@@ -11,6 +11,9 @@ Control.Page {
 	property alias contentLoader: contentLoader
 	property alias customHeaderButtons: customButtonLayout.children
 	property int contentItemHeight: scrollview.height
+	// Largeur naturelle fixe, celle du panneau dans la fenetre d'appel : deduite du contenu, qui prend lui-meme la
+	// largeur du panneau, elle bouclait (journal).
+	implicitWidth: Utils.getSizeWithScreenRatio(393)
 	property bool closeButtonVisible: true
 	property var firstContentFocusableItem: undefined
 	property var lastContentFocusableItem: undefined

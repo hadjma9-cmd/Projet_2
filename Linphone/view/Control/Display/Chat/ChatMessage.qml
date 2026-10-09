@@ -29,6 +29,25 @@ Control.Control {
     hoverEnabled: true
     property bool linkHovered: false
     property real maxWidth: parent ? parent.width : Utils.getSizeWithScreenRatio(300)
+    // Barre d'actions (⋯, reactions) partagee par la conversation (ChatMessageActions) : elle se pose dans
+    // actionsSlotItem au survol de ce message.
+    property Item actionBar: null
+    readonly property Item actionsSlotItem: actionsSlot
+    readonly property string selectedText: chatBubbleContent.selectedText
+    onHoveredChanged: {
+        if (!actionBar) return
+        if (hovered) actionBar.show(mainItem)
+        else actionBar.hide(mainItem)
+    }
+    // Bulle recyclee pour un autre message (liste de la conversation) : rien ne doit rester du precedent.
+    function resetForReuse() {
+        if (actionBar) actionBar.release(mainItem)
+        hightlightTimer.stop()
+        highlightRectangle.opacity = 0
+        linkHovered = false
+        chatBubbleContent.resetForReuse()
+    }
+    Component.onDestruction: if (actionBar) actionBar.release(mainItem)
 
     leftPadding: isRemoteMessage ? Utils.getSizeWithScreenRatio(5) : 0
 
@@ -60,8 +79,8 @@ Control.Control {
     }
     
     function handleDefaultMouseEvent(event) {
-		if (event.button === Qt.RightButton) {
-			optionsMenu.open()
+		if (event.button === Qt.RightButton && actionBar) {
+			actionBar.openOptions(mainItem)
 		}
 	}
 
@@ -353,68 +372,83 @@ Control.Control {
                                                     || mainItem.msgState === LinphoneEnums.ChatMessageState.StateIdle
                                                         ? AppIcons.hourglass
                                                         : ""
-                                    BusyIndicator {
+                                    // Roue construite seulement pendant un envoi : une par message, toujours cachee
+                                    // sinon, elle pesait sur l'ouverture des conversations.
+                                    Loader {
                                         anchors.fill: parent
-                                        Layout.preferredWidth: visible ? 14 : 0
-                                        Layout.preferredHeight: visible ? 14 : 0
-                                        visible: mainItem.msgState === LinphoneEnums.ChatMessageState.StateInProgress
+                                        active: mainItem.msgState === LinphoneEnums.ChatMessageState.StateInProgress
                                             || mainItem.msgState === LinphoneEnums.ChatMessageState.StateFileTransferInProgress
+                                        sourceComponent: BusyIndicator {}
                                     }
                                 }
                             }
                         }
                     }
                 }
-                Button {
-                    id: reactionsButton
-                    visible: reactionList.count > 0
+                // Place qu'occupait le bouton des reactions meme cache (un element cache compte dans la taille de son
+                // conteneur) : l'espacement entre les messages reste identique.
+                Item {
+                    visible: false
                     anchors.top: chatBubble.bottom
+                    anchors.topMargin: Utils.getSizeWithScreenRatio(-6)
+                    width: Utils.getSizeWithScreenRatio(16)
+                    height: Utils.getSizeWithScreenRatio(16)
+                }
+                // Bouton des reactions construit seulement s'il y en a : un bouton complet par message, presque
+                // toujours cache, pesait sur l'ouverture des conversations.
+                Loader {
+                    id: reactionsLoader
+                    active: !!mainItem.chatMessage && mainItem.chatMessage.core.reactionsSingleton.length > 0
+                    anchors.top: chatBubble.bottom
+                    anchors.topMargin: Utils.getSizeWithScreenRatio(-6)
                     Binding {
-                        target: reactionsButton
+                        target: reactionsLoader
                         when: !mainItem.isRemoteMessage
                         property: "anchors.left"
                         value: chatBubble.left
                     }
                     Binding {
-                        target: reactionsButton
+                        target: reactionsLoader
                         when: mainItem.isRemoteMessage
                         property: "anchors.right"
                         value: chatBubble.right
                     }
-                    onClicked: mainItem.showReactionsForMessageRequested()
-                    anchors.topMargin: Utils.getSizeWithScreenRatio(-6)
-                    topPadding: Utils.getSizeWithScreenRatio(8)
-                    bottomPadding: Utils.getSizeWithScreenRatio(8)
-                    leftPadding: Utils.getSizeWithScreenRatio(8)
-                    rightPadding: Utils.getSizeWithScreenRatio(8)
-                    background: Rectangle {
-                        color: DefaultStyle.grey_100
-                        border.color: DefaultStyle.grey_0
-                        border.width: Utils.getSizeWithScreenRatio(2)
-                        radius: Utils.getSizeWithScreenRatio(20)
-                    }
-                    contentItem: RowLayout {
-                        spacing: Utils.getSizeWithScreenRatio(6)
-                        Repeater {
-                            id: reactionList
-                            model: mainItem.chatMessage ? mainItem.chatMessage.core.reactionsSingleton : []
-                            delegate: RowLayout {
-                                spacing: Utils.getSizeWithScreenRatio(3)
-                                Text {
-                                    text: UtilsCpp.encodeEmojiToQmlRichFormat(modelData.body)
-                                    textFormat: Text.RichText
-                                    font {
-                                        pixelSize: Utils.getSizeWithScreenRatio(15)
-                                        weight: Utils.getSizeWithScreenRatio(400)
+                    sourceComponent: Button {
+                        id: reactionsButton
+                        onClicked: mainItem.showReactionsForMessageRequested()
+                        topPadding: Utils.getSizeWithScreenRatio(8)
+                        bottomPadding: Utils.getSizeWithScreenRatio(8)
+                        leftPadding: Utils.getSizeWithScreenRatio(8)
+                        rightPadding: Utils.getSizeWithScreenRatio(8)
+                        background: Rectangle {
+                            color: DefaultStyle.grey_100
+                            border.color: DefaultStyle.grey_0
+                            border.width: Utils.getSizeWithScreenRatio(2)
+                            radius: Utils.getSizeWithScreenRatio(20)
+                        }
+                        contentItem: RowLayout {
+                            spacing: Utils.getSizeWithScreenRatio(6)
+                            Repeater {
+                                id: reactionList
+                                model: mainItem.chatMessage ? mainItem.chatMessage.core.reactionsSingleton : []
+                                delegate: RowLayout {
+                                    spacing: Utils.getSizeWithScreenRatio(3)
+                                    Text {
+                                        text: UtilsCpp.encodeEmojiToQmlRichFormat(modelData.body)
+                                        textFormat: Text.RichText
+                                        font {
+                                            pixelSize: Utils.getSizeWithScreenRatio(15)
+                                            weight: Utils.getSizeWithScreenRatio(400)
+                                        }
                                     }
-                                }
-                                Text {
-                                    visible: modelData.count > 1
-                                    text: modelData.count
-                                    verticalAlignment: Text.AlignBottom
-                                    font {
-                                        pixelSize: Typography.p4.pixelSize
-                                        weight: Typography.p4.weight
+                                    Text {
+                                        visible: modelData.count > 1
+                                        text: modelData.count
+                                        verticalAlignment: Text.AlignBottom
+                                        font {
+                                            pixelSize: Typography.p4.pixelSize
+                                            weight: Typography.p4.weight
+                                        }
                                     }
                                 }
                             }
@@ -422,178 +456,16 @@ Control.Control {
                     }
                 }
             }
-            RowLayout {
-                id: actionsLayout
-                visible: mainItem.hovered || optionsMenu.hovered || optionsMenu.popup.opened || emojiButton.hovered || emojiButton.popup.opened
+            // Emplacement de la barre d'actions partagee, vide (largeur nulle) sauf au survol de ce message.
+            Item {
+                id: actionsSlot
+                readonly property bool occupied: !!mainItem.actionBar && mainItem.actionBar.message === mainItem
+                visible: occupied
                 Layout.leftMargin: Utils.getSizeWithScreenRatio(8)
                 Layout.rightMargin: Utils.getSizeWithScreenRatio(8)
                 Layout.alignment: Qt.AlignVCenter
-                // Layout.fillWidth: true
-                spacing: Utils.getSizeWithScreenRatio(7)
-                layoutDirection: mainItem.isRemoteMessage ? Qt.LeftToRight : Qt.RightToLeft
-                PopupButton {
-                    id: optionsMenu
-                    popup.padding: 0
-                    popup.contentItem: ColumnLayout {
-                        spacing: 0
-                        IconLabelButton {
-                            visible: mainItem.msgState === LinphoneEnums.ChatMessageState.StateNotDelivered
-                            inverseLayout: true
-                            //: "Re-send"
-                            text: qsTr("chat_message_send_again")
-                            icon.source: AppIcons.chatTeardropText
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
-                            onClicked: {
-                                mainItem.chatMessage.core.lSend(false)
-                            }
-                        }
-                        IconLabelButton {
-                            inverseLayout: true
-                            //: "Reception info"
-                            text: qsTr("chat_message_reception_info")
-                            icon.source: AppIcons.chatTeardropText
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
-                            onClicked: {
-                                mainItem.showImdnStatusForMessageRequested()
-                                optionsMenu.close()
-                            }
-                        }
-						IconLabelButton {
-							inverseLayout: true
-							//: "Edit"
-							text: qsTr("menu_edit_chat_message")
-							visible: mainItem.chatMessage.core.isEditable
-							icon.source: AppIcons.pencil
-							Layout.fillWidth: true
-							Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
-							onClicked: {
-								mainItem.messageEditionRequested()
-								optionsMenu.close()
-							}
-						}
-                        IconLabelButton {
-                            inverseLayout: true
-							visible: !mainItem.chatMessage.core.isRetracted
-                            //: Reply
-                            text: qsTr("chat_message_reply")
-                            icon.source: AppIcons.reply
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
-                            onClicked: {
-                                mainItem.replyToMessageRequested()
-                                optionsMenu.close()
-                            }
-                        }
-                        IconLabelButton {
-                            inverseLayout: true
-                            visible: !mainItem.chatMessage.core.isRetracted
-                            text: chatBubbleContent.selectedText != ""
-                                //: "Copy selection"
-                                ? qsTr("chat_message_copy_selection")
-                                //: "Copy"
-                                : qsTr("chat_message_copy")
-                            icon.source: AppIcons.copy
-                            // spacing: Utils.getSizeWithScreenRatio(10)
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
-                            onClicked: {
-                                var success = UtilsCpp.copyToClipboard(chatBubbleContent.selectedText != "" ? chatBubbleContent.selectedText : mainItem.chatMessage.core.text)
-                                //: Copied
-                                if (success) UtilsCpp.showInformationPopup(qsTr("chat_message_copied_to_clipboard_title"),
-                                                //: "to clipboard"
-                                                qsTr("chat_message_copied_to_clipboard_toast"))
-                                optionsMenu.close()
-                            }
-                        }
-                        IconLabelButton {
-                            inverseLayout: true
-                            visible: !mainItem.chatMessage.core.isRetracted
-                            //: Forward
-                            text: qsTr("chat_message_forward")
-                            icon.source: AppIcons.forward
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
-                            onClicked: {
-                                mainItem.forwardMessageRequested()
-                                optionsMenu.close()
-                            }
-                        }
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
-                            color: DefaultStyle.main2_400
-                        }
-                        IconLabelButton {
-                            inverseLayout: true
-                            //: "Delete"
-                            text: qsTr("chat_message_delete")
-                            icon.source: AppIcons.trashCan
-                            // spacing: Utils.getSizeWithScreenRatio(10)
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
-                            onClicked: {
-                                mainItem.messageDeletionRequested()
-                                optionsMenu.close()
-                            }
-                            style: ButtonStyle.hoveredBackgroundRed
-                        }
-                    }
-                }
-                PopupButton {
-                    id: emojiButton
-                    style: ButtonStyle.noBackground
-                    icon.source: AppIcons.smiley
-                    popup.contentItem: RowLayout {
-                        Repeater {
-                            model: ConstantsCpp.reactionsList
-                            delegate: Button {
-                                text: UtilsCpp.encodeEmojiToQmlRichFormat(modelData)
-                                textFormat: Text.RichText
-                                background: Rectangle {
-                                    anchors.fill: parent
-                                    color: DefaultStyle.grey_200
-                                    radius: parent.width * 4
-                                    visible: mainItem.ownReaction === modelData
-                                }
-                                onClicked: {
-                                    if(modelData) {
-                                        if (mainItem.ownReaction === modelData) mainItem.chatMessage.core.lRemoveReaction()
-                                        else mainItem.chatMessage.core.lSendReaction(modelData)
-                                    }
-                                    emojiButton.close()
-                                }
-                            }
-                        }
-                        PopupButton {
-                            id: emojiPickerButton
-                            icon.source: AppIcons.plusCircle
-                            popup.width: Utils.getSizeWithScreenRatio(393)
-                            popup.height: Utils.getSizeWithScreenRatio(291)
-                            // Selecteur construit au premier clic, puis garde. Chaque bulle de message en
-                            // construisait un d'office (liste complete des emojis), ce qui figeait l'ouverture
-                            // des conversations.
-                            popup.onAboutToShow: emojiPickerLoader.active = true
-                            popup.contentItem: Loader {
-                                id: emojiPickerLoader
-                                active: false
-                                focus: true
-                                sourceComponent: EmojiPicker {
-                                    id: emojiPicker
-                                    onEmojiClicked: (emoji) => {
-                                        if (mainItem.chatMessage) {
-                                            if (mainItem.ownReaction === emoji) mainItem.chatMessage.core.lRemoveReaction()
-                                                else mainItem.chatMessage.core.lSendReaction(emoji)
-                                        }
-                                        emojiPickerButton.close()
-                                        emojiButton.close()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                Layout.preferredWidth: occupied ? mainItem.actionBar.implicitWidth : 0
+                Layout.preferredHeight: occupied ? mainItem.actionBar.implicitHeight : 0
             }
             Item{Layout.fillWidth: true}
         }

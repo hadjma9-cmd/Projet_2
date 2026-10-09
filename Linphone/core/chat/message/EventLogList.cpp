@@ -160,19 +160,32 @@ void EventLogList::setChatCore(QSharedPointer<ChatCore> core) {
 			for (auto &event : getSharedList<EventLogCore>()) {
 				disconnectItem(event);
 			}
-			beginResetModel();
-			mList.clear();
-			for (auto &event : cached) {
-				connectItem(event);
-				mList.append(event);
-			}
-			endResetModel();
+			replaceEvents(cached);
 			mListChatId = mChatCore->getIdentifier();
 			emit modelUpdated();
 		}
 		lUpdate();
 		// setIsUpdating(false);
 		emit chatGuiChanged();
+	}
+}
+
+// Remplacement par suppression puis insertion, et non par reinitialisation du modele : la vue recycle alors les
+// bulles de la liste quittee pour la nouvelle (ChatMessagesListView, reuseItems), au lieu de toutes les detruire
+// puis d'en construire autant. Les evenements quittes doivent deja etre deconnectes.
+void EventLogList::replaceEvents(const QList<QSharedPointer<EventLogCore>> &events) {
+	if (!mList.isEmpty()) {
+		beginRemoveRows(QModelIndex(), 0, int(mList.size()) - 1);
+		mList.clear();
+		endRemoveRows();
+	}
+	if (!events.isEmpty()) {
+		beginInsertRows(QModelIndex(), 0, int(events.size()) - 1);
+		for (auto &event : events) {
+			connectItem(event);
+			mList.append(event);
+		}
+		endInsertRows();
 	}
 }
 
@@ -625,13 +638,7 @@ void EventLogList::setSelf(QSharedPointer<EventLogList> me) {
 				for (auto &event : getSharedList<EventLogCore>()) {
 					disconnectItem(event);
 				}
-				beginResetModel();
-				mList.clear();
-				for (auto &event : fresh) {
-					connectItem(event);
-					mList.append(event);
-				}
-				endResetModel();
+				replaceEvents(fresh);
 				mListChatId = requestedChatId;
 				setIsUpdating(false);
 				emit modelUpdated();

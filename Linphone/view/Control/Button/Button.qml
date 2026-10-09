@@ -67,10 +67,22 @@ Control.Button {
 	spacing: Utils.getSizeWithScreenRatio(5)
     property real radius: Math.ceil(height / 2)
 
-	ToolTip {
-		text: mainItem.ToolTip.text
-		delay: mainItem.ToolTip.delay
-		visible: hovered && text != ""
+	// Elements construits seulement quand ils servent : chaque bouton creait d'office deux bulles d'aide, une ombre
+	// et, pour une icone, une seconde icone pour l'etat desactive, la plupart jamais affichees.
+	// Ombre : des sa premiere activation, puis activee et desactivee comme avant (QTBUG-124730).
+	property bool _shadowUsed: false
+	onShadowEnabledChanged: if (shadowEnabled) _shadowUsed = true
+	Component.onCompleted: if (shadowEnabled) _shadowUsed = true
+
+	// Bulle d'aide : seulement si un texte d'aide est donne.
+	Loader {
+		active: mainItem.ToolTip.text !== ""
+		sourceComponent: ToolTip {
+			parent: mainItem
+			text: mainItem.ToolTip.text
+			delay: mainItem.ToolTip.delay
+			visible: mainItem.hovered && text != ""
+		}
 	}
 
 	MouseArea {
@@ -100,16 +112,19 @@ Control.Button {
 				border.color: mainItem.borderColor
 				border.width: mainItem.borderWidth
 			}
-			MultiEffect {
-				enabled: mainItem.shadowEnabled
+			Loader {
 				anchors.fill: buttonBackground
-				source: buttonBackground
-				visible:  mainItem.shadowEnabled
-				// Crash : https://bugreports.qt.io/browse/QTBUG-124730
-				shadowEnabled: true
-				shadowColor: DefaultStyle.grey_1000
-				shadowBlur: 0.1
-				shadowOpacity: mainItem.shadowEnabled ? 0.5 : 0.0
+				active: mainItem.shadowEnabled || mainItem._shadowUsed
+				sourceComponent: MultiEffect {
+					enabled: mainItem.shadowEnabled
+					source: buttonBackground
+					visible:  mainItem.shadowEnabled
+					// Crash : https://bugreports.qt.io/browse/QTBUG-124730
+					shadowEnabled: true
+					shadowColor: DefaultStyle.grey_1000
+					shadowBlur: 0.1
+					shadowOpacity: mainItem.shadowEnabled ? 0.5 : 0.0
+				}
 			}
 		}
 	}
@@ -148,11 +163,14 @@ Control.Button {
 			underline: mainItem.underline
 			bold: (mainItem.style === ButtonStyle.noBackground || mainItem.style === ButtonStyle.noBackgroundRed) && (mainItem.hovered || mainItem.pressed)
 		}
-		ToolTip {
-			parent: mainItem
-			text: mainItem.text
-			visible: mainItem.hovered && (buttonText.implicitWidth > buttonText.width)
-			delay: 500
+		Loader {
+			active: mainItem.hovered && (buttonText.implicitWidth > buttonText.width)
+			sourceComponent: ToolTip {
+				parent: mainItem
+				text: mainItem.text
+				visible: true
+				delay: 500
+			}
 		}
 		TextMetrics {
 			id: textMetrics
@@ -168,38 +186,21 @@ Control.Button {
         colorizationColor: mainItem.colorizationColor
 	}
 	
-	contentItem: Control.StackView {
+	// Contenu du bouton (icone et texte, texte seul, icone seule ou rien), remplace seulement quand le texte ou
+	// l'icone apparait ou disparait. Un simple chargeur : chaque bouton de l'application creait auparavant une pile
+	// de pages (StackView), objet lourd, pour ne contenir que cet element. Le chargeur prend aussi de lui-meme la
+	// taille naturelle de son contenu (le contournement de la pile n'est plus utile).
+	contentItem: Loader {
 		id: stacklayout
 		anchors.centerIn: parent
-		function updateComponent(){
-			var item
-			var component = mainItem.text.length != 0 && mainItem.icon.source.toString().length != 0
-					? imageTextComponent
-					: mainItem.text.length != 0
-					  ? textComponent
-					  : mainItem.icon.source.toString().length != 0
-						? imageComponent
-						: emptyComponent
-			if( stacklayout.depth == 0)
-				item = stacklayout.push(component, Control.StackView.Immediate)
-			else if( component != stacklayout.get(0))
-				item = stacklayout.replace(component, Control.StackView.Immediate)
-			if(item){// Workaround for Qt bug : set from the item and not from the contentItem which seems to be lost
-				implicitHeight = Qt.binding(function() { return item.implicitHeight})
-				implicitWidth = Qt.binding(function() { return item.implicitWidth})
-			}
-		}
-		
-		Component.onCompleted: {
-			updateComponent()
-		}
-		
-		Connections{
-			target: mainItem
-			function onTextChanged(){stacklayout.updateComponent()}
-			function onIconChanged(){stacklayout.updateComponent()}
-		}
-		
+		sourceComponent: mainItem.text.length != 0 && mainItem.icon.source.toString().length != 0
+			? imageTextComponent
+			: mainItem.text.length != 0
+				? textComponent
+				: mainItem.icon.source.toString().length != 0
+					? imageComponent
+					: emptyComponent
+
 		Component{
 			id: imageTextComponent
 			// Workaround for centering the content when its
@@ -241,12 +242,14 @@ Control.Button {
 					id: buttonIcon
 					anchors.fill: parent
 				}
-				ButtonImage {
+				Loader {
 					z: buttonIcon.z + 1
-					visible: !mainItem.enabled
 					anchors.fill: parent
-					colorizationColor: DefaultStyle.grey_0
-					opacity: 0.5
+					active: !mainItem.enabled
+					sourceComponent: ButtonImage {
+						colorizationColor: DefaultStyle.grey_0
+						opacity: 0.5
+					}
 				}
 			}
 		}

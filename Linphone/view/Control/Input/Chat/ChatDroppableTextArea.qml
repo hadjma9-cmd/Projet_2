@@ -140,6 +140,9 @@ Control.Control {
 							Layout.fillHeight: true
 							Layout.fillWidth: true
 							Layout.alignment: Qt.AlignCenter
+							// Largeur fixee a celle de la zone (texte renvoye a la ligne, jamais de defilement horizontal) :
+							// deduite du texte, qui prend lui-meme la largeur de la zone, elle bouclait (journal).
+							contentWidth: width
 							contentHeight: sendingTextArea.contentHeight
 
 							onContentHeightChanged: {
@@ -221,7 +224,9 @@ Control.Control {
 								//: Cannot record a message while a call is ongoing
 								ToolTip.text: qsTr("cannot_record_while_in_call_tooltip")
 								enabled: !mainItem.callOngoing
-								visible: !mainItem.callOngoing && sendingTextArea.text.length === 0 && mainItem.selectedFilesCount === 0 && !mainItem.isEditing
+								// Condition propre, et non la visibilite effective (conversation masquee avec la grande fenetre).
+								readonly property bool shown: !mainItem.callOngoing && sendingTextArea.text.length === 0 && mainItem.selectedFilesCount === 0 && !mainItem.isEditing
+								visible: shown
 								style: ButtonStyle.noBackground
 								hoverEnabled: true
 								icon.source: AppIcons.microphone
@@ -229,7 +234,7 @@ Control.Control {
 									sendingAreaStackView.push(voiceMessageRecordComp)
 								}
 								Binding on width {
-									when: !recordButton.visible
+									when: !recordButton.shown
 									value: 0
 								}
 							}
@@ -237,14 +242,15 @@ Control.Control {
 								id: sendMessageButton
 								Layout.preferredWidth: width
 								Layout.preferredHeight: height
-								visible: sendingTextArea.text.length !== 0 || mainItem.selectedFilesCount > 0
+								readonly property bool shown: sendingTextArea.text.length !== 0 || mainItem.selectedFilesCount > 0
+								visible: shown
 								style: ButtonStyle.noBackgroundOrange
 								icon.source: mainItem.isEditing ? AppIcons.pencil : AppIcons.paperPlaneRight
 								onClicked: {
 									mainItem.sendMessage()
 								}
 								Binding on width {
-									when: !sendMessageButton.visible
+									when: !sendMessageButton.shown
 									value: 0
 								}
 							}

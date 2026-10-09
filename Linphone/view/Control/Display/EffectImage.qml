@@ -19,10 +19,31 @@ Item {
 	property bool isImageReady: false
 	property bool retainWhileLoading: true
 	property alias status: image.status
+	// Effets construits seulement quand ils servent. Chaque icone creait d'office deux effets de colorisation et une
+	// ombre (le plus souvent desactivee), meme cachee : premier cout de creation des pages et des listes (une ligne de
+	// conversation compte 9 icones, la plupart cachees). Une fois construits, ils sont gardes.
+	// Colorisation : des la premiere apparition de l'icone.
+	property bool _shown: false
+	onVisibleChanged: if (visible) _shown = true
+	Component.onCompleted: {
+		if (visible) _shown = true
+		if (shadowEnabled) _shadowUsed = true
+	}
+	// Ombre : des sa premiere activation, puis activee et desactivee comme avant (QTBUG-124730).
+	property bool _shadowUsed: false
+	onShadowEnabledChanged: if (shadowEnabled) _shadowUsed = true
+	// Icone de l'application (image://internal/) : demandee directement dans sa couleur au fournisseur d'images,
+	// au lieu d'etre dessinee en noir puis recoloree par deux effets graphiques. Meme rendu, sans effet. Les autres
+	// images (photos, fichiers) gardent les effets.
+	readonly property color _tint: colorizationColor ? colorizationColor : "black"
+	readonly property bool _providerColor: useColor && String(imageSource).startsWith("image://internal/")
+	readonly property url _coloredSource: _providerColor
+		? String(imageSource) + (String(imageSource).indexOf("?") === -1 ? "?" : "&") + "color=" + String(_tint).substring(1)
+		: imageSource
 	Image {
 		id: image
-		visible: !effect2.effectEnabled
-		source: mainItem.imageSource
+		visible: !colorizer.item
+		source: mainItem._coloredSource
 		fillMode: mainItem.fillMode
 		retainWhileLoading: mainItem.retainWhileLoading
 		sourceSize.width: width
@@ -34,54 +55,41 @@ Item {
 		anchors.centerIn: parent
 		onStatusChanged: mainItem.isImageReady = (status == Image.Ready)
 	}
-	MultiEffect {
-		id: effect
-		visible: false
+	Loader {
+		id: colorizer
 		anchors.fill: image
-		source: image
-		maskSource: image
-		brightness: effect2.effectEnabled ? 1.0 : 0.0
+		active: mainItem.useColor && !mainItem._providerColor && mainItem._shown
+		sourceComponent: Item {
+			MultiEffect {
+				id: effect
+				visible: false
+				anchors.fill: parent
+				source: image
+				maskSource: image
+				brightness: 1.0
+			}
+			MultiEffect {
+				anchors.fill: effect
+				source: effect
+				maskSource: effect
+				colorizationColor: mainItem.colorizationColor ? mainItem.colorizationColor : 'black'
+				colorization: 1.0
+			}
+		}
 	}
-
-	MultiEffect {
-		id: effect2
-		enabled: effectEnabled
-		visible: mainItem.useColor
-		property bool effectEnabled: mainItem.useColor
-		anchors.fill: effect
-		source: effect
-		maskSource: effect
-		colorizationColor: effectEnabled && mainItem.colorizationColor ? mainItem.colorizationColor : 'black'
-		colorization: effectEnabled ? 1.0: 0.0
-	}
-	/* Alernative to shadow for no blackcolors
-	MultiEffect {
-		visible: mainItem.shadowEnabled
-		source: image
-		width: image.width
-		height: image.height
-		x: image.x
-		y: image.y + 6
-		z: -1
-		blurEnabled: true
-		blurMax: 12
-		blur: 1.0
-		contrast: -1.0
-		brightness: 1.0
-		colorizationColor: DefaultStyle.grey_400
-		colorization: 1.0
-	}*/
-	MultiEffect {
-		id: shadow
-		enabled: mainItem.shadowEnabled
+	Loader {
 		anchors.fill: image
-		source: image
-		visible: mainItem.shadowEnabled
-		// Crash : https://bugreports.qt.io/browse/QTBUG-124730?
-		shadowEnabled: true //mainItem.shadowEnabled
-		shadowColor: DefaultStyle.grey_1000
-		shadowBlur: 0
-		shadowOpacity: mainItem.shadowEnabled ? 0.7 : 0.0
 		z: mainItem.z - 1
+		active: mainItem.shadowEnabled || mainItem._shadowUsed
+		sourceComponent: MultiEffect {
+			enabled: mainItem.shadowEnabled
+			source: image
+			visible: mainItem.shadowEnabled
+			// Crash : https://bugreports.qt.io/browse/QTBUG-124730?
+			shadowEnabled: true //mainItem.shadowEnabled
+			shadowColor: DefaultStyle.grey_1000
+			shadowBlur: 0
+			shadowOpacity: mainItem.shadowEnabled ? 0.7 : 0.0
+		}
 	}
 }

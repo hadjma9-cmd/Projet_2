@@ -9,8 +9,11 @@ import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
 FocusScope {
 	id: mainItem
-	width: numPadGrid.width
-	height: numPadGrid.height
+	// Taille naturelle = celle de la grille. Les mises en page (colonnes du Clavier, de la fenetre d'appel, du pave
+	// flottant) centrent un element sur sa taille naturelle : avec width/height seuls, elle valait 0 pour elles et le
+	// pave etait centre de travers (decale vers la droite).
+	implicitWidth: numPadGrid.implicitWidth
+	implicitHeight: numPadGrid.implicitHeight
 
 	property var currentCall
 	property bool lastRowVisible: true
@@ -115,6 +118,7 @@ FocusScope {
 
 	GridLayout {
 		id: numPadGrid
+		anchors.centerIn: parent
 		columns: 3
         columnSpacing: mainItem.keyColumnSpacing
         rowSpacing: mainItem.keyRowSpacing

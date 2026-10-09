@@ -33,10 +33,10 @@
 
 DEFINE_ABSTRACT_OBJECT(ChatList)
 
-QSharedPointer<ChatList> ChatList::create() {
+QSharedPointer<ChatList> ChatList::create(bool loadNow) {
 	auto model = QSharedPointer<ChatList>(new ChatList(), &QObject::deleteLater);
 	model->moveToThread(App::getInstance()->thread());
-	model->setSelf(model);
+	model->setSelf(model, loadNow);
 	return model;
 }
 
@@ -103,7 +103,7 @@ void ChatList::connectItem(QSharedPointer<ChatCore> chat) {
 	connect(chat.get(), &ChatCore::lastMessageChanged, this, dataChange);
 }
 
-void ChatList::setSelf(QSharedPointer<ChatList> me) {
+void ChatList::setSelf(QSharedPointer<ChatList> me, bool loadNow) {
 	mModelConnection = SafeConnection<ChatList, CoreModel>::create(me, CoreModel::getInstance());
 	mModelConnection->makeConnectToCore(&ChatList::lUpdate, [this]() {
 		if (mIsUpdating) {
@@ -234,6 +234,9 @@ void ChatList::setSelf(QSharedPointer<ChatList> me) {
 			                                     bool sendAddSignal = false;
 			                                     if (chatRoom == CoreModel::getInstance()->mChatRoomBeingCreated) {
 				                                     sendAddSignal = true;
+				                                     // Remis a nul ici, dans le fil du SDK qui seul le modifie : il
+				                                     // l'etait dans le fil de l'interface (acces concurrent).
+				                                     CoreModel::getInstance()->mChatRoomBeingCreated = nullptr;
 			                                     }
 			                                     addChatToList(core, chatRoom, sendAddSignal);
 		                                     }
@@ -243,7 +246,7 @@ void ChatList::setSelf(QSharedPointer<ChatList> me) {
 		mFilter = filter;
 		lUpdate();
 	});
-	lUpdate();
+	if (loadNow) lUpdate();
 }
 
 int ChatList::findChatIndex(ChatGui *chatGui) {
@@ -286,7 +289,6 @@ bool ChatList::addChatInList(QSharedPointer<ChatCore> chatCore, bool emitAddSign
 	lInfo() << "Add ChatRoom" << chatCore->getTitle();
 	add(chatCore);
 	if (emitAddSignal) {
-		CoreModel::getInstance()->mChatRoomBeingCreated = nullptr;
 		emit chatAdded(chatCore);
 	}
 	return true;

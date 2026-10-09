@@ -1228,7 +1228,7 @@ void App::restartCore() {
 	});
 }
 void App::createCommandParser() {
-	if (!mParser) delete mParser;
+	delete mParser; // Condition inversee auparavant (if (!mParser)) : l'ancien analyseur n'etait jamais libere.
 
 	mParser = new QCommandLineParser();
 	//: "A free and open source SIP video-phone."

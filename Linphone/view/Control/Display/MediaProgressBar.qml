@@ -45,7 +45,9 @@ ProgressBar {
 		id: animationTest
 		repeat: true
 		onTriggered: mainItem.refreshPositionRequested()
-		interval: 5
+		// 30 fois par seconde : assez pour une barre fluide. A 5 ms, la lecture d'un message vocal demandait
+		// 200 fois par seconde sa position au moteur.
+		interval: 33
 	}
 	to: 101
 	value: progressPosition * to / progressDuration

@@ -12,12 +12,6 @@ ProgressBar{
 	to: 100
 	value: 0
 	background: Item {}
-	Timer{
-		id: animationTest
-		repeat: true
-		onTriggered: value = (value + 1) % to
-		interval: 5
-	}
 	contentItem: Item{
 		Shape {
 			id: shape

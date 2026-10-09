@@ -104,6 +104,7 @@ private:
 	                                                  const std::weak_ptr<linphone::ChatRoom> &room);
 	void dropFromCache(const QString &chatId);
 	bool mergeFreshEvents(const QList<QSharedPointer<EventLogCore>> &fresh);
+	void replaceEvents(const QList<QSharedPointer<EventLogCore>> &events);
 	int indexOfEventLog(const std::shared_ptr<linphone::EventLog> &event);
 	void emitFilterResult(int index);
 	QList<CachedEvents> mCache;

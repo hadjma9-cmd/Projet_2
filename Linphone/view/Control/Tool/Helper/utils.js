@@ -166,8 +166,9 @@ function getFirstFocusableItemInItem(item) {
 
 // Retrieve last focusable item of an Item. If no item found, return undefined
 function getLastFocusableItemInItem(item) {
+  if (!item) return undefined;
   var next = item.nextItemInFocusChain();
-  if(next && !isDescendant(next, item)){
+  if(!next || !isDescendant(next, item)){
     return undefined;
   }
   var current

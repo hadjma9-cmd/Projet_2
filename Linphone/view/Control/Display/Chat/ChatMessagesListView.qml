@@ -57,6 +57,31 @@ ListView {
     highlightFollowsCurrentItem: true
 
     verticalLayoutDirection: ListView.BottomToTop
+    // Recyclage des bulles suspendu : en passant vite d'une conversation a l'autre, une bulle de texte pouvait
+    // disparaitre (bulle reutilisee pour un autre message). La remise a zero (ChatMessage.resetForReuse, ListView
+    // onPooled/onReused) reste en place pour le reactiver une fois la cause trouvee.
+    reuseItems: false
+
+    // Barre d'actions (⋯ et reactions) unique pour toute la conversation, posee sur le message survole.
+    ChatMessageActions {
+        id: messageActions
+    }
+
+    // Mesure (journal : « [Mesure] Conversation affichee en ... ») : du changement de conversation a la mise en
+    // page de ses messages, prete a etre dessinee. Sert a juger des optimisations.
+    property double openingStart: 0
+    property bool openingPending: false
+    Connections {
+        target: mainItem.openingPending ? mainItem.Window.window : null
+        // Emis sur le fil de l'interface, apres la mise en page de l'image suivante.
+        function onAfterAnimating() {
+            mainItem.openingPending = false
+            if (mainItem.openingStart <= 0) return
+            console.info("[Mesure] Conversation affichee en " + Math.round(Date.now() - mainItem.openingStart)
+                         + " ms (" + mainItem.count + " elements)")
+            mainItem.openingStart = 0
+        }
+    }
     signal showReactionsForMessageRequested(ChatMessageGui chatMessage)
     signal showImdnStatusForMessageRequested(ChatMessageGui chatMessage)
     signal replyToMessageRequested(ChatMessageGui chatMessage)
@@ -117,17 +142,27 @@ ListView {
             eventLogProxy.displayMore()
         }
     }
+    // « Marquer comme lu » seulement s'il reste des non-lus : appele a chaque retour en bas de liste, a chaque
+    // activation de la fenetre..., il faisait refaire au SDK le marquage (« Invalid transition Displayed to
+    // Displayed » au journal) et l'ecriture en base.
     onAtYEndChanged: {
-        if (atYEnd && chat && count !== 0) {
+        if (atYEnd && chat && count !== 0 && chat.core.unreadMessagesCount > 0) {
             chat.core.lMarkAsRead()
         }
+    }
+    // Retour sur la conversation (onglet Messages, petite fenetre) : les messages affiches sont lus.
+    onVisibleChanged: {
+        if (visible && mainWindow.active && atYEnd && chat && count !== 0 && chat.core.unreadMessagesCount > 0)
+            chat.core.lMarkAsRead()
     }
 
     Connections {
         // enabled: chat !== null
         target: mainItem.chat ? mainItem.chat.core : null
         function onUnreadMessagesCountChanged() {
-            if (mainItem.atYEnd){
+            // Lu seulement si la conversation est a l'ecran : les pages (onglet Messages, petite fenetre) restent en
+            // memoire, cachees, et marquaient comme lus des messages que personne ne voyait.
+            if (mainItem.visible && mainItem.atYEnd && mainItem.chat.core.unreadMessagesCount > 0){
                 if (mainWindow.active) {
                     mainItem.chat.core.lMarkAsRead()
                 }
@@ -137,7 +172,8 @@ ListView {
     Connections {
         target: mainWindow
         function onActiveChanged() {
-            if (mainWindow.active && mainItem.atYEnd && mainItem.chat) mainItem.chat.core.lMarkAsRead()
+            if (mainWindow.active && mainItem.visible && mainItem.atYEnd && mainItem.chat && mainItem.chat.core.unreadMessagesCount > 0)
+                mainItem.chat.core.lMarkAsRead()
         }
     }
 
@@ -151,6 +187,7 @@ ListView {
             loading = true
         }
         onChatAboutToChange: {
+            mainItem.openingStart = Date.now()
             mainItem.saveReadingPosition()
             loading = true
         }
@@ -174,6 +211,7 @@ ListView {
             mainItem.lastItemVisible = lastMessage ? lastMessage.isFullyVisible : false
             eventLogProxy.markIndexAsRead(index)
             mainItem.displayedChatId = chatId
+            if (mainItem.openingStart > 0) mainItem.openingPending = true
         }
         onEventInsertedByUser: (index) => {
             mainItem.positionViewAtIndex(index, ListView.Beginning)
@@ -387,12 +425,19 @@ ListView {
                 property int yoff: Math.round(chatMessageDelegate.y - mainItem.contentY)
                 property bool isFullyVisible: (yoff > mainItem.y && yoff + height < mainItem.y + mainItem.height)
                 chatMessage: modelData.core.chatMessageGui
+                actionBar: messageActions
                 onIsFullyVisibleChanged: {
                     if (index === 0) {
                         mainItem.lastItemVisible = isFullyVisible
                     }
                 }
                 Component.onCompleted: {
+                    if (index === 0) {
+                        mainItem.lastItemVisible = isFullyVisible
+                    }
+                }
+                ListView.onPooled: chatMessageDelegate.resetForReuse()
+                ListView.onReused: {
                     if (index === 0) {
                         mainItem.lastItemVisible = isFullyVisible
                     }

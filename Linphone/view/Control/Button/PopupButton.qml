@@ -30,6 +30,8 @@ Button {
     icon.height: Utils.getSizeWithScreenRatio(24)
     implicitWidth: Utils.getSizeWithScreenRatio(30)
     implicitHeight: Utils.getSizeWithScreenRatio(30)
+    // Menu deja ouvert au moins une fois : son ombre existe (voir le fond du menu).
+    property bool _popupShown: false
     function close() {
         popup.close();
     }
@@ -48,12 +50,21 @@ Button {
         return content.children.some(child => isFocusable(child));
     }
 
+    // Element qui porte les entrees du menu, y compris quand le menu est construit a son ouverture (Loader) : elles
+    // sont alors dans l'element charge.
+    function _menuContent() {
+        var content = popup.contentItem;
+        if (content instanceof Loader)
+            content = content.item;
+        return content instanceof FocusScope ? content.children[0] : content;
+    }
+
     function getPreviousItem(index) {
-        return _getPreviousItem(popup.contentItem instanceof FocusScope ? popup.contentItem.children[0] : popup.contentItem, index);
+        return _getPreviousItem(_menuContent(), index);
     }
 
     function getNextItem(index) {
-        return _getNextItem(popup.contentItem instanceof FocusScope ? popup.contentItem.children[0] : popup.contentItem, index);
+        return _getNextItem(_menuContent(), index);
     }
 
     // Parcours borne avec retour au debut de la liste. L'ancienne version se rappelait elle-meme
@@ -123,16 +134,20 @@ Button {
             border.color: mainItem.keyboardFocus ? mainItem.keyboardFocusedBorderColor : mainItem.borderColor
             border.width: mainItem.keyboardFocus ? mainItem.keyboardFocusedBorderWidth : mainItem.borderWidth
         }
-        MultiEffect {
-            enabled: mainItem.shadowEnabled
+        // Ombre construite des sa premiere activation (survol, focus), puis gardee (voir Button).
+        Loader {
             anchors.fill: buttonBackground
-            source: buttonBackground
-            visible: mainItem.shadowEnabled
-            // Crash : https://bugreports.qt.io/browse/QTBUG-124730
-            shadowEnabled: true //mainItem.shadowEnabled
-            shadowColor: DefaultStyle.grey_1000
-            shadowBlur: 0.1
-            shadowOpacity: mainItem.shadowEnabled ? 0.5 : 0.0
+            active: mainItem.shadowEnabled || mainItem._shadowUsed
+            sourceComponent: MultiEffect {
+                enabled: mainItem.shadowEnabled
+                source: buttonBackground
+                visible: mainItem.shadowEnabled
+                // Crash : https://bugreports.qt.io/browse/QTBUG-124730
+                shadowEnabled: true //mainItem.shadowEnabled
+                shadowColor: DefaultStyle.grey_1000
+                shadowBlur: 0.1
+                shadowOpacity: mainItem.shadowEnabled ? 0.5 : 0.0
+            }
         }
     }
     contentItem: EffectImage {
@@ -153,6 +168,7 @@ Button {
     }
     Control.Popup {
         id: popup
+        onAboutToShow: mainItem._popupShown = true
         x: 0
         y: mainItem.popupY
         visible: false
@@ -203,13 +219,17 @@ Button {
                 color: DefaultStyle.grey_0
                 radius: Utils.getSizeWithScreenRatio(16)
             }
-            MultiEffect {
-                source: popupBackground
+            // Ombre du menu construite a sa premiere ouverture : chaque bouton de menu en creait une d'office.
+            Loader {
                 anchors.fill: popupBackground
-                shadowEnabled: true
-                shadowBlur: 0.1
-                shadowColor: DefaultStyle.grey_1000
-                shadowOpacity: 0.4
+                active: mainItem._popupShown
+                sourceComponent: MultiEffect {
+                    source: popupBackground
+                    shadowEnabled: true
+                    shadowBlur: 0.1
+                    shadowColor: DefaultStyle.grey_1000
+                    shadowOpacity: 0.4
+                }
             }
             MouseArea {
                 anchors.fill: parent

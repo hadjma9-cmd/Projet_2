@@ -70,6 +70,7 @@ public:
 	Q_INVOKABLE void toggleMaximized();
 
 	bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) override;
+	bool eventFilter(QObject *watched, QEvent *event) override;
 
 signals:
 	void windowChanged();
@@ -86,6 +87,8 @@ private:
 	void setMaximizePressed(bool pressed);
 	void applyNativeStyle();
 	void applyStayOnTop();
+	void nudgeClientArea();
+	void setClientTopShift(int shift);
 
 	QPointer<QQuickWindow> mWindow;
 	QPointer<QQuickItem> mTitleBar;
@@ -94,6 +97,7 @@ private:
 	bool mStayOnTop = false;
 	bool mMaximizeHovered = false;
 	bool mMaximizePressed = false;
+	int mClientTopShift = 0;
 };
 
 #endif // WINDOW_FRAME_H_

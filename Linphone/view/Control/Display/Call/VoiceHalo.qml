@@ -29,14 +29,15 @@ Item {
 	onCallChanged: updateRequest()
 	Component.onCompleted: updateRequest()
 	Component.onDestruction: {
-		if (mainItem._requestedCall) mainItem._requestedCall.core.requestRemoteVolume(false)
+		if (mainItem._requestedCall && mainItem._requestedCall.core) mainItem._requestedCall.core.requestRemoteVolume(false)
 		mainItem._requestedCall = null
 	}
 
 	function updateRequest() {
 		var wanted = mainItem.measuring ? mainItem.call : null
 		if (wanted === mainItem._requestedCall) return
-		if (mainItem._requestedCall) mainItem._requestedCall.core.requestRemoteVolume(false)
+		// L'appel precedent a pu disparaitre entre-temps (fin d'appel).
+		if (mainItem._requestedCall && mainItem._requestedCall.core) mainItem._requestedCall.core.requestRemoteVolume(false)
 		mainItem._requestedCall = wanted
 		if (mainItem._requestedCall) mainItem._requestedCall.core.requestRemoteVolume(true)
 	}

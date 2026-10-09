@@ -32,9 +32,12 @@ Rectangle {
 
 	color: DefaultStyle.callBackground
 
-	// Avale les clics : rien ne passe a la petite fenetre dessous.
+	// Rien ne passe a la petite fenetre dessous : ni clic (droit compris), ni survol (bulles, curseur), ni molette.
 	MouseArea {
 		anchors.fill: parent
+		hoverEnabled: true
+		acceptedButtons: Qt.AllButtons
+		onWheel: wheel => wheel.accepted = true
 	}
 
 	function openPanel(component, title) {
@@ -91,10 +94,9 @@ Rectangle {
 			color: "#0E2A4A"
 			border.width: 1
 			border.color: DefaultStyle.main1_500_main
-			onVisibleChanged: if (visible) bannerTimer.restart()
 			Timer {
-				id: bannerTimer
 				interval: 10000
+				running: videoBanner.visible
 				onTriggered: if (mainItem.call) mainItem.call.core.remoteVideoRequested = false
 			}
 			ColumnLayout {
@@ -189,6 +191,7 @@ Rectangle {
 							radius: width / 2
 							color: mainItem.incoming ? DefaultStyle.success_500_main : DefaultStyle.callHalo
 							opacity: 0
+							// Meme periode pour les deux anneaux, decales d'une demi-pulsation.
 							SequentialAnimation on scale {
 								loops: Animation.Infinite
 								running: true
@@ -200,6 +203,9 @@ Rectangle {
 									to: 1.55
 									duration: 1400
 									easing.type: Easing.OutQuad
+								}
+								PauseAnimation {
+									duration: (1 - index) * 700
 								}
 							}
 							SequentialAnimation on opacity {
@@ -213,6 +219,9 @@ Rectangle {
 									to: 0
 									duration: 1400
 									easing.type: Easing.OutQuad
+								}
+								PauseAnimation {
+									duration: (1 - index) * 700
 								}
 							}
 						}
@@ -415,6 +424,7 @@ Rectangle {
 			}
 			CallRoundButton {
 				visible: mainItem.callState === LinphoneEnums.CallState.IncomingReceived
+					|| mainItem.callState === LinphoneEnums.CallState.IncomingEarlyMedia
 				success: true
 				size: Utils.getSizeWithScreenRatio(54)
 				iconSource: AppIcons.phone
@@ -432,6 +442,13 @@ Rectangle {
 		anchors.fill: parent
 		color: DefaultStyle.grey_0
 		onVisibleChanged: if (!visible) panelTitle.text = ""
+		// Une zone vide du panneau ne transmet rien aux boutons de l'appel dessous (Raccrocher compris).
+		MouseArea {
+			anchors.fill: parent
+			hoverEnabled: true
+			acceptedButtons: Qt.AllButtons
+			onWheel: wheel => wheel.accepted = true
+		}
 		ColumnLayout {
 			anchors.fill: parent
 			spacing: 0
@@ -475,16 +492,15 @@ Rectangle {
 
 	Component {
 		id: dtmfPanel
-		Item {
-			NumericPad {
-				anchors.centerIn: parent
-				currentCall: mainItem.call
-				lastRowVisible: false
-				keyStyle: ButtonStyle.numericPadLight
-				keySize: Utils.getSizeWithScreenRatio(64)
-				keyColumnSpacing: Utils.getSizeWithScreenRatio(30)
-				keyRowSpacing: Utils.getSizeWithScreenRatio(14)
-			}
+		// Meme pave que la fenetre d'appel (chiffres tapes en grand, pave juste dessous) ; touches teintees, le
+		// panneau etant blanc. Clavier de l'ordinateur : pave numerique seulement.
+		DtmfPad {
+			id: dtmfPad
+			call: mainItem.call
+			keyStyle: ButtonStyle.numericPadLight
+			focus: true
+			Keys.onPressed: event => dtmfPad.handleKeyPadEvent(event)
+			Component.onCompleted: forceActiveFocus()
 		}
 	}
 	Component {

@@ -50,6 +50,8 @@ signals:
 
 protected:
 	QSharedPointer<ChatList> mList;
+	// Pose par le constructeur pendant la mise en place de sa liste propre (chargement differe).
+	bool mLoadingOwnList = false;
 	DECLARE_ABSTRACT_OBJECT
 };
 

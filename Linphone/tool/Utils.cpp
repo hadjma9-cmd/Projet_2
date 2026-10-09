@@ -323,12 +323,16 @@ void Utils::showWithoutActivating(QQuickWindow *window) {
 	window->show();
 	window->setProperty("_q_showWithoutActivating", QVariant());
 #ifdef Q_OS_WIN
+	auto hwnd = reinterpret_cast<HWND>(window->winId());
+	// Deja visible mais reduite (petite fenetre dans la barre des taches) : show() ne la rouvre pas.
+	if (IsIconic(hwnd)) ShowWindow(hwnd, SW_SHOWNOACTIVATE);
 	// Devant les autres fenetres sans activation. QWindow::raise() finit par un SetWindowPos sans
 	// SWP_NOACTIVATE, qui activerait la fenetre ; le passage « tout en haut » puis retour est le moyen
-	// qu'emploie Qt lui-meme pour passer devant depuis une application inactive.
-	auto hwnd = reinterpret_cast<HWND>(window->winId());
+	// qu'emploie Qt lui-meme pour passer devant depuis une application inactive. Le retour est omis pour
+	// une fenetre deja « toujours au premier plan » (petite fenetre epinglee) : elle ne le resterait plus.
+	const bool wasTopMost = (GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0;
 	SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-	SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+	if (!wasTopMost) SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 #else
 	window->raise();
 #endif
@@ -1847,18 +1851,29 @@ void Utils::openChat(ChatGui *chat) {
 	if (mainWindow && chat) {
 		emit chat->mCore->messageOpen();
 		auto localChatAddress = chat->mCore->getLocalAddress();
-		QMetaObject::invokeMethod(App::getInstance()->getLinphoneThread()->getThreadId(), [localChatAddress, chat] {
+		QWeakPointer<ChatCore> chatCore = chat->mCore; // Faible : jamais liberee dans le fil du SDK.
+		QMetaObject::invokeMethod(App::getInstance()->getLinphoneThread()->getThreadId(), [localChatAddress, chat,
+		                                                                                   chatCore] {
 			auto core = CoreModel::getInstance()->getCore();
 			std::shared_ptr<linphone::Account> localAccount = ToolModel::findAccount(localChatAddress);
 			if (!localAccount) return;
 			auto defaultAccount = core->getDefaultAccount();
 			if (defaultAccount &&
 			    localAccount->getParams()->getIdentityAddress() != defaultAccount->getParams()->getIdentityAddress()) {
-				connect(CoreModel::getInstance().get(), &CoreModel::defaultAccountChanged,
-				        CoreModel::getInstance().get(), [chat] {
-					        QMetaObject::invokeMethod(getMainWindow(), "openChat",
-					                                  Q_ARG(QVariant, QVariant::fromValue(chat)));
-				        });
+				// Une seule fois : la connexion restait, et chaque changement de compte suivant rouvrait cette
+				// conversation. La fiche (ChatCore) est gardee plutot que le ChatGui, que l'interface peut liberer
+				// entre-temps ; le ChatGui est recree dans le fil de l'interface.
+				connect(
+				    CoreModel::getInstance().get(), &CoreModel::defaultAccountChanged, CoreModel::getInstance().get(),
+				    [chatCore] {
+					    QMetaObject::invokeMethod(App::getInstance(), [chatCore] {
+						    auto core = chatCore.toStrongRef();
+						    if (!core) return;
+						    QMetaObject::invokeMethod(getMainWindow(), "openChat",
+						                              Q_ARG(QVariant, QVariant::fromValue(new ChatGui(core))));
+					    });
+				    },
+				    Qt::SingleShotConnection);
 				core->setDefaultAccount(localAccount);
 			} else {
 				QMetaObject::invokeMethod(getMainWindow(), "openChat", Q_ARG(QVariant, QVariant::fromValue(chat)));
