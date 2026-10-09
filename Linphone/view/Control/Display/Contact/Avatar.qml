@@ -82,6 +82,12 @@ Loader{
 	
 	property bool securityBreach: securityLevel === LinphoneEnums.SecurityLevel.Unsafe
 	property bool displayPresence: true
+	// Taille de la pastille de presence, en part de la largeur de l'avatar (plus grande dans la bande de la petite
+	// fenetre, ou la photo est petite).
+	property real presenceScale: 1 / 4.5
+	// Contact en communication : anneau bleu autour de la photo, bien visible dans les listes (la pastille garde la taille
+	// des autres statuts). Pas dans les ecrans d'appel (displayPresence a faux).
+	readonly property bool inCall: displayPresence && !account && !!contact && !!contact.core && contact.core.inCall
 
 	// Construction synchrone : en asynchrone, le composant s'instancie en arriere-plan et
 	// certaines liaisons s'evaluent avant que le contact ne soit resolu (findFriendByAddress
@@ -93,15 +99,18 @@ Loader{
 		Item {
 			anchors.fill: parent
 			
-			MultiEffect {
-				visible: mainItem.shadowEnabled
-				enabled: mainItem.shadowEnabled
-				shadowEnabled: mainItem.shadowEnabled
+			// Ombres construites seulement si elles sont demandees : desactivees dans les listes, elles etaient
+			// creees quand meme pour chaque avatar.
+			Loader {
 				anchors.fill: stackView
-				source: stackView
-				shadowBlur: 0.1
-				shadowColor: DefaultStyle.grey_1000
-				shadowOpacity: 0.1
+				active: mainItem.shadowEnabled
+				sourceComponent: MultiEffect {
+					source: stackView
+					shadowEnabled: true
+					shadowBlur: 0.1
+					shadowColor: DefaultStyle.grey_1000
+					shadowOpacity: 0.1
+				}
 			}
 			Item {
 				id: stackView
@@ -135,9 +144,21 @@ Loader{
 					}
 				}
 				
+				Rectangle {
+					visible: mainItem.inCall
+					anchors.centerIn: parent
+					readonly property real ringWidth: Math.round(Math.max(2, Math.min(4, stackView.width * 0.06)))
+					width: stackView.width + 2 * ringWidth
+					height: width
+					radius: width / 2
+					color: "transparent"
+					border.width: ringWidth
+					border.color: "#2E86DE"
+					z: 0.5
+				}
 				Image {
 					visible: mainItem.displayPresence
-					width: stackView.width/4.5
+					width: stackView.width * mainItem.presenceScale
 					height: width
 					sourceSize.width: Math.ceil(width)
     				sourceSize.height: Math.ceil(width)
@@ -205,17 +226,17 @@ Loader{
 							anchors.centerIn: parent
 						}
 					}
-					MultiEffect {
-						// Suit shadowEnabled comme l'ombre exterieure : dans les listes, chaque effet
-						// coutait une texture hors ecran par avatar.
-						visible: mainItem.shadowEnabled
-						enabled: mainItem.shadowEnabled
-						source: initialItem
+					// Suit shadowEnabled comme l'ombre exterieure (construite seulement si demandee).
+					Loader {
 						anchors.fill: initialItem
-						shadowEnabled: true
-						shadowBlur: 0.1
-						shadowColor: DefaultStyle.grey_1000
-						shadowOpacity: 0.1
+						active: mainItem.shadowEnabled
+						sourceComponent: MultiEffect {
+							source: initialItem
+							shadowEnabled: true
+							shadowBlur: 0.1
+							shadowColor: DefaultStyle.grey_1000
+							shadowOpacity: 0.1
+						}
 					}
 					Connections {
 						target: mainItem.call?.core ? mainItem.call.core : null

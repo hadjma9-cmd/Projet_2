@@ -197,6 +197,9 @@ void FriendCore::setSelf(SafeSharedPointer<FriendCore> me) {
 }
 void FriendCore::setSelf(QSharedPointer<FriendCore> me) {
 	if (me) {
+		// Le statut depend des adresses (poste interne ou non) : reaffiche quand elles changent.
+		connect(this, &FriendCore::addressChanged, this, &FriendCore::presenceChanged, Qt::UniqueConnection);
+		connect(this, &FriendCore::defaultAddressChanged, this, &FriendCore::presenceChanged, Qt::UniqueConnection);
 		if (mFriendModel) {
 			mFriendModelConnection = SafeConnection<FriendCore, FriendModel>::create(me, mFriendModel);
 			mFriendModelConnection->makeConnectToModel(&FriendModel::updated, [this]() {
@@ -663,6 +666,9 @@ void FriendCore::writeIntoModel(std::shared_ptr<FriendModel> model) const {
 	model->setFullName(mFullName);
 	model->setJob(mJob);
 	model->setPictureUri(mPictureUri);
+	// Presence reservee aux postes internes : abonnement selon les adresses enregistrees (nouveau contact
+	// ou adresse modifiee), applique par done().
+	model->getFriend()->enableSubscribes(ToolModel::isInternalExtension(model->getFriend()));
 	model->getFriend()->done();
 	emit model->updated();
 }
@@ -865,19 +871,45 @@ void FriendCore::setInCall(bool inCall) {
 	emit presenceChanged();
 }
 
+// Statut reserve aux postes internes : une adresse SIP dont l'identifiant fait 1 a 5 chiffres, meme regle que la fiche
+// contact et le Clavier (ex. 1000). Un correspondant sans compte VoIP (numero de telephone, ex. 0767338479) n'a aucun
+// statut : ni pastille, ni « En ligne » ou « Hors ligne », ni note, ni « En communication ».
+bool FriendCore::isInternalExtension() const {
+	static const QRegularExpression extension(QStringLiteral("^sip:[0-9]{1,5}@"),
+	                                          QRegularExpression::CaseInsensitiveOption);
+	if (extension.match(mDefaultAddress).hasMatch()) return true;
+	for (const auto &address : mAddressList) {
+		if (extension.match(address.toMap().value("address").toString()).hasMatch()) return true;
+	}
+	return false;
+}
+
+// Etat inconnu (Undefined) : ni pastille ni texte, comme avant la premiere information du serveur.
+LinphoneEnums::Presence FriendCore::getPresence() const {
+	return isInternalExtension() ? mPresence : LinphoneEnums::Presence::Undefined;
+}
+
+QString FriendCore::getPresenceNote() const {
+	return isInternalExtension() ? mPresenceNote : QString();
+}
+
+bool FriendCore::isInCall() const {
+	return mInCall && isInternalExtension();
+}
+
 // Pendant un appel, pastille bleue « En communication » a la place du statut choisi, qui
 // reapparait tel quel a la fin de l'appel.
 QUrl FriendCore::getPresenceIcon() {
-	if (mInCall) return Utils::getAppIcon("presenceOnThePhone");
-	return Utils::getPresenceIcon(mPresence);
+	if (isInCall()) return Utils::getAppIcon("presenceOnThePhone");
+	return Utils::getPresenceIcon(getPresence());
 }
 
 QColor FriendCore::getPresenceColor() {
-	if (mInCall) return Utils::getDefaultStyleColor("info_800_main");
-	return Utils::getPresenceColor(mPresence);
+	if (isInCall()) return Utils::getDefaultStyleColor("info_800_main");
+	return Utils::getPresenceColor(getPresence());
 }
 
 QString FriendCore::getPresenceStatus() {
-	if (mInCall) return Utils::getInCallPresenceStatus();
-	return Utils::getPresenceStatus(mPresence);
+	if (isInCall()) return Utils::getInCallPresenceStatus();
+	return Utils::getPresenceStatus(getPresence());
 }

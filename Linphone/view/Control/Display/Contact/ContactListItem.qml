@@ -12,11 +12,35 @@ import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
 FocusScope {
     id: mainItem
+    // Petite fenetre (Combiné) : photo de 45, la taille de l'onglet Appels, commune a tous ses menus (Equipe,
+    // Contacts, Appels, Messages, suggestions du clavier), et texte de 14 / 12.
+    property bool dense: false
     implicitHeight: visible ? Utils.getSizeWithScreenRatio(56) : 0
     property var searchResultItem
     property bool showInitials: true // Display Initials of Display name.
     property bool showDefaultAddress: true // Display address below display name.
     property bool showDisplayName: true // Display name above address.
+    // Onglet Equipe : numero du poste et statut sous le nom (« 1001 · Disponible »).
+    property bool showTeamStatus: false
+    // Onglet Equipe : petit telephone gris toujours visible au bout de la ligne (vert seulement quand la souris est
+    // dessus), et double-clic sur la ligne pour appeler. Un simple clic ouvre toujours la fiche.
+    property bool showCallButton: false
+    function callContact() {
+        if (mainItem.searchResultItem)
+            UtilsCpp.getMainWindow().startCallWithContact(mainItem.searchResultItem, false, mainItem, false)
+    }
+    function messageContact() {
+        if (mainItem.searchResultItem)
+            UtilsCpp.getMainWindow().sendMessageToContact(mainItem.searchResultItem, mainItem)
+    }
+    // Petite fenetre : le simple clic (choix d'action ou confirmation d'appel) attend un instant pour laisser passer un
+    // eventuel double-clic, qui appelle directement. Dans la grande fenetre, le simple clic ouvre la fiche tout de suite.
+    readonly property bool waitForDoubleClick: dense && showCallButton
+    Timer {
+        id: singleClickDelay
+        interval: 250
+        onTriggered: mainItem.clicked(undefined)
+    }
     property bool showActions: false // Display actions layout (call buttons)
     property bool showContactMenu: true // Display the dot menu for contacts.
     property string highlightText
@@ -43,6 +67,11 @@ FocusScope {
     signal clicked(var mouse)
     signal contactDeletionRequested(FriendGui contact)
     signal containsMouseChanged(bool containsMouse)
+    // Clic droit sur la ligne (ContactListView) : menu du contact. friendPopup n'est pas visible depuis la liste,
+    // d'ou cette fonction (le clic droit levait « friendPopup is not defined »).
+    function openContactMenu() {
+        if (mainItem.showContactMenu) friendPopup.open()
+    }
     Accessible.name: displayName
     Accessible.role: Accessible.ListItem
 
@@ -54,13 +83,13 @@ FocusScope {
             anchors.verticalCenter: parent.verticalCenter
             anchors.rightMargin: Utils.getSizeWithScreenRatio(15)
             verticalAlignment: Text.AlignVCenter
-            width: Utils.getSizeWithScreenRatio(20)
+            width: Utils.getSizeWithScreenRatio(mainItem.dense ? 16 : 20)
             opacity: previousInitial != mainItem.initial ? 1 : 0
             text: mainItem.initial
             textFormat: Text.RichText
             color: DefaultStyle.main2_400
             font {
-                pixelSize: Utils.getSizeWithScreenRatio(20)
+                pixelSize: Utils.getSizeWithScreenRatio(mainItem.dense ? 16 : 20)
                 weight: Utils.getSizeWithScreenRatio(500)
                 capitalization: Font.AllUppercase
             }
@@ -91,8 +120,10 @@ FocusScope {
                     text: UtilsCpp.boldTextPart(UtilsCpp.encodeEmojiToQmlRichFormat((mainItem.displayName)),
                                                 mainItem.highlightText)
                     textFormat: Text.RichText
+                    // Equipe : nom en 14 normal, comme Contacts et Appels (pas de gras).
                     font {
-                        pixelSize: mainItem.showDefaultAddress ? Typography.h4.pixelSize : Typography.p1.pixelSize
+                        pixelSize: mainItem.dense ? Utils.getSizeWithScreenRatio(14)
+                                   : mainItem.showDefaultAddress ? Typography.h4.pixelSize : Typography.p1.pixelSize
                         capitalization: mainItem.displayNameCapitalization ? Font.Capitalize : Font.MixedCase
                         weight: mainItem.showDefaultAddress ? Typography.h4.weight : Typography.p1.weight
                     }
@@ -115,6 +146,47 @@ FocusScope {
                         pixelSize: Utils.getSizeWithScreenRatio(12)
                     }
                 }
+                // Onglet Equipe : numero du poste en fin, puis le statut en demi-gras dans la couleur de sa pastille
+                // (« 1001 · Disponible » en vert, « En communication » en bleu...) : la liste se lit d'un coup d'oeil.
+                RowLayout {
+                    id: teamStatusRow
+                    Layout.topMargin: Utils.getSizeWithScreenRatio(2)
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: visible ? implicitHeight : 0
+                    visible: mainItem.showTeamStatus && !!mainItem.searchResultItem
+                    spacing: 0
+                    readonly property var core: mainItem.searchResultItem ? mainItem.searchResultItem.core : null
+                    readonly property string number: core ? UtilsCpp.getUsername(core.defaultAddress) : ""
+                    readonly property string status: core ? core.presenceStatus : ""
+                    // Couleurs lisibles sur fond blanc (le jaune de la pastille « Absent » serait trop pale).
+                    readonly property color statusColor: !core ? DefaultStyle.main2_600
+                        : core.inCall ? DefaultStyle.info_800_main
+                        : core.presence === LinphoneEnums.Presence.Online ? DefaultStyle.success_700
+                        : core.presence === LinphoneEnums.Presence.Away ? DefaultStyle.warning_700
+                        : core.presence === LinphoneEnums.Presence.Busy || core.presence === LinphoneEnums.Presence.DoNotDisturb
+                            ? DefaultStyle.danger_500_main
+                        : DefaultStyle.main2_500_main
+                    Text {
+                        text: teamStatusRow.number + (teamStatusRow.status.length > 0 ? " · " : "")
+                        color: DefaultStyle.main2_600
+                        maximumLineCount: 1
+                        font {
+                            weight: Utils.getSizeWithScreenRatio(300)
+                            pixelSize: Utils.getSizeWithScreenRatio(12)
+                        }
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: teamStatusRow.status
+                        color: teamStatusRow.statusColor
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
+                        font {
+                            weight: Font.DemiBold
+                            pixelSize: Utils.getSizeWithScreenRatio(12)
+                        }
+                    }
+                }
             }
             Item {
                 Layout.fillWidth: true
@@ -123,6 +195,7 @@ FocusScope {
                 id: actionsRow
                 z: contactArea.z + 1
                 visible: mainItem.showActions || actionButtons.visible || mainItem.showContactMenu || mainItem.multiSelectionEnabled
+                         || mainItem.showCallButton
                 spacing: visible ? Utils.getSizeWithScreenRatio(16) : 0
                 enabled: visible
                 Layout.rightMargin: Utils.getSizeWithScreenRatio(5)
@@ -198,6 +271,58 @@ FocusScope {
                         keyboardFocus: FocusHelper.keyboardFocus || FocusHelper.otherFocus
                     }
                 }
+                // Message et appel (Equipe et Contacts) : gris au repos, pastille de couleur seulement quand la souris est sur
+                // l'icone elle-meme (pas sur le reste de la ligne) : bleue pour le message, verte pour l'appel. Pas de
+                // message pour un externe (numero de telephone), qui ne peut pas en recevoir.
+                component RowActionButton: Item {
+                    id: rowAction
+                    property url iconSource
+                    property color hoverColor
+                    signal triggered()
+                    Layout.preferredWidth: Utils.getSizeWithScreenRatio(32)
+                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(32)
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: width / 2
+                        color: rowActionArea.containsMouse ? rowAction.hoverColor : "transparent"
+                    }
+                    EffectImage {
+                        anchors.centerIn: parent
+                        width: Utils.getSizeWithScreenRatio(19)
+                        height: width
+                        imageSource: rowAction.iconSource
+                        colorizationColor: rowActionArea.containsMouse ? DefaultStyle.grey_0 : DefaultStyle.main2_400
+                    }
+                    MouseArea {
+                        id: rowActionArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: rowAction.triggered()
+                    }
+                    Accessible.role: Accessible.Button
+                }
+                RowLayout {
+                    id: rowActions
+                    visible: mainItem.showCallButton
+                    spacing: Utils.getSizeWithScreenRatio(8)
+                    RowActionButton {
+                        visible: !SettingsCpp.disableChatFeature && !!mainItem.searchResultItem
+                                 && mainItem.searchResultItem.core.internalExtension
+                        iconSource: AppIcons.chatTeardropText
+                        hoverColor: DefaultStyle.main1_500_main
+                        onTriggered: mainItem.messageContact()
+                        //: "Message %1"
+                        Accessible.name: qsTr("message_with_contact_name_accessible_button").arg(mainItem.displayName)
+                    }
+                    RowActionButton {
+                        iconSource: AppIcons.phone
+                        hoverColor: DefaultStyle.success_500_main
+                        onTriggered: mainItem.callContact()
+                        //: "Call %1"
+                        Accessible.name: qsTr("call_with_contact_name_accessible_button").arg(mainItem.displayName)
+                    }
+                }
                 PopupButton {
                     id: friendPopup
                     z: contactArea.z + 1
@@ -206,67 +331,74 @@ FocusScope {
                     visible: mainItem.showContactMenu && (contactArea.containsMouse || mainItem.isLastHovered || hovered || popup.opened)
                     enabled: visible
 
-                    popup.contentItem: ColumnLayout {
-                        IconLabelButton {
-                            Layout.fillWidth: true
-                            visible: !!searchResultItem && searchResultItem.core.isStored
-                                        && !searchResultItem.core.readOnly
-                            //: "Enlever des favoris"
-                            text: searchResultItem?.core.starred ? qsTr("contact_details_remove_from_favourites")
-                                                                    //: "Ajouter aux favoris"
-                                                                : qsTr("contact_details_add_to_favourites")
-                            icon.source: searchResultItem?.core.starred ? AppIcons.heartFill : AppIcons.heart
-                            spacing: Utils.getSizeWithScreenRatio(10)
-                            textColor: DefaultStyle.main2_500_main
-                            hoveredImageColor: searchResultItem?.core.starred ? DefaultStyle.main1_700 : DefaultStyle.danger_700
-                            contentImageColor: searchResultItem?.core.starred ? DefaultStyle.danger_500_main : DefaultStyle.main2_600
-                            onClicked: {
-                                searchResultItem.core.lSetStarred(
-                                            !searchResultItem.core.starred)
-                                friendPopup.close()
+                    // Menu construit a sa premiere ouverture : une ligne de contact en construisait un d'office (3 boutons)
+                    // pour rien, ce qui alourdissait l'affichage et le defilement de la liste.
+                    popup.onAboutToShow: contactMenuLoader.active = true
+                    popup.contentItem: Loader {
+                        id: contactMenuLoader
+                        active: false
+                        sourceComponent: ColumnLayout {
+                            IconLabelButton {
+                                Layout.fillWidth: true
+                                visible: !!searchResultItem && searchResultItem.core.isStored
+                                            && !searchResultItem.core.readOnly
+                                //: "Enlever des favoris"
+                                text: searchResultItem?.core.starred ? qsTr("contact_details_remove_from_favourites")
+                                                                        //: "Ajouter aux favoris"
+                                                                    : qsTr("contact_details_add_to_favourites")
+                                icon.source: searchResultItem?.core.starred ? AppIcons.heartFill : AppIcons.heart
+                                spacing: Utils.getSizeWithScreenRatio(10)
+                                textColor: DefaultStyle.main2_500_main
+                                hoveredImageColor: searchResultItem?.core.starred ? DefaultStyle.main1_700 : DefaultStyle.danger_700
+                                contentImageColor: searchResultItem?.core.starred ? DefaultStyle.danger_500_main : DefaultStyle.main2_600
+                                onClicked: {
+                                    searchResultItem.core.lSetStarred(
+                                                !searchResultItem.core.starred)
+                                    friendPopup.close()
+                                }
+                                style: ButtonStyle.noBackground
                             }
-                            style: ButtonStyle.noBackground
-                        }
-                        IconLabelButton {
-                            text: qsTr("Partager")
-                            Layout.fillWidth: true
-                            icon.source: AppIcons.shareNetwork
-                            spacing: Utils.getSizeWithScreenRatio(10)
-                            textColor: DefaultStyle.main2_500_main
-                            onClicked: {
-                                var vcard = searchResultItem.core.getVCard()
-                                var username = searchResultItem.core.givenName
-                                        + searchResultItem.core.familyName
-                                var filepath = UtilsCpp.createVCardFile(
-                                            username, vcard)
-                                if (filepath == "")
-                                    UtilsCpp.showInformationPopup(
-                                                qsTr("information_popup_error_title"),
-                                                //: La création du fichier vcard a échoué
-                                                qsTr("information_popup_vcard_creation_error"),
-                                                false)
-                                else
-                                    //: VCard créée
-                                    mainWindow.showInformationPopup(qsTr("information_popup_vcard_creation_title"),
-                                                                    //: "VCard du contact enregistrée dans %1"
-                                                                    qsTr("information_popup_vcard_creation_success").arg(filepath))
-                                //: Partage de contact
-                                UtilsCpp.shareByEmail(qsTr("contact_sharing_email_title"),vcard, filepath)
+                            IconLabelButton {
+                                text: qsTr("Partager")
+                                Layout.fillWidth: true
+                                icon.source: AppIcons.shareNetwork
+                                spacing: Utils.getSizeWithScreenRatio(10)
+                                textColor: DefaultStyle.main2_500_main
+                                onClicked: {
+                                    var vcard = searchResultItem.core.getVCard()
+                                    var username = searchResultItem.core.givenName
+                                            + searchResultItem.core.familyName
+                                    var filepath = UtilsCpp.createVCardFile(
+                                                username, vcard)
+                                    if (filepath == "")
+                                        UtilsCpp.showInformationPopup(
+                                                    qsTr("information_popup_error_title"),
+                                                    //: La création du fichier vcard a échoué
+                                                    qsTr("information_popup_vcard_creation_error"),
+                                                    false)
+                                    else
+                                        //: VCard créée
+                                        mainWindow.showInformationPopup(qsTr("information_popup_vcard_creation_title"),
+                                                                        //: "VCard du contact enregistrée dans %1"
+                                                                        qsTr("information_popup_vcard_creation_success").arg(filepath))
+                                    //: Partage de contact
+                                    UtilsCpp.shareByEmail(qsTr("contact_sharing_email_title"),vcard, filepath)
+                                }
+                                style: ButtonStyle.noBackground
                             }
-                            style: ButtonStyle.noBackground
-                        }
-                        IconLabelButton {
-                            //: "Supprimer"
-                            text: qsTr("contact_details_delete")
-                            icon.source: AppIcons.trashCan
-                            spacing: Utils.getSizeWithScreenRatio(10)
-                            visible: !!searchResultItem && searchResultItem.core.isStored && !searchResultItem.core.readOnly
-                            Layout.fillWidth: true
-                            onClicked: {
-                                mainItem.contactDeletionRequested(searchResultItem)
-                                friendPopup.close()
+                            IconLabelButton {
+                                //: "Supprimer"
+                                text: qsTr("contact_details_delete")
+                                icon.source: AppIcons.trashCan
+                                spacing: Utils.getSizeWithScreenRatio(10)
+                                visible: !!searchResultItem && searchResultItem.core.isStored && !searchResultItem.core.readOnly
+                                Layout.fillWidth: true
+                                onClicked: {
+                                    mainItem.contactDeletionRequested(searchResultItem)
+                                    friendPopup.close()
+                                }
+                                style: ButtonStyle.noBackgroundRed
                             }
-                            style: ButtonStyle.noBackgroundRed
                         }
                     }
                 }
@@ -303,8 +435,18 @@ FocusScope {
             if (mouse && mouse.button == Qt.RightButton
                 && mainItem.showContactMenu) {
                 if (friendPopup) friendPopup.open()
+            } else if (mainItem.waitForDoubleClick && mouse) {
+                singleClickDelay.restart()
             } else {
                 mainItem.clicked(mouse)
+            }
+        }
+        // Double-clic sur la ligne = appel direct (grande fenetre : le premier clic a deja ouvert la fiche ; petite
+        // fenetre : le simple clic en attente est annule).
+        onDoubleClicked: mouse => {
+            if (mainItem.showCallButton && (!mouse || mouse.button === Qt.LeftButton)) {
+                singleClickDelay.stop()
+                mainItem.callContact()
             }
         }
     }

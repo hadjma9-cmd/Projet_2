@@ -372,6 +372,37 @@ void Notifier::notifyReceivedCall(const shared_ptr<linphone::Call> &call) {
 	});
 }
 
+void Notifier::notifyMissedCall(const std::shared_ptr<linphone::CallLog> &callLog) {
+	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
+#ifdef Q_OS_WIN
+	if (!callLog || callLog->getDir() != linphone::Call::Dir::Incoming ||
+	    callLog->getStatus() != linphone::Call::Status::Missed)
+		return;
+	auto callId = Utils::coreStringToAppString(callLog->getCallId());
+	if (mNotifiedMissedCalls.contains(callId)) return;
+	mNotifiedMissedCalls.insert(callId);
+	auto remoteAddress = callLog->getRemoteAddress();
+	if (!remoteAddress) return;
+	auto displayName = ToolModel::getDisplayName(remoteAddress);
+	auto number = Utils::coreStringToAppString(remoteAddress->getUsername());
+	auto uri = Utils::coreStringToAppString(remoteAddress->asStringUriOnly());
+	App::postCoreAsync([this, displayName, number, uri]() {
+		mustBeInMainThread(getClassName());
+		// « Ne pas deranger » : pas de notification, comme pour l'appel entrant.
+		auto settings = App::getInstance()->getSettings();
+		if (settings && settings->dndEnabled()) return;
+		lInfo() << log().arg("Display missed call notification");
+		QVariantMap map;
+		map["displayName"].setValue(displayName);
+		map["number"].setValue(number);
+		map["remoteAddress"].setValue(uri);
+		createNotification(AbstractNotificationBackend::MissedCall, map);
+	});
+#else
+	Q_UNUSED(callLog)
+#endif
+}
+
 void Notifier::notifyReceivedMessages(const std::shared_ptr<linphone::ChatRoom> &room,
                                       const list<shared_ptr<linphone::ChatMessage>> &messages) {
 	mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));

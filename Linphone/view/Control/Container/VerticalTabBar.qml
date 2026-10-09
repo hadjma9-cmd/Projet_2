@@ -18,8 +18,13 @@ Control.TabBar {
 	property AccountGui defaultAccount
 
 	property int visibleCount: 0
+	// Entree dessinee comme selectionnee (icone pleine, texte en gras). Par defaut l'onglet courant ; peut
+	// designer une action qui affiche une partie de cet onglet (Clavier dans la page Appels).
+	property int highlightedIndex: currentIndex
 
 	signal enterPressed()
+	// Clic sur un onglet (pas une action), meme s'il etait deja l'onglet courant.
+	signal tabClicked(int index)
 	signal spacePressed()
 	
 	// Call it after model is ready. If done before, Repeater will not be updated
@@ -29,7 +34,7 @@ Control.TabBar {
 	function updateVisibleCount() {
 		mainItem.visibleCount = 0
 		contentChildren.forEach(child => {
-			if (child.visible) mainItem.visibleCount = mainItem.visibleCount + 1
+			if (child.shown !== undefined ? child.shown : child.visible) mainItem.visibleCount = mainItem.visibleCount + 1
 		})
 	}
 	
@@ -84,17 +89,25 @@ Control.TabBar {
 		Control.TabButton {
 			id: tabButton
 			width: mainItem.width
+			// Choix du modele, et non la visibilite effective : la barre masquee avec la grande fenetre (petite
+			// fenetre) mettait toutes les entrees a hauteur 0, et elles restaient empilees au retour.
+			readonly property bool shown: modelData?.isVisible ? modelData.isVisible()
+				: modelData?.visible != undefined ? modelData.visible : true
 			Binding on height {
-				when: !tabButton.visible
+				when: !tabButton.shown
 				value: 0
 			}
     		anchors.topMargin: index === 0 ? Utils.getSizeWithScreenRatio(36) : 0
             bottomInset:  Utils.getSizeWithScreenRatio(32)
             topInset:  Utils.getSizeWithScreenRatio(32)
+			// Meme hauteur pour toutes les entrees, quel que soit leur libelle (une ou deux lignes) ou le survol : les
+			// icones sont parfaitement regulieres. Un libelle de deux lignes deborde simplement vers le bas.
+			implicitHeight: Utils.getSizeWithScreenRatio(64)
+			topPadding: 0
+			bottomPadding: 0
 			hoverEnabled: true
-			visible: modelData?.isVisible ? modelData.isVisible()
-				: modelData?.visible != undefined ? modelData.visible : true
-			onVisibleChanged: mainItem.updateVisibleCount()
+			visible: shown
+			onShownChanged: mainItem.updateVisibleCount()
 			text: modelData.accessibilityLabel
 			property bool keyboardFocus: FocusHelper.keyboardFocus
 			focusPolicy: Qt.StrongFocus
@@ -103,14 +116,15 @@ Control.TabBar {
 			// memes dimensions qu'un onglet, pour un espacement identique, mais elle s'execute au clic
 			// sans devenir l'onglet courant.
 			checkable: !modelData?.action
+			// Pastilles des pages Appels (0) et Messages (2), reperees par leur cle « page » et non par leur place.
 			UnreadNotification {
 				badgeType: modelData.label
 				unread: modelData?.unread ? modelData.unread()
 				: !defaultAccount
 				? -1
-				: index === 0 
+				: modelData?.page === 0
 					? defaultAccount.core?.unreadCallNotifications || -1
-					: index === 2 
+					: modelData?.page === 2
 						? defaultAccount.core?.unreadMessageNotifications || -1
 						: 0
 				anchors.right: parent.right
@@ -143,17 +157,24 @@ Control.TabBar {
 				radius: Utils.getSizeWithScreenRatio(5)
 				anchors.fill: tabButton
 			}
-			contentItem: ColumnLayout {
+			// Icone a la meme hauteur dans chaque entree (bloc icone + une ligne de libelle centre), libelle juste dessous,
+			// a ecart fixe. Positions fixes plutot qu'une mise en page : un libelle de deux lignes ou le survol ne
+			// deplacent plus rien.
+			contentItem: Item {
+				readonly property real labelGap: Utils.getSizeWithScreenRatio(4)
 				EffectImage {
 					id: buttonIcon
-					property real buttonSize: Utils.getSizeWithScreenRatio(mainItem.currentIndex !== index && tabButton.hovered ? 26 : 24)
-					imageSource: mainItem.currentIndex === index ? modelData.selectedIcon : modelData.icon
-					Layout.preferredWidth: buttonSize
-					Layout.preferredHeight: buttonSize
+					// Cadre fixe ; au survol, seul le dessin grossit (26 au lieu de 24), centre dans ce cadre.
+					readonly property real buttonSize: Utils.getSizeWithScreenRatio(24)
+					readonly property real drawnSize: Utils.getSizeWithScreenRatio(mainItem.highlightedIndex !== index && tabButton.hovered ? 26 : 24)
+					width: buttonSize
+					height: buttonSize
+					anchors.horizontalCenter: parent.horizontalCenter
+					y: Math.round((parent.height - buttonSize - parent.labelGap - txtMeter.height) / 2)
+					imageSource: mainItem.highlightedIndex === index ? modelData.selectedIcon : modelData.icon
 					// Dessin agrandi dans le meme cadre (iconScale) : l'espacement des entrees ne change pas.
-					imageWidth: Math.round(buttonSize * (modelData?.iconScale || 1))
-					imageHeight: Math.round(buttonSize * (modelData?.iconScale || 1))
-					Layout.alignment: Qt.AlignHCenter
+					imageWidth: Math.round(drawnSize * (modelData?.iconScale || 1))
+					imageHeight: Math.round(drawnSize * (modelData?.iconScale || 1))
 					fillMode: Image.PreserveAspectFit
 					colorizationColor: DefaultStyle.grey_0
 					useColor: !modelData.colored
@@ -161,10 +182,16 @@ Control.TabBar {
 				}
 				Text {
 					id: buttonText
-					text: modelData.label
+					// Libelle trop long pour une ligne (mesure en gras, sa largeur maximale) : sur deux lignes, coupe
+					// au premier espace (« Boîte / vocale »), au lieu de points de suspension. La coupure ne depend
+					// pas de la graisse : l'entree ne change pas de hauteur au survol ni a la selection.
+					readonly property bool twoLines: modelData.label.indexOf(" ") > 0
+						&& txtMeter.advanceWidth > width - leftPadding - rightPadding
+					text: twoLines ? modelData.label.replace(" ", "\n") : modelData.label
+					maximumLineCount: twoLines ? 2 : 1
 					visible: false
 					font {
-						weight: mainItem.currentIndex === index
+						weight: mainItem.highlightedIndex === index
 							? Utils.getSizeWithScreenRatio(800)
 							: tabButton.hovered
 								? Utils.getSizeWithScreenRatio(600)
@@ -172,9 +199,11 @@ Control.TabBar {
 						pixelSize: Utils.getSizeWithScreenRatio(11)
 					}
 					color: DefaultStyle.grey_0
-					Layout.fillWidth: true
-					Layout.preferredHeight: txtMeter.height
-					Layout.alignment: Qt.AlignHCenter
+					anchors.top: buttonIcon.bottom
+					anchors.topMargin: parent.labelGap
+					anchors.left: parent.left
+					anchors.right: parent.right
+					height: twoLines ? 2 * txtMeter.height : txtMeter.height
 					horizontalAlignment: Text.AlignHCenter
 					leftPadding: Utils.getSizeWithScreenRatio(3)
 					rightPadding: Utils.getSizeWithScreenRatio(3)
@@ -211,10 +240,12 @@ Control.TabBar {
 				}
 			}
 			onClicked: {
-				if (modelData?.action)
+				if (modelData?.action) {
 					modelData.action()
-				else
+				} else {
 					mainItem.setCurrentIndex(TabBar.index)
+					mainItem.tabClicked(TabBar.index)
+				}
 			}
 		}
 	}

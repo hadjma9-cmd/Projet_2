@@ -48,7 +48,7 @@ AbstractWindow {
 	readonly property int compactWidth: 414
 	readonly property int compactHeight: 632
 	// Seulement une fois connecte : les pages de connexion restent dans la grande fenetre.
-	readonly property bool compact: AppCpp.compactMode && compactLoader.active
+	readonly property bool compact: compactLoader.wanted
 	property rect normalGeometry: Qt.rect(0, 0, 0, 0)
 	property bool normalWasMaximized: false
 	Settings {
@@ -71,13 +71,14 @@ AbstractWindow {
 			mainWindow.height = mainWindow.compactHeight
 			mainWindow.minimumWidth = mainWindow.compactWidth
 			mainWindow.minimumHeight = mainWindow.compactHeight
-			// Premiere fois : en bas a droite de l'ecran, pres de l'horloge ; ensuite la ou on l'a laissee.
-			if (compactPosition.x > -1000000) {
+			// Premiere fois : en bas a droite de l'ecran, pres de l'horloge ; ensuite la ou on l'a laissee, si cette
+			// place est encore sur un ecran (sinon, apres le debranchement d'un ecran, elle s'ouvrirait hors de vue).
+			if (compactPosition.x > -1000000 && isOnScreen(compactPosition.x, compactPosition.y)) {
 				mainWindow.x = compactPosition.x
 				mainWindow.y = compactPosition.y
 			} else {
-				mainWindow.x = Screen.virtualX + Screen.desktopAvailableWidth - mainWindow.compactWidth - 16
-				mainWindow.y = Screen.virtualY + Screen.desktopAvailableHeight - mainWindow.compactHeight - 48
+				mainWindow.x = Screen.virtualX + Screen.width - mainWindow.compactWidth - 16
+				mainWindow.y = Screen.virtualY + Screen.height - mainWindow.compactHeight - 96
 			}
 		} else {
 			if (mainWindow.width === mainWindow.compactWidth && mainWindow.height === mainWindow.compactHeight) {
@@ -96,6 +97,17 @@ AbstractWindow {
 			}
 			if (mainWindow.normalWasMaximized) mainWindow.showMaximized()
 		}
+	}
+	// Barre du haut d'une fenetre placee en (px, py) au moins en partie sur un ecran : on peut la saisir.
+	function isOnScreen(px, py) {
+		var screens = Qt.application.screens
+		for (var i = 0; i < screens.length; ++i) {
+			var s = screens[i]
+			if (px + mainWindow.compactWidth > s.virtualX + 40 && px < s.virtualX + s.width - 40
+				&& py >= s.virtualY && py < s.virtualY + s.height - 40)
+				return true
+		}
+		return false
 	}
 	// Position de la petite fenetre gardee pour la prochaine fois.
 	onXChanged: if (mainWindow.compact) compactPosition.x = mainWindow.x
@@ -119,6 +131,10 @@ AbstractWindow {
 		openMainPage()
 		mainStackViewLoader.item.currentItem.goToCallHistory()
 	}
+	function goToCallHistoryFor(text) {
+		openMainPage()
+		mainStackViewLoader.item.currentItem.goToCallHistoryFor(text)
+	}
 	function goToNewCall() {
 		openMainPage()
 		mainStackViewLoader.item.currentItem.goToNewCall()
@@ -132,6 +148,11 @@ AbstractWindow {
 		mainStackViewLoader.item?.currentItem.createContact(name, contactAddress)
 	}
 	function displayChatPage(contactAddress) {
+		// Petite fenetre : la conversation s'ouvre dans son onglet Messages, sans repasser en grand.
+		if (mainWindow.compact && compactLoader.item) {
+			compactLoader.item.messageAddress(contactAddress)
+			return
+		}
 		openMainPage()
 		mainStackViewLoader.item?.currentItem.displayChatPage(contactAddress)
 	}
@@ -238,7 +259,7 @@ AbstractWindow {
 		active: AppCpp.coreStarted
 		anchors.fill: parent
 		// Masquee (gardee en memoire) pendant la petite fenetre : retour instantane a la grande.
-		visible: !compactLoader.active
+		visible: !compactLoader.wanted
 		sourceComponent: mainStackViewComp
 	}
 
@@ -246,8 +267,18 @@ AbstractWindow {
 	Loader {
 		id: compactLoader
 		anchors.fill: parent
-		active: AppCpp.compactMode && !!mainStackViewLoader.item && !!mainStackViewLoader.item.currentItem
+		readonly property bool onMainPage: !!mainStackViewLoader.item && !!mainStackViewLoader.item.currentItem
 			&& mainStackViewLoader.item.currentItem.objectName === "mainPage"
+		// Petite fenetre affichee.
+		readonly property bool wanted: AppCpp.compactMode && onMainPage
+		// Une fois construite, elle est gardee (masquee) pendant la grande fenetre, comme la grande l'est pendant
+		// la petite : chaque passage en Combiné la reconstruisait, pages et listes comprises. Liberee si l'on quitte
+		// la page principale (deconnexion).
+		property bool kept: false
+		onWantedChanged: if (wanted) kept = true
+		onOnMainPageChanged: if (!onMainPage) kept = false
+		active: onMainPage && (wanted || kept)
+		visible: wanted
 		sourceComponent: CompactLayout {
 			onOpenSettingsRequested: {
 				AppCpp.compactMode = false

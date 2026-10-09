@@ -177,12 +177,16 @@ ColumnLayout {
             //: "Appel"
             label: qsTr("contact_call_action")
 			button.onClicked: {
+				// Onglet Appels : confirmation, comme le bouton de chaque ligne de l'historique.
 				if (mainItem.specificAddress === "") mainWindow.startCallWithContact(mainItem.contact, false, mainItem)
-				else UtilsCpp.createCall(mainItem.specificAddress)
+				else mainWindow.confirmCall(mainItem.contact ? mainItem.contact.core.fullName : "", mainItem.specificAddress, false)
 			}
 		}
 		LabelButton {
+			// Messages seulement avec un poste interne (1 a 5 chiffres) : un numero externe ne peut pas en recevoir.
 			visible: !SettingsCpp.disableChatFeature
+				&& /^[0-9]{1,5}$/.test(UtilsCpp.getUsername(mainItem.specificAddress !== ""
+					? mainItem.specificAddress : (mainItem.contact ? mainItem.contact.core.defaultAddress : "")))
             width: Utils.getSizeWithScreenRatio(56)
             height: Utils.getSizeWithScreenRatio(56)
             button.icon.width: Utils.getSizeWithScreenRatio(24)
@@ -212,7 +216,7 @@ ColumnLayout {
             label: qsTr("contact_video_call_action")
             button.onClicked: {
                 if (mainItem.specificAddress === "") mainWindow.startCallWithContact(mainItem.contact, true, mainItem)
-                else UtilsCpp.createCall(mainItem.specificAddress, {'localVideoEnabled': true})
+                else mainWindow.confirmCall(mainItem.contact ? mainItem.contact.core.fullName : "", mainItem.specificAddress, true)
             }
         }
 	}

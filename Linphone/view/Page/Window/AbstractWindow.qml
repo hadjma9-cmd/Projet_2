@@ -172,7 +172,9 @@ ApplicationWindow {
         }
     }
 
-    function startCallWithContact(contact, videoEnabled, parentItem) {
+    // Regle : un bouton telephone appelle directement (confirm = false) ; un clic sur une ligne de liste qui lance
+    // l'appel demande confirmation (par defaut), une erreur y etant vite arrivee.
+    function startCallWithContact(contact, videoEnabled, parentItem, confirm) {
         if (parentItem == undefined) parentItem = mainWindow.contentItem
         if (contact) {
             console.log("START CALL WITH", contact.core.fullName, "addresses count", contact.core.allAddresses.length)
@@ -192,7 +194,9 @@ ApplicationWindow {
                         ? ""
                         : contact.core.phoneNumbers[0].address
                     : contact.core.defaultAddress
-                if (addressToCall.length != 0) confirmCallWithContact(contact, addressToCall, videoEnabled)
+                if (addressToCall.length == 0) return
+                if (confirm === false) UtilsCpp.createCall(addressToCall, {'localVideoEnabled': videoEnabled})
+                else confirmCallWithContact(contact, addressToCall, videoEnabled)
             }
         }
     }
@@ -201,12 +205,16 @@ ApplicationWindow {
     // (878) ? ». Quand le contact a plusieurs adresses, le choix de l'adresse fait deja office de
     // confirmation : on n'en demande pas une seconde.
     function confirmCallWithContact(contact, address, videoEnabled) {
+        confirmCall(contact ? contact.core.fullName : "", address, videoEnabled)
+    }
+    // Meme confirmation a partir d'un nom et d'une adresse, sans contact (historique des appels : numero inconnu).
+    function confirmCall(name, address, videoEnabled) {
         var username = UtilsCpp.getUsername(address)
         // Meme regle que la fiche contact (ContactPage.isExtension) : 1 a 5 chiffres = un poste,
         // affiche seul ; sinon l'adresse complete, sauf si les adresses SIP sont masquees.
         var number = (/^[0-9]{1,5}$/.test(username) || SettingsCpp.hideSipAddresses) ? username : address
         // Le nom d'abord, le numero entre parentheses.
-        var name = contact.core.fullName
+        name = name || ""
         var target = (name.length !== 0 && name !== username) ? name + " (" + number + ")" : number
         var question = videoEnabled
             //: "Souhaitez-vous lancer un appel vidéo avec %1 ?"

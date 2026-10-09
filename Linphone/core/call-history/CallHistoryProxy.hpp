@@ -31,8 +31,13 @@
 
 class CallHistoryProxy : public LimitProxy, public AbstractObject {
 	Q_OBJECT
+	// Filtre de l'onglet Appels : tous, manques, entrants (decroches) ou sortants.
+	Q_PROPERTY(int callFilter READ getCallFilter WRITE setCallFilter NOTIFY callFilterChanged)
 public:
-	DECLARE_SORTFILTER_CLASS()
+	enum class CallFilter { All = 0, Missed = 1, Incoming = 2, Outgoing = 3 };
+	Q_ENUM(CallFilter)
+
+	DECLARE_SORTFILTER_CLASS(int mCallFilter = 0;)
 
 	CallHistoryProxy(QObject *parent = Q_NULLPTR);
 	~CallHistoryProxy();
@@ -41,8 +46,12 @@ public:
 	Q_INVOKABLE void removeEntriesWithFilter(QString filter);
 	Q_INVOKABLE void reload();
 
+	int getCallFilter() const;
+	void setCallFilter(int filter);
+
 signals:
 	void listAboutToBeReset();
+	void callFilterChanged();
 
 protected:
 	QSharedPointer<CallHistoryList> mHistoryList;

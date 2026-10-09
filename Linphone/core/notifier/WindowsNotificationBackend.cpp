@@ -12,6 +12,7 @@
 
 #include <QDebug>
 #include <QPointer>
+#include <QQuickWindow>
 
 #include <atomic>
 #include <memory>
@@ -276,7 +277,9 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 			                         if (arg.compare("accept") == 0) {
 				                         if (call) {
 					                         qDebug() << "Accept call";
-					                         handedToWindow->store(true);
+					                         // Petite fenetre : pas de fenetre d'appel, `call` reste a la notification
+					                         // qui le libere (sinon il n'etait jamais libere, avec l'appel du SDK).
+					                         handedToWindow->store(!App::getInstance()->getCompactMode());
 					                         Utils::openCallsWindow(call);
 					                         call->mCore->lAccept(false);
 				                         }
@@ -287,13 +290,109 @@ void NotificationBackend::sendCallNotification(QVariantMap data) {
 				                         }
 			                         } else if (arg.isEmpty()) {
 				                         if (call) {
-					                         handedToWindow->store(true);
+					                         handedToWindow->store(!App::getInstance()->getCompactMode());
 					                         Utils::openCallsWindow(call);
 				                         }
 			                         }
 
 			                         WindowsDeleteString(argumentsHString);
 		                         }
+		                         return S_OK;
+	                         })
+	                         .Get(),
+	                     &token);
+
+	hr = notifier->Show(toast);
+	if (FAILED(hr)) {
+		lWarning() << "Toast Show failed:" << Qt::hex << hr;
+	}
+
+	toast->Release();
+	doc->Release();
+	notifier->Release();
+}
+
+void NotificationBackend::sendMissedCallNotification(QVariantMap data) {
+	IToastNotifier *notifier = nullptr;
+	HRESULT hr = DesktopNotificationManagerCompat::CreateToastNotifier(&notifier);
+	if (FAILED(hr) || !notifier) {
+		lWarning() << "CreateToastNotifier failed:" << Qt::hex << hr;
+		return;
+	}
+
+	auto displayName = xmlEscaped(data["displayName"].toString());
+	auto number = xmlEscaped(data["number"].toString());
+	const QString remoteAddress = data["remoteAddress"].toString();
+	auto appIcon = xmlEscaped(Utils::getIconAsPng(Utils::getAppIcon("logo").toString()));
+	auto callBackIcon = xmlEscaped(Utils::getIconAsPng(Utils::getAppIcon("phone").toString()));
+
+	// Bouton « Rappeler » ; un clic sur la notification elle-meme ouvre l'historique des appels.
+	std::wstring xml = L"<toast>"
+	                   L"    <visual>"
+	                   L"        <binding template=\"ToastGeneric\">"
+	                   L"            <image src=\"file:///" +
+	                   appIcon +
+	                   L"\" placement=\"appLogoOverride\"/>"
+	                   L"            <text hint-style=\"header\">" +
+	                   displayName +
+	                   L"</text>"
+	                   L"            <text hint-style=\"base\">" +
+	                   number +
+	                   L"</text>"
+	                   L"            <text hint-style=\"body\">Appel manqué</text>"
+	                   L"        </binding>"
+	                   L"    </visual>"
+	                   L"    <actions>"
+	                   L"        <action content=\"Rappeler\" arguments=\"callback\" imageUri=\"" +
+	                   callBackIcon +
+	                   L"\"/>"
+	                   L"    </actions>"
+	                   L"    <audio silent=\"true\"/>"
+	                   L"</toast>";
+
+	ABI::Windows::Data::Xml::Dom::IXmlDocument *doc = nullptr;
+	hr = DesktopNotificationManagerCompat::CreateXmlDocumentFromString(xml.c_str(), &doc);
+	if (FAILED(hr) || !doc) {
+		lWarning() << "CreateXmlDocumentFromString failed:" << Qt::hex << hr;
+		notifier->Release();
+		return;
+	}
+
+	IToastNotification *toast = nullptr;
+	hr = DesktopNotificationManagerCompat::CreateToastNotification(doc, &toast);
+	if (FAILED(hr) || !toast) {
+		lWarning() << "CreateToastNotification failed:" << Qt::hex << hr;
+		doc->Release();
+		notifier->Release();
+		return;
+	}
+
+	EventRegistrationToken token;
+	toast->add_Activated(Microsoft::WRL::Callback<ITypedEventHandler<ToastNotification *, IInspectable *>>(
+	                         [remoteAddress](IToastNotification *sender, IInspectable *args) -> HRESULT {
+		                         QString arg;
+		                         Microsoft::WRL::ComPtr<IToastActivatedEventArgs> activatedArgs;
+		                         if (SUCCEEDED(args->QueryInterface(IID_PPV_ARGS(&activatedArgs)))) {
+			                         HSTRING argumentsHString;
+			                         activatedArgs->get_Arguments(&argumentsHString);
+			                         UINT32 length;
+			                         const wchar_t *rawStr = WindowsGetStringRawBuffer(argumentsHString, &length);
+			                         arg = QString::fromStdWString(std::wstring(rawStr, length));
+			                         WindowsDeleteString(argumentsHString);
+		                         }
+		                         qInfo() << "Missed call toast activated with args:" << arg;
+		                         // Rappel de Windows hors du fil de l'interface : l'action y est renvoyee.
+		                         QMetaObject::invokeMethod(
+		                             App::getInstance(),
+		                             [remoteAddress, arg]() {
+			                             if (arg.compare("callback") == 0) {
+				                             Utils::createCall(remoteAddress);
+			                             } else if (auto mainWindow = Utils::getMainWindow()) {
+				                             Utils::smartShowWindow(mainWindow);
+				                             QMetaObject::invokeMethod(mainWindow, "goToCallHistory");
+			                             }
+		                             },
+		                             Qt::QueuedConnection);
 		                         return S_OK;
 	                         })
 	                         .Get(),
@@ -320,6 +419,9 @@ void NotificationBackend::sendNotification(NotificationType type, QVariantMap da
 			break;
 		case NotificationType::ReceivedMessage:
 			sendMessageNotification(data);
+			break;
+		case NotificationType::MissedCall:
+			sendMissedCallNotification(data);
 			break;
 	}
 }

@@ -63,12 +63,17 @@ class FriendCore : public QObject, public AbstractObject {
 	Q_PROPERTY(QString defaultAddress READ getDefaultAddress WRITE setDefaultAddress NOTIFY defaultAddressChanged)
 	Q_PROPERTY(QString defaultFullAddress READ getDefaultFullAddress WRITE setDefaultFullAddress NOTIFY
 	               defaultFullAddressChanged)
-	Q_PROPERTY(LinphoneEnums::Presence presence MEMBER mPresence NOTIFY presenceChanged)
+	// Statut (presence, pastille, texte, note, « en communication ») reserve aux postes internes
+	// (isInternalExtension) : aucun pour un correspondant sans compte VoIP (numero de telephone).
+	Q_PROPERTY(LinphoneEnums::Presence presence READ getPresence NOTIFY presenceChanged)
 	Q_PROPERTY(QUrl presenceIcon READ getPresenceIcon NOTIFY presenceChanged)
 	Q_PROPERTY(QColor presenceColor READ getPresenceColor NOTIFY presenceChanged)
 	Q_PROPERTY(QString presenceStatus READ getPresenceStatus NOTIFY presenceChanged)
-	Q_PROPERTY(QString presenceNote MEMBER mPresenceNote NOTIFY presenceChanged)
-	Q_PROPERTY(bool inCall MEMBER mInCall NOTIFY presenceChanged)
+	Q_PROPERTY(QString presenceNote READ getPresenceNote NOTIFY presenceChanged)
+	Q_PROPERTY(bool inCall READ isInCall NOTIFY presenceChanged)
+	// Poste interne (1 a 5 chiffres) : statut, abonnement et messagerie. Un externe (numero de telephone) n'a ni
+	// statut ni messages. Recalcule quand les adresses changent (elles emettent presenceChanged).
+	Q_PROPERTY(bool internalExtension READ isInternalExtension NOTIFY presenceChanged)
 	Q_PROPERTY(bool isSaved READ getIsSaved NOTIFY isSavedChanged)
 	Q_PROPERTY(bool isStored READ getIsStored NOTIFY isStoredChanged)
 	Q_PROPERTY(QString pictureUri READ getPictureUri WRITE setPictureUri NOTIFY pictureUriChanged)
@@ -157,6 +162,10 @@ public:
 	QColor getPresenceColor();
 	QString getPresenceStatus();
 	QUrl getPresenceIcon();
+	LinphoneEnums::Presence getPresence() const;
+	QString getPresenceNote() const;
+	bool isInCall() const;
+	bool isInternalExtension() const;
 
 protected:
 	void resetPhoneNumbers(QList<QVariant> newList);

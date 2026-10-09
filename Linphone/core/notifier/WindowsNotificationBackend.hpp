@@ -22,6 +22,7 @@ public:
 
 	void sendCallNotification(QVariantMap data);
 	void sendMessageNotification(QVariantMap data);
+	void sendMissedCallNotification(QVariantMap data);
 	// void sendMessageNotification(QVariantMap data);
 
 	void sendNotification(NotificationType type, QVariantMap data) override;

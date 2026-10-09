@@ -85,6 +85,12 @@ public:
 
 	static bool friendIsInFriendList(const std::shared_ptr<linphone::FriendList> &friendList,
 	                                 const std::shared_ptr<linphone::Friend> &f);
+	// Poste interne : une adresse SIP dont le nom d'utilisateur fait 1 a 5 chiffres (meme regle que
+	// FriendCore::isInternalExtension). Seuls les postes internes ont une presence.
+	static bool isInternalExtension(const std::shared_ptr<linphone::Friend> &contact);
+	// Abonnement de presence reserve aux postes internes : coupe pour les autres (numeros de telephone,
+	// adresses externes), qui n'ont pas de statut. Renvoie vrai si le reglage du contact a change.
+	static bool applyPresenceSubscriptionRule(const std::shared_ptr<linphone::Friend> &contact);
 
 	static QString getMessageFromContent(std::list<std::shared_ptr<linphone::Content>> contents);
 	static QString getMessageFromContent(std::shared_ptr<linphone::Content> content);

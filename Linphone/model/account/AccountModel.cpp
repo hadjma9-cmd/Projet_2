@@ -105,11 +105,19 @@ void AccountModel::refreshPresenceSubscriptions() {
 	// Recree uniquement les abonnements morts. L'ancienne version desactivait puis reactivait
 	// des listes entieres : tous les contacts etaient desabonnes (SUBSCRIBE Expires: 0) a chaque
 	// passage et a chaque reenregistrement, sans reabonnement fiable derriere.
-	int alive = 0, restarted = 0;
+	int alive = 0, restarted = 0, stopped = 0;
 	for (auto &friendList : CoreModel::getInstance()->getCore()->getFriendsLists()) {
 		if (!friendList->subscriptionsEnabled()) continue;
 		for (auto &contact : friendList->getFriends()) {
-			if (!contact->getAddress() || !contact->subscribesEnabled()) continue;
+			if (!contact->getAddress()) continue;
+			// Presence reservee aux postes internes : abonnement coupe pour les autres (contacts deja
+			// enregistres, ou venus de l'annuaire et des listes du serveur).
+			if (ToolModel::applyPresenceSubscriptionRule(contact)) {
+				if (contact->subscribesEnabled()) ++restarted;
+				else ++stopped;
+				continue;
+			}
+			if (!contact->subscribesEnabled()) continue;
 			switch (contact->getSubscriptionState()) {
 				case linphone::SubscriptionState::Active:
 				case linphone::SubscriptionState::OutgoingProgress:
@@ -131,7 +139,11 @@ void AccountModel::refreshPresenceSubscriptions() {
 			++restarted;
 		}
 	}
-	lInfo() << sLog().arg("Presence subscriptions checked: %1 alive, %2 restarted").arg(alive).arg(restarted);
+	lInfo() << sLog()
+	               .arg("Presence subscriptions checked: %1 alive, %2 restarted, %3 stopped (not an extension)")
+	               .arg(alive)
+	               .arg(restarted)
+	               .arg(stopped);
 }
 
 void AccountModel::onConferenceInformationUpdated(const std::shared_ptr<linphone::Account> &account,
@@ -419,6 +431,7 @@ void AccountModel::setOutboundProxyUri(QString value) {
 	} else {
 		auto params = mMonitor->getParams()->clone();
 		params->setRoutesAddresses({linOutboundProxyAddress});
+		mMonitor->setParams(params); // Manquait : le reglage etait prepare puis jamais applique.
 		emit outboundProxyUriChanged(value);
 	}
 }

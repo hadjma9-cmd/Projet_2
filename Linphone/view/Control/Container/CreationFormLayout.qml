@@ -22,6 +22,20 @@ FocusScope {
     property alias topContent: topLayout.data
     property bool topLayoutVisible: topLayout.children.length > 0
     property int searchBarRightMaring: Utils.getSizeWithScreenRatio(39)
+    // Liste des collegues seule (teamMode : onglet Equipe de la petite fenetre), ou section Equipe en tete
+    // (showTeam), avant les favoris et contacts externes.
+    property bool teamMode: false
+    property bool showTeam: true
+    // Relecture automatique tant que la liste est affichee (onglets de la petite fenetre).
+    property bool autoRefresh: false
+    // Petite fenetre : recherche de 36 (au lieu de 50) et lignes resserrees, titres de section plus petits.
+    property bool dense: false
+    // Message et telephone au bout des lignes, double-clic pour appeler (Equipe et Contacts de la petite fenetre).
+    property bool showCallButton: false
+    // Relit la liste (annuaire compris) sans changer la recherche.
+    function refreshContacts() {
+        contactList.refresh()
+    }
 
 	// Formulaire garde d'une ouverture a l'autre (page « Nouvel appel ») : sans recherche, sans
 	// selection et en haut de la liste, comme un formulaire neuf.
@@ -42,17 +56,18 @@ FocusScope {
 
         ColumnLayout {
             onVisibleChanged: if (!visible && mainItem.numPadPopup) mainItem.numPadPopup.close()
-            spacing: Utils.getSizeWithScreenRatio(38)
+            spacing: Utils.getSizeWithScreenRatio(mainItem.dense ? 16 : 38)
             SearchBar {
                 id: searchBar
                 Layout.alignment: Qt.AlignTop
                 Layout.fillWidth: true
+                Layout.preferredHeight: mainItem.dense ? Utils.getSizeWithScreenRatio(36) : implicitHeight
                 Layout.rightMargin: mainItem.searchBarRightMaring
                 focus: true
                 color: mainItem.searchBarColor
                 borderColor: mainItem.searchBarBorderColor
                 //: "Rechercher un contact"
-                placeholderText: qsTr("search_bar_look_for_contact_text")
+                placeholderText: mainItem.teamMode ? "Rechercher un nom ou un poste" : qsTr("search_bar_look_for_contact_text")
                 numericPadPopup: mainItem.numPadPopup
                 KeyNavigation.down: groupCreationButton
             }
@@ -124,6 +139,14 @@ FocusScope {
                     showContactMenu: false
                     // Comme dans Contacts : on ne se voit pas soi-meme (Nouvel appel, Nouvelle conversation).
                     showMe: false
+                    // Collegues (postes internes) en tete, tries par statut ; puis favoris et contacts externes.
+                    teamMode: mainItem.teamMode
+                    showTeam: mainItem.showTeam || mainItem.teamMode
+                    autoRefresh: mainItem.autoRefresh
+                    dense: mainItem.dense
+                    showCallButton: mainItem.showCallButton
+                    sectionsPixelSize: mainItem.dense ? Utils.getSizeWithScreenRatio(14) : Typography.h4.pixelSize
+                    externalOnly: true
                     // Formulaires avec pave numerique (appels) : un numero compose n'est pas une recherche.
                     exactNumberMatch: !!mainItem.numPadPopup
                     searchBarText: searchBar.text

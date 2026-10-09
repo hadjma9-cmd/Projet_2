@@ -186,6 +186,8 @@ void NotificationBackend::sendNotification(NotificationType type, QVariantMap da
 		case NotificationType::ReceivedMessage:
 			sendMessageNotification(data);
 			break;
+		case NotificationType::MissedCall: // Notification d'appel manque : Windows seulement.
+			break;
 	}
 }
 

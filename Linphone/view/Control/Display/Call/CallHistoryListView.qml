@@ -18,7 +18,11 @@ ListView {
     property SearchBar searchBar
     property bool loading: false
     property string searchText: searchBar?.text
+    // Type d'appel affiche (CallHistoryProxy.CallFilter) : 0 tous, 1 manques, 2 entrants, 3 sortants.
+    property int callFilter: 0
     property real busyIndicatorSize: Utils.getSizeWithScreenRatio(60)
+    // Taille des photos (45 : taille commune a tous les menus de la petite fenetre).
+    property real avatarSize: Utils.getSizeWithScreenRatio(45)
     property bool keyboardFocus: FocusHelper.keyboardFocus
     property bool lastFocusByNavigationKeyboard: false // Workaround to get the correct focusReason
 
@@ -33,6 +37,8 @@ ListView {
         onListAboutToBeReset: loading = true
         filterText: mainItem.searchText
         onFilterTextChanged: maxDisplayItems = initialDisplayItems
+        callFilter: mainItem.callFilter
+        onCallFilterChanged: maxDisplayItems = initialDisplayItems
         initialDisplayItems: Math.max(20, Math.round(2 * mainItem.height / Utils.getSizeWithScreenRatio(56)))
         displayItemsStep: 3 * initialDisplayItems / 2
         onModelAboutToBeReset: loading = true
@@ -86,7 +92,9 @@ ListView {
             positionViewAtBeginning() // Stay at beginning
     }
     Connections {
-        target: deleteHistoryPopup
+        // Fenetre de confirmation de la page Appels ; absente dans la petite fenetre.
+        target: typeof deleteHistoryPopup !== "undefined" ? deleteHistoryPopup : null
+        ignoreUnknownSignals: true
         function onAccepted() {
             mainItem.model.removeAllEntries()
         }
@@ -152,8 +160,8 @@ ListView {
                 contact: modelData.core.contact
                 displayNameVal: modelData.core.displayName
                 secured: securityLevel === LinphoneEnums.SecurityLevel.EndToEndEncryptedAndVerified
-                width: Utils.getSizeWithScreenRatio(45)
-                height: Utils.getSizeWithScreenRatio(45)
+                width: mainItem.avatarSize
+                height: mainItem.avatarSize
                 isConference: modelData.core.isConference
                 shadowEnabled: false
                 asynchronous: false
@@ -233,7 +241,9 @@ ListView {
                                     modelData.core.conferenceInfo)
                         UtilsCpp.smartShowWindow(callsWindow)
                     } else {
-                        UtilsCpp.createCall(modelData.core.remoteAddress)
+                        // Confirmation : dans l'historique, on clique souvent sur une ligne juste pour la regarder, et ce
+                        // bouton part vite par erreur.
+                        UtilsCpp.getMainWindow().confirmCall(modelData.core.displayName, modelData.core.remoteAddress, false)
                     }
                 }
                 Keys.onPressed: event => {

@@ -13,11 +13,14 @@ import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
 AbstractMainPage {
     id: mainItem
+    // Onglet Equipe : meme page, limitee aux postes internes (1 a 5 chiffres) tries par statut. Sinon, page
+    // Contacts : tous les autres (portables, numeros externes).
+    property bool teamMode: false
     // Vide quand la creation est desactivee : AbstractMainPage masque alors le bouton.
     //: "Ajouter un contact"
-    noItemButtonText: ConstantsCpp.contactCreationEnabled ? qsTr("contacts_add") : ""
+    noItemButtonText: ConstantsCpp.contactCreationEnabled && !teamMode ? qsTr("contacts_add") : ""
     //: "Aucun contact pour le moment"
-    emptyListText: qsTr("contacts_list_empty")
+    emptyListText: teamMode ? "Personne dans l'équipe pour le moment" : qsTr("contacts_list_empty")
     newItemIconSource: AppIcons.plusCircle
 
     /**
@@ -39,29 +42,6 @@ AbstractMainPage {
     // Un contact d'annuaire (LDAP) est en lecture seule : ni edition, ni favori, ni suppression.
     property bool contactEditable: selectedContact && selectedContact.core.isStored
                                    && !selectedContact.core.readOnly
-    // Partage vCard, appele depuis deux endroits : la section « Autres actions » pour un contact
-    // local, et une ligne discrete pour un contact d'annuaire, qui n'a que cette action.
-    function shareContact() {
-        if (!selectedContact) return
-        var vcard = selectedContact.core.getVCard()
-        var username = selectedContact.core.givenName + selectedContact.core.familyName
-        var filepath = UtilsCpp.createVCardFile(username, vcard)
-        if (filepath == "")
-            UtilsCpp.showInformationPopup(qsTr("information_popup_error_title"),
-                                          //: "La création du fichier vcard a échoué"
-                                          qsTr("contact_details_share_error_mesage"),
-                                          false)
-        else
-            mainWindow.showInformationPopup(
-                        //: "VCard créée"
-                        qsTr("contact_details_share_success_title"),
-                        //: "VCard du contact enregistrée dans %1"
-                        qsTr("contact_details_share_success_mesage").arg(filepath))
-        UtilsCpp.shareByEmail(
-                    //: "Partage de contact"
-                    qsTr("contact_details_share_email_title"),
-                    vcard, filepath)
-    }
     property string initialFriendToDisplay
     onInitialFriendToDisplayChanged: {
         if (initialFriendToDisplay != '' && contactList.selectContact(initialFriendToDisplay) != -1)
@@ -79,9 +59,9 @@ AbstractMainPage {
         // sans elle, un contact supprime, ou ajoute directement dans le LDAP, n'apparaitrait
         // qu'a la recherche suivante. Les autres onglets n'en ont pas besoin, leurs listes
         // etant alimentees en continu par les signaux du SDK.
-        // Au plus une fois toutes les 2 minutes : chaque retour sur l'onglet interrogeait l'annuaire.
+        // Au plus une fois toutes les 10 minutes : chaque retour sur l'onglet interrogeait l'annuaire.
         var now = Date.now()
-        if (now - mainItem.lastDirectoryRefresh >= 120000) {
+        if (now - mainItem.lastDirectoryRefresh >= 10 * 60 * 1000) {
             mainItem.lastDirectoryRefresh = now
             contactList.refresh()
         }
@@ -291,7 +271,7 @@ AbstractMainPage {
             Text {
                 Layout.fillWidth: true
                 //: "Contacts"
-                text: qsTr("bottom_navigation_contacts_label")
+                text: mainItem.teamMode ? "Équipe" : qsTr("bottom_navigation_contacts_label")
                 maximumLineCount: 1
                 color: DefaultStyle.main2_700
                 font.pixelSize: Typography.h2.pixelSize
@@ -300,7 +280,7 @@ AbstractMainPage {
             Button {
                 id: createContactButton
                 // Mis de cote (ConstantsCpp.contactCreationEnabled) : les contacts viennent de l'annuaire.
-                visible: ConstantsCpp.contactCreationEnabled
+                visible: ConstantsCpp.contactCreationEnabled && !mainItem.teamMode
                          && (!rightPanelStackView.currentItem
                              || rightPanelStackView.currentItem.objectName !== "contactEdition")
                 style: ButtonStyle.noBackground
@@ -334,7 +314,7 @@ AbstractMainPage {
                 Layout.topMargin: Utils.getSizeWithScreenRatio(18)
                 Layout.fillWidth: true
                 //: Rechercher un contact
-                placeholderText: qsTr("search_bar_look_for_contact_text")
+                placeholderText: mainItem.teamMode ? "Rechercher un nom ou un poste" : qsTr("search_bar_look_for_contact_text")
                 KeyNavigation.up: createContactButton
                 KeyNavigation.down: contactList
             }
@@ -348,7 +328,8 @@ AbstractMainPage {
                     //: Aucun résultat…
                     text: searchBar.text.length !== 0 ? qsTr("list_filter_no_result_found")
                                                       //: Aucun contact pour le moment
-                                                      : qsTr("contact_list_empty")
+                                                      : mainItem.teamMode ? "Personne dans l'équipe pour le moment"
+                                                                          : qsTr("contact_list_empty")
                     font {
                         pixelSize: Typography.h4.pixelSize
                         weight: Typography.h4.weight
@@ -361,6 +342,13 @@ AbstractMainPage {
                     Layout.rightMargin: Utils.getSizeWithScreenRatio(8)
                     searchBarText: searchBar.text
                     hideSuggestions: true
+                    // Postes internes dans l'onglet Equipe, les autres ici.
+                    teamMode: mainItem.teamMode
+                    externalOnly: !mainItem.teamMode
+                    // Equipe et Contacts : petit telephone gris sur chaque ligne (vert sous la souris) et double-clic pour
+                    // appeler directement ; un simple clic ouvre la fiche.
+                    showCallButton: true
+                    autoRefresh: true
                     showMe: false // ne pas afficher son propre compte SIP dans la liste des contacts
                     sourceFlags: LinphoneEnums.MagicSearchSource.Friends
                                  | LinphoneEnums.MagicSearchSource.FavoriteFriends
@@ -460,6 +448,11 @@ AbstractMainPage {
                 button.onClicked: mainItem.editContact(mainItem.selectedContact)
                 button.visible: mainItem.selectedContact && mainItem.selectedContact.core.isStored && !mainItem.selectedContact.core.readOnly
                 property string contactAddress: contact ? contact.core.defaultAddress : ""
+                // Cle de recherche dans l'historique : l'adresse SIP complete (un poste « 878 » ne doit pas ramener
+                // « 0878… »), ou, pour un contact qui n'a qu'un numero de telephone, ce numero sans separateurs.
+                property string historyKey: contactAddress.length > 0 ? contactAddress
+                    : contact && contact.core.phoneNumbers.length > 0
+                        ? String(contact.core.phoneNumbers[0].address).replace(/[^0-9+]/g, "") : ""
                 property var computedContactNameObj: UtilsCpp.getDisplayName(contactAddress)
                 property string computedContactName: computedContactNameObj ? computedContactNameObj.value : ""
                 property string contactName: contact ? contact.core.fullName : computedContactName
@@ -521,24 +514,26 @@ AbstractMainPage {
                                          ? UtilsCpp.getUsername(headerEntry.address)
                                          : headerEntry.address)
                     : ""
-                // Trois vrais boutons sous l'identite, plutot que des pastilles dans le coin :
-                // on ouvre une fiche pour joindre quelqu'un. L'appel, raison d'etre d'un logiciel
-                // de telephonie, est l'action principale et prend plus de place.
-                component ActionsButtons: RowLayout {
-                    spacing: Utils.getSizeWithScreenRatio(12)
+                // Actions dans l'en-tete, a droite du nom : identite et moyens de joindre la personne tiennent sur
+                // une ligne, et la bande vide a droite du nom sert enfin. L'appel est l'action principale.
+                // Trois boutons de meme largeur, icone et texte. Un externe (numero de telephone) n'a que l'appel :
+                // ni messagerie ni video possibles avec lui.
+                component HeaderActions: RowLayout {
+                    id: headerActions
+                    spacing: Utils.getSizeWithScreenRatio(10)
+                    readonly property real buttonWidth: Utils.getSizeWithScreenRatio(150)
+                    readonly property bool internal: !!contactDetail.contact && contactDetail.contact.core.internalExtension
                     MediumButton {
-                        Layout.fillWidth: true
-                        Layout.horizontalStretchFactor: 3
+                        Layout.preferredWidth: headerActions.buttonWidth
                         style: ButtonStyle.main
                         icon.source: AppIcons.phone
                         //: "Appel"
                         text: qsTr("contact_call_action")
-                        onClicked: mainWindow.startCallWithContact(contactDetail.contact, false, mainItem)
+                        onClicked: mainWindow.startCallWithContact(contactDetail.contact, false, mainItem, false)
                     }
                     MediumButton {
-                        Layout.fillWidth: true
-                        Layout.horizontalStretchFactor: 2
-                        visible: !SettingsCpp.disableChatFeature
+                        visible: !SettingsCpp.disableChatFeature && headerActions.internal
+                        Layout.preferredWidth: headerActions.buttonWidth
                         style: ButtonStyle.secondary
                         icon.source: AppIcons.chatTeardropText
                         //: "Message"
@@ -546,18 +541,18 @@ AbstractMainPage {
                         onClicked: mainWindow.sendMessageToContact(contactDetail.contact)
                     }
                     MediumButton {
-                        Layout.fillWidth: true
-                        Layout.horizontalStretchFactor: 2
-                        visible: SettingsCpp.videoEnabled
+                        visible: SettingsCpp.videoEnabled && headerActions.internal
+                        Layout.preferredWidth: headerActions.buttonWidth
                         style: ButtonStyle.secondary
                         icon.source: AppIcons.videoCamera
                         //: "Appel vidéo"
                         text: qsTr("contact_video_call_action")
-                        onClicked: mainWindow.startCallWithContact(contactDetail.contact, true, mainItem)
+                        onClicked: mainWindow.startCallWithContact(contactDetail.contact, true, mainItem, false)
                     }
                 }
                 bannerContent: [
                     ColumnLayout {
+                        Layout.fillWidth: true
                         spacing: 0
                         Text {
                             text: UtilsCpp.encodeEmojiToQmlRichFormat(contactDetail.contactName)
@@ -617,6 +612,9 @@ AbstractMainPage {
                                 font.weight: Font.DemiBold
                             }
                         }
+                    },
+                    HeaderActions {
+                        Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
                     }
                 ]
                 content: Flickable {
@@ -635,9 +633,6 @@ AbstractMainPage {
                         spacing: Utils.getSizeWithScreenRatio(32)
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        ActionsButtons {
-                            Layout.fillWidth: true
-                        }
                         ColumnLayout {
                             spacing: Utils.getSizeWithScreenRatio(15)
                             Layout.fillWidth: true
@@ -781,8 +776,116 @@ AbstractMainPage {
                                 }
                             }
                         }
+                        // Derniers appels avec cette personne (les 3 plus recents), lus dans l'historique commun.
+                        // « Voir tout » ouvre l'onglet Appels filtre sur son numero.
                         ContactDetailLayout {
-                            visible: !SettingsCpp.disableChatFeature
+                            id: recentCallsLayout
+                            Layout.fillWidth: true
+                            visible: contactDetail.historyKey.length > 0 && recentCallsProxy.count > 0
+                            label: "Derniers appels"
+                            property CallHistoryProxy proxy: CallHistoryProxy {
+                                id: recentCallsProxy
+                                filterText: contactDetail.historyKey.length > 0 ? contactDetail.historyKey : "-"
+                                initialDisplayItems: 3
+                            }
+                            content: ColumnLayout {
+                                spacing: 0
+                                Repeater {
+                                    model: recentCallsProxy
+                                    delegate: Item {
+                                        id: recentCall
+                                        readonly property var callCore: modelData ? modelData.core : null
+                                        readonly property bool notConnected: callCore
+                                            && (callCore.status === LinphoneEnums.CallStatus.Declined
+                                                || callCore.status === LinphoneEnums.CallStatus.DeclinedElsewhere
+                                                || callCore.status === LinphoneEnums.CallStatus.Aborted
+                                                || callCore.status === LinphoneEnums.CallStatus.EarlyAborted)
+                                        readonly property bool missed: callCore && callCore.status === LinphoneEnums.CallStatus.Missed
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(46)
+                                        // Meme disposition que la liste de l'onglet Appels : fleche et libelle sur une ligne, date
+                                        // dessous, duree a droite.
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            ColumnLayout {
+                                                Layout.alignment: Qt.AlignVCenter
+                                                spacing: 0
+                                                RowLayout {
+                                                    // Memes icones et couleurs que l'onglet Appels.
+                                                    EffectImage {
+                                                        id: recentCallIcon
+                                                        Layout.preferredWidth: Utils.getSizeWithScreenRatio(16)
+                                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(16)
+                                                        imageSource: recentCall.notConnected ? AppIcons.arrowElbow
+                                                            : recentCall.callCore && recentCall.callCore.isOutgoing ? AppIcons.arrowUpRight : AppIcons.arrowDownLeft
+                                                        colorizationColor: recentCall.notConnected || recentCall.missed ? DefaultStyle.danger_500_main
+                                                            : recentCall.callCore && recentCall.callCore.isOutgoing ? DefaultStyle.info_500_main : DefaultStyle.success_500_main
+                                                        transform: Rotation {
+                                                            angle: recentCall.notConnected && recentCall.callCore && recentCall.callCore.isOutgoing ? 180 : 0
+                                                            origin.x: recentCallIcon.width / 2
+                                                            origin.y: recentCallIcon.height / 2
+                                                        }
+                                                    }
+                                                    Text {
+                                                        // Libelles en clair : ceux de l'onglet Appels sont traduits pour cette page-la seulement
+                                                        // (« call_outgoing » s'affichait tel quel ici).
+                                                        text: recentCall.missed ? "Appel manqué"
+                                                            : recentCall.callCore && recentCall.callCore.isOutgoing ? "Appel sortant" : "Appel entrant"
+                                                        color: DefaultStyle.main2_700
+                                                        font.pixelSize: Typography.p1.pixelSize
+                                                        font.weight: Font.DemiBold
+                                                    }
+                                                }
+                                                Text {
+                                                    text: recentCall.callCore ? UtilsCpp.formatDate(recentCall.callCore.date) : ""
+                                                    color: recentCall.missed ? DefaultStyle.danger_500_main : DefaultStyle.main2_500_main
+                                                    font.pixelSize: Utils.getSizeWithScreenRatio(12)
+                                                }
+                                            }
+                                            Item {
+                                                Layout.fillWidth: true
+                                                Layout.fillHeight: true
+                                            }
+                                            // Duree de l'appel, ou « Sans reponse » pour un appel qui n'a pas abouti.
+                                            Text {
+                                                readonly property bool answered: !!recentCall.callCore && recentCall.callCore.duration > 0
+                                                text: answered ? UtilsCpp.formatElapsedTime(recentCall.callCore.duration, false) : "Sans réponse"
+                                                color: answered ? DefaultStyle.main2_600 : DefaultStyle.main2_400
+                                                font.pixelSize: Utils.getSizeWithScreenRatio(12)
+                                            }
+                                        }
+                                        Rectangle {
+                                            visible: index < recentCallsProxy.count - 1
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            height: Utils.getSizeWithScreenRatio(1)
+                                            color: DefaultStyle.main2_200
+                                        }
+                                    }
+                                }
+                                Text {
+                                    visible: recentCallsProxy.haveMore
+                                    Layout.alignment: Qt.AlignRight
+                                    Layout.topMargin: Utils.getSizeWithScreenRatio(6)
+                                    text: "Voir tout"
+                                    color: DefaultStyle.main1_500_main
+                                    font.pixelSize: Utils.getSizeWithScreenRatio(13)
+                                    font.underline: seeAllArea.containsMouse
+                                    MouseArea {
+                                        id: seeAllArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: mainWindow.goToCallHistoryFor(UtilsCpp.getUsername(contactDetail.historyKey))
+                                    }
+                                }
+                            }
+                        }
+                        ContactDetailLayout {
+                            // Echanges de la messagerie : rien a montrer pour un externe.
+                            visible: !SettingsCpp.disableChatFeature && !!contactDetail.contact
+                                     && contactDetail.contact.core.internalExtension
                             //: "Medias & documents"
                             label: qsTr("contact_details_medias_and_documents_title")
                             Layout.fillWidth: true
@@ -962,15 +1065,6 @@ AbstractMainPage {
                                         color: DefaultStyle.main2_200
                                     }
                                 }
-                                IconLabelButton {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
-                                    icon.source: AppIcons.shareNetwork
-                                    //: "Partager"
-                                    text: qsTr("contact_details_share")
-                                    style: ButtonStyle.noBackground
-                                    onClicked: mainItem.shareContact()
-                                }
                                 // IconLabelButton {
                                 // 	Layout.fillWidth: true
                                 // 	Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
@@ -1015,22 +1109,6 @@ AbstractMainPage {
                                     }
                                 }
                             }
-                        }
-                        IconLabelButton {
-                            // Contact d'annuaire : « Partager » est sa seule action, affichee en
-                            // ligne discrete plutot que dans une section a elle seule.
-                            visible: mainItem.selectedContact && !mainItem.contactEditable
-                            Layout.fillWidth: true
-                            // Meme retrait que le contenu des cartes (leftPadding 20 du RoundedPane de
-                            // ContactDetailLayout) : son icone tombe dans la colonne de celles de
-                            // « Medias et documents » juste au-dessus.
-                            Layout.leftMargin: Utils.getSizeWithScreenRatio(20)
-                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
-                            icon.source: AppIcons.shareNetwork
-                            //: "Partager"
-                            text: qsTr("contact_details_share")
-                            style: ButtonStyle.noBackground
-                            onClicked: mainItem.shareContact()
                         }
                         Item {
                             Layout.fillHeight: true

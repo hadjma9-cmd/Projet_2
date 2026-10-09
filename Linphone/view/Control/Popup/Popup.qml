@@ -10,6 +10,10 @@ Control.Popup{
 	padding: 0
 	property color underlineColor : DefaultStyle.main1_500_main
     property real radius: Utils.getSizeWithScreenRatio(16)
+	// Ombre portee ; les valeurs par defaut sont celles d'origine (tres legere).
+	property real shadowBlur: 0.1
+	property real shadowOpacity: 0.1
+	property real shadowVerticalOffset: 0
 	property bool hovered: mouseArea.containsMouse
 	property bool keyboardFocus: FocusHelper.keyboardFocus
 
@@ -34,8 +38,9 @@ Control.Popup{
 			source: backgroundItem
 			shadowEnabled: true
 			shadowColor: DefaultStyle.grey_1000
-			shadowBlur: 0.1
-			shadowOpacity: 0.1
+			shadowBlur: mainItem.shadowBlur
+			shadowOpacity: mainItem.shadowOpacity
+			shadowVerticalOffset: mainItem.shadowVerticalOffset
 		}
 		MouseArea {
 			id: mouseArea

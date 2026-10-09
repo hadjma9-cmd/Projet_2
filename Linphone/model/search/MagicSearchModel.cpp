@@ -175,7 +175,8 @@ MagicSearchModel::updateFriendListWithFriend(const std::shared_ptr<linphone::Fri
 		if (auto existingFriend = friendList->findFriendByPhoneNumber(number)) return keepExisting(existingFriend);
 	}
 	qInfo() << log().arg("Adding Friend:") << linphoneFriend.get();
-	linphoneFriend->enableSubscribes(true);
+	// Presence reservee aux postes internes : pas d'abonnement pour un numero de telephone.
+	linphoneFriend->enableSubscribes(ToolModel::isInternalExtension(linphoneFriend));
 	friendList->addFriend(linphoneFriend);
 	emit CoreModel::getInstance()->friendCreated(linphoneFriend);
 	return linphoneFriend;

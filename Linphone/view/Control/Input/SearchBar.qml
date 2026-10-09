@@ -33,6 +33,10 @@ FocusScope {
 	function clearText() {
 		textField.text = ""
 	}
+	// Recherche posee depuis ailleurs (ex. « Voir tout » des derniers appels d'une fiche).
+	function setText(value) {
+		textField.text = value
+	}
 
 	Connections {
 		enabled: numericPadPopup != undefined && handleNumericPadPopupButtonsPressed
@@ -102,7 +106,7 @@ FocusScope {
 		}
 		Timer{
 			id: delayTimer
-			interval: 300
+			interval: 150
 			repeat: false
 			onTriggered: textField.searchText = textField.text
 		}

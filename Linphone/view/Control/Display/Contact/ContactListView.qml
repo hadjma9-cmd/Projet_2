@@ -16,6 +16,10 @@ ListView {
 	property bool showInitials: true	// Display Initials of Display name.
 	property bool showDefaultAddress: true	// Display address below display name.
     property bool showDisplayName: true // Display name above address.
+	property bool showTeamStatus: false	// Numero du poste et statut sous le nom (onglet Equipe).
+	property bool showCallButton: false	// Telephone au bout de chaque ligne et double-clic pour appeler (Equipe).
+	property bool dense: false	// Lignes resserrees (petite fenetre).
+	property bool showHeader: true	// Titre de section et bouton replier (masques dans la page Equipe).
 	property bool showActions: false	// Display actions layout (call buttons)
 	property bool showContactMenu: true	// Display the dot menu for contacts.
 	property bool showFavorites: true	// Display the favorites in the header
@@ -156,14 +160,14 @@ ListView {
 			spacing: 0
 			Item{// Do not use directly RowLayout : there is an issue where the layout doesn't update on visible
 				Layout.fillWidth: true
-				Layout.preferredHeight: mainItem.count > 0 ? headerTitleLayout.implicitHeight : 0
+				Layout.preferredHeight: mainItem.showHeader && mainItem.count > 0 ? headerTitleLayout.implicitHeight : 0
                 Layout.bottomMargin: Utils.getSizeWithScreenRatio(4)
 				RowLayout {
 					id: headerTitleLayout
 					anchors.fill: parent
 					spacing: 0
 					// Need this because it can stay at 0 on display without manual relayouting (moving position, resize)
-					visible: mainItem.count > 0
+					visible: mainItem.showHeader && mainItem.count > 0
 					Text {
 						text: mainItem.title
 						font {
@@ -209,6 +213,9 @@ ListView {
 		showInitials: mainItem.showInitials && isStored
 		showDefaultAddress: mainItem.showDefaultAddress
 		showDisplayName: mainItem.showDisplayName
+		showTeamStatus: mainItem.showTeamStatus
+		showCallButton: mainItem.showCallButton
+		dense: mainItem.dense
 		showActions: mainItem.showActions
 		showContactMenu: mainItem.showContactMenu && searchResultItem.core.isStored
 		highlightText: mainItem.highlightText
@@ -227,7 +234,7 @@ ListView {
 
 		onClicked: (mouse) => {
 		   if (mouse && mouse.button == Qt.RightButton) {
-			   friendPopup.open()
+			   contactItem.openContactMenu()
 		   } else {
 				forceActiveFocus()
 				mainItem.highlightedContact = contactItem.searchResultItem

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import QtQuick.Controls.Basic as Control
 
@@ -20,6 +21,28 @@ Flickable {
     // Section « Suggestions » (adresses hors contacts : historique, saisie...) jamais affichee.
     property bool hideSuggestions: true // Hide not stored contacts (not suggestions)
     property bool showMe: true // Wether to display current account address or not (disabled for adding participants)
+    // Equipe = postes internes (1 a 5 chiffres), tries par statut. teamMode : page Equipe, la section Equipe
+    // seule. showTeam : section Equipe en tete, avant favoris et contacts (formulaires d'appel). externalOnly :
+    // favoris et contacts sans les postes internes, qui sont dans Equipe.
+    property bool teamMode: false
+    property bool showTeam: teamMode
+    property bool externalOnly: false
+    // Telephone au bout de chaque ligne et double-clic pour appeler (onglet Equipe).
+    property bool showCallButton: false
+    // Lignes resserrees (petite fenetre) : 44 de haut, photo de 32.
+    property bool dense: false
+    // Relecture automatique tant que la liste est affichee (onglets Equipe et Contacts) : une extension creee pendant
+    // qu'on regarde la liste finit par apparaitre. Toutes les 5 min ; rien quand la fenetre est reduite ou cachee.
+    property bool autoRefresh: false
+    Timer {
+        id: autoRefreshTimer
+        interval: 5 * 60 * 1000
+        repeat: true
+        running: mainItem.autoRefresh && mainItem.visible && !!mainItem.Window.window
+                 && mainItem.Window.window.visibility !== Window.Minimized
+                 && mainItem.Window.window.visibility !== Window.Hidden
+        onTriggered: mainItem.refresh()
+    }
     property string highlightText: searchText // Bold characters in Display name.
     property var sourceFlags: LinphoneEnums.MagicSearchSource.All
 
@@ -40,7 +63,7 @@ Flickable {
     // Formulaires d'appel : un numero compose ne fait ressortir que le contact dont c'est le
     // numero, et cette correspondance remplace alors la suggestion d'appeler le numero brut.
     property bool exactNumberMatch: false
-    readonly property bool numberMatchesContact: exactNumberMatch && contactsList.count > 0
+    readonly property bool numberMatchesContact: exactNumberMatch && (contactsList.count + teamList.count) > 0
                                                  && isDialedNumber(searchText)
     // Meme regle que MagicSearchProxy : chiffres et + * #, au moins un chiffre (« * » seul est
     // la recherche « tout afficher »), separateurs ignores.
@@ -64,7 +87,7 @@ Flickable {
     property real busyIndicatorSize: Utils.getSizeWithScreenRatio(60)
 
     property real itemsRightMargin: Utils.getSizeWithScreenRatio(39)
-    property int count: contactsList.count + suggestionsList.count + favoritesList.count
+    property int count: teamList.count + contactsList.count + suggestionsList.count + favoritesList.count
 
     contentHeight: contentsLayout.height
     rightMargin: itemsRightMargin
@@ -76,6 +99,15 @@ Flickable {
     signal contactSelected(FriendGui contact)
 
     function selectContact(address) {
+        if (mainItem.showTeam) {
+            var teamIndex = teamProxy.loadUntil(address)
+            if (teamIndex != -1) {
+                teamList.selectIndex(teamIndex)
+                return teamIndex
+            }
+            if (mainItem.teamMode)
+                return -1
+        }
         var index = contactsProxy.loadUntil(address) // Be sure to have this address in proxy if it exists
         if (index != -1) {
             contactsList.selectIndex(index)
@@ -111,6 +143,10 @@ Flickable {
     }
 
     function getFirstContact() {
+        if (mainItem.showTeam) {
+            var firstTeamContact = teamList.itemAtIndex(0)
+            if (firstTeamContact !== null) return firstTeamContact
+        }
         if (mainItem.showFavorites) {
             var firstContact = favoritesList.itemAtIndex(0)
             if (firstContact !== null) return firstContact
@@ -137,32 +173,24 @@ Flickable {
     }
     function resetSelections() {
         mainItem.highlightedContact = null
+        teamList.currentIndex = -1
         favoritesList.currentIndex = -1
         contactsList.currentIndex = -1
         suggestionsList.currentIndex = -1
     }
 
+    // Liste suivante (ou precedente) non vide, dans l'ordre d'affichage, en boucle.
     function findNextList(item, count, direction) {
-        if (count == 3)
+        var lists = [teamList, favoritesList, contactsList, suggestionsList]
+        var position = lists.indexOf(item)
+        if (position === -1)
             return null
-        var nextItem
-        switch (item) {
-        case suggestionsList:
-            nextItem = (direction > 0 ? favoritesList : contactsList)
-            break
-        case contactsList:
-            nextItem = (direction > 0 ? suggestionsList : favoritesList)
-            break
-        case favoritesList:
-            nextItem = (direction > 0 ? contactsList : suggestionsList)
-            break
-        default:
-            return null
+        for (var step = 1; step < lists.length; ++step) {
+            var nextItem = lists[((position + direction * step) % lists.length + lists.length) % lists.length]
+            if (nextItem.model.count > 0)
+                return nextItem
         }
-        if (nextItem.model.count > 0)
-            return nextItem
-        else
-            return findNextList(nextItem, count + 1, direction)
+        return null
     }
 
     function updatePosition(list) {
@@ -170,6 +198,7 @@ Flickable {
     }
 
     onHighlightedContactChanged: {
+        teamList.highlightedContact = highlightedContact
         favoritesList.highlightedContact = highlightedContact
         contactsList.highlightedContact = highlightedContact
         suggestionsList.highlightedContact = highlightedContact
@@ -193,20 +222,9 @@ Flickable {
         if (!event.accepted) {
             if (event.key == Qt.Key_Up
                 || event.key == Qt.Key_Down) {
-                var newItem
                 var direction = (event.key == Qt.Key_Up ? -1 : 1)
-                if (suggestionsList.activeFocus)
-                newItem = findNextList(suggestionsList, 0,
-                                       direction)
-                else if (contactsList.activeFocus)
-                newItem = findNextList(contactsList, 0,
-                                       direction)
-                else if (favoritesList.activeFocus)
-                newItem = findNextList(favoritesList, 0,
-                                       direction)
-                else
-                newItem = findNextList(suggestionsList, 0,
-                                       direction)
+                var focusedList = [teamList, favoritesList, contactsList, suggestionsList].find(list => list.activeFocus)
+                var newItem = findNextList(focusedList || suggestionsList, 0, direction)
                 if (newItem) {
                     newItem.selectIndex(
                         direction > 0 ? -1 : newItem.model.count - 1, direction > 0 ? Qt.BacktabFocusReason : Qt.TabFocusReason)
@@ -259,7 +277,9 @@ Flickable {
     }
 
     onAtYEndChanged: if (atYEnd) {
-        if (favoritesProxy.haveMore && favoritesList.expanded && mainItem.showFavorites)
+        if (mainItem.showTeam && teamProxy.haveMore && teamList.expanded)
+            teamProxy.displayMore()
+        else if (favoritesProxy.haveMore && favoritesList.expanded && mainItem.showFavorites)
             favoritesProxy.displayMore()
         else if (contactsProxy.haveMore && contactsList.expanded) {
             contactsProxy.displayMore()
@@ -302,7 +322,7 @@ Flickable {
         }
 
         ContactListView {
-            id: favoritesList
+            id: teamList
             visible: contentHeight > 0
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
@@ -311,9 +331,65 @@ Flickable {
             interactive: false
             highlightText: mainItem.highlightText
             showActions: mainItem.showActions
+            // Tri par statut : des initiales de section n'auraient pas de sens.
+            showInitials: false
+            showTeamStatus: true
+            showCallButton: mainItem.showCallButton
+            dense: mainItem.dense
+            // Page Equipe : son titre suffit, pas de section repliable.
+            showHeader: !mainItem.teamMode
+            showContactMenu: mainItem.showContactMenu
+            showDefaultAddress: false
+            selectionEnabled: mainItem.selectionEnabled
+            multiSelectionEnabled: mainItem.multiSelectionEnabled
+            selectedContacts: mainItem.selectedContacts
+            title: "Équipe"
+            itemsRightMargin: mainItem.itemsRightMargin
+
+            onHighlightedContactChanged: mainItem.highlightedContact = highlightedContact
+            onContactSelected: contactGui => {
+                                   mainItem.contactSelected(contactGui)
+                               }
+            onUpdatePosition: mainItem.updatePosition(teamList)
+            onContactDeletionRequested: contact => {
+                                            mainItem.contactDeletionRequested(contact)
+                                        }
+            onAddContactToSelection: address => {
+                                         mainItem.addContactToSelection(address)
+                                     }
+            onRemoveContactFromSelection: index => {
+                                              mainItem.removeContactFromSelection(index)
+                                          }
+
+            // Postes internes : contacts de l'app et annuaire, meme sans synchronisation de l'annuaire.
+            property MagicSearchProxy proxy: MagicSearchProxy {
+                id: teamProxy
+                parentProxy: mainItem.mainModel
+                sortByPresence: true
+                filterType: MagicSearchProxy.FilteringTypes.App | MagicSearchProxy.FilteringTypes.Ldap
+                            | MagicSearchProxy.FilteringTypes.CardDAV | MagicSearchProxy.FilteringTypes.Extensions
+                initialDisplayItems: Math.max(20, Math.round(2 * mainItem.height / Utils.getSizeWithScreenRatio(63)))
+                displayItemsStep: 3 * initialDisplayItems / 2
+            }
+            model: mainItem.showTeam ? proxy : []
+        }
+
+        ContactListView {
+            id: favoritesList
+            visible: contentHeight > 0
+            Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
+            Layout.topMargin: teamList.height > 0 ? Utils.getSizeWithScreenRatio(4) : 0
+            sectionsWeight: mainItem.sectionsWeight
+            sectionsPixelSize: mainItem.sectionsPixelSize
+            interactive: false
+            highlightText: mainItem.highlightText
+            showActions: mainItem.showActions
             showInitials: mainItem.showInitials
             showContactMenu: mainItem.showContactMenu
             showDefaultAddress: false
+            showCallButton: mainItem.showCallButton
+            dense: mainItem.dense
             selectionEnabled: mainItem.selectionEnabled
             multiSelectionEnabled: mainItem.multiSelectionEnabled
             selectedContacts: mainItem.selectedContacts
@@ -343,8 +419,9 @@ Flickable {
                 parentProxy: mainItem.mainModel
                 showMe: mainItem.showMe
                 filterType: MagicSearchProxy.FilteringTypes.Favorites
+                            | (mainItem.externalOnly ? MagicSearchProxy.FilteringTypes.External : 0)
             }
-            model: mainItem.showFavorites
+            model: mainItem.showFavorites && !mainItem.teamMode
                    && (mainItem.searchBarText == ''
                        || mainItem.searchBarText == '*') ? proxy : []
         }
@@ -354,13 +431,15 @@ Flickable {
             visible: contentHeight > 0
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            Layout.topMargin: favoritesList.height > 0 ? Utils.getSizeWithScreenRatio(4) : 0
+            Layout.topMargin: (teamList.height + favoritesList.height) > 0 ? Utils.getSizeWithScreenRatio(4) : 0
             interactive: false
             highlightText: mainItem.highlightText
             showActions: mainItem.showActions
             showInitials: mainItem.showInitials
             showContactMenu: mainItem.showContactMenu
             showDefaultAddress: false
+            showCallButton: mainItem.showCallButton
+            dense: mainItem.dense
             selectionEnabled: mainItem.selectionEnabled
             multiSelectionEnabled: mainItem.multiSelectionEnabled
             selectedContacts: mainItem.selectedContacts
@@ -388,10 +467,12 @@ Flickable {
             model: MagicSearchProxy {
                 id: contactsProxy
                 parentProxy: mainItem.mainModel
-                filterType: MagicSearchProxy.FilteringTypes.App
+                filterType: mainItem.teamMode ? MagicSearchProxy.FilteringTypes.None
+                            : MagicSearchProxy.FilteringTypes.App
                             | (mainItem.searchText != '*'
                                && mainItem.searchText != ''
                                || SettingsCpp.syncLdapContacts ? MagicSearchProxy.FilteringTypes.Ldap | MagicSearchProxy.FilteringTypes.CardDAV : 0)
+                            | (mainItem.externalOnly ? MagicSearchProxy.FilteringTypes.External : 0)
                 initialDisplayItems: Math.max(20, Math.round(2 * mainItem.height / Utils.getSizeWithScreenRatio(63)))
                 displayItemsStep: 3 * initialDisplayItems / 2
                 onLocalFriendCreated: (index) => {
@@ -404,7 +485,7 @@ Flickable {
             visible: contentHeight > 0
             Layout.fillWidth: true
             Layout.preferredHeight: implicitHeight
-            Layout.topMargin: (contactsList.height + favoritesList.height) > 0 ? Utils.getSizeWithScreenRatio(4) : 0
+            Layout.topMargin: (teamList.height + contactsList.height + favoritesList.height) > 0 ? Utils.getSizeWithScreenRatio(4) : 0
             interactive: false
             showInitials: false
             highlightText: mainItem.highlightText

@@ -12,6 +12,8 @@ import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
 ListView {
     id: mainItem
+    // Taille des photos (45 : taille commune a tous les menus de la petite fenetre).
+    property real avatarSize: Utils.getSizeWithScreenRatio(45)
     clip: true
 
     property SearchBar searchBar
@@ -192,8 +194,8 @@ ListView {
                 displayNameVal: modelData && modelData.core.avatarUri || ""
                 secured: modelData?.core.isSecured || false
                 displayPresence: true
-                Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)
-                Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
+                Layout.preferredWidth: mainItem.avatarSize
+                Layout.preferredHeight: mainItem.avatarSize
                 // isConference: modelData.core.isConference
                 shadowEnabled: false
                 asynchronous: false
@@ -377,91 +379,98 @@ ListView {
                 focus: true
                 activeFocusOnTab:true
                 focusPolicy: Qt.StrongFocus
-                popup.contentItem: ColumnLayout {
-                    IconLabelButton {
-                        //: "Mute"
-                        text: modelData
-                            ? modelData.core.muted
-                                ? qsTr("chat_room_unmute")
-                                : qsTr("chat_room_mute")
-                            : ""
-                        icon.source: modelData ? modelData.core.muted ? AppIcons.bell : AppIcons.bellSlash : ""
-                        spacing: Utils.getSizeWithScreenRatio(10)
-                        Layout.fillWidth: true
-                        onClicked:  {
-                            modelData.core.muted = !modelData.core.muted
-                            chatroomPopup.close()
+                // Menu construit a sa premiere ouverture : chaque ligne de conversation en construisait un d'office
+                // (4 boutons), ce qui alourdissait l'ouverture et le defilement de la liste.
+                popup.onAboutToShow: chatroomMenuLoader.active = true
+                popup.contentItem: Loader {
+                    id: chatroomMenuLoader
+                    active: false
+                    sourceComponent: ColumnLayout {
+                        IconLabelButton {
+                            //: "Mute"
+                            text: modelData
+                                ? modelData.core.muted
+                                    ? qsTr("chat_room_unmute")
+                                    : qsTr("chat_room_mute")
+                                : ""
+                            icon.source: modelData ? modelData.core.muted ? AppIcons.bell : AppIcons.bellSlash : ""
+                            spacing: Utils.getSizeWithScreenRatio(10)
+                            Layout.fillWidth: true
+                            onClicked:  {
+                                modelData.core.muted = !modelData.core.muted
+                                chatroomPopup.close()
+                            }
                         }
-                    }
-                    IconLabelButton {
-                        visible: modelData && modelData.core.unreadMessagesCount !== 0 || false
-                        //: "Mark as read"
-                        text: qsTr("chat_room_mark_as_read")
-                        icon.source: AppIcons.checks
-                        spacing: Utils.getSizeWithScreenRatio(10)
-                        Layout.fillWidth: true
-                        onClicked: {
-                            modelData.core.lMarkAsRead()
-                            chatroomPopup.close()
+                        IconLabelButton {
+                            visible: modelData && modelData.core.unreadMessagesCount !== 0 || false
+                            //: "Mark as read"
+                            text: qsTr("chat_room_mark_as_read")
+                            icon.source: AppIcons.checks
+                            spacing: Utils.getSizeWithScreenRatio(10)
+                            Layout.fillWidth: true
+                            onClicked: {
+                                modelData.core.lMarkAsRead()
+                                chatroomPopup.close()
+                            }
                         }
-                    }
-                    ColumnLayout {
-                        spacing: parent.spacing
-                        visible: modelData && !modelData.core.isReadOnly && modelData.core.isGroupChat || false
+                        ColumnLayout {
+                            spacing: parent.spacing
+                            visible: modelData && !modelData.core.isReadOnly && modelData.core.isGroupChat || false
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
+                                color: DefaultStyle.main2_400
+                            }
+                            IconLabelButton {
+                                //: "leave"
+                                text: qsTr("chat_room_leave")
+                                icon.source: AppIcons.trashCan
+                                spacing: Utils.getSizeWithScreenRatio(10)
+                                Layout.fillWidth: true
+                                onClicked: {
+                                    //: leave the conversation ?
+                                    mainWindow.showConfirmationLambdaPopup(qsTr("chat_list_leave_chat_popup_title"),
+                                        //: You will not be able to send or receive messages in this conversation anymore. Do You want to continue ?
+                                        qsTr("chat_list_leave_chat_popup_message"),
+                                        "",
+                                        function(confirmed) {
+                                            if (confirmed) {
+                                                modelData.core.lLeave()
+                                                chatroomPopup.close()
+                                            }
+                                        })
+                                }
+                                style: ButtonStyle.hoveredBackground
+                            }
+                        }
                         Rectangle {
+                            visible: deleteButton.visible
                             Layout.fillWidth: true
                             Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
                             color: DefaultStyle.main2_400
                         }
                         IconLabelButton {
-                            //: "leave"
-                            text: qsTr("chat_room_leave")
+                            id: deleteButton
+                            //: "Delete"
+                            text: qsTr("chat_room_delete")
                             icon.source: AppIcons.trashCan
                             spacing: Utils.getSizeWithScreenRatio(10)
                             Layout.fillWidth: true
                             onClicked: {
-                                //: leave the conversation ?
-                                mainWindow.showConfirmationLambdaPopup(qsTr("chat_list_leave_chat_popup_title"),
-                                    //: You will not be able to send or receive messages in this conversation anymore. Do You want to continue ?
-                                    qsTr("chat_list_leave_chat_popup_message"),
+                                //: Delete the conversation ?
+                                mainWindow.showConfirmationLambdaPopup(qsTr("chat_list_delete_chat_popup_title"),
+                                                                       //: This conversation and all its messages will be deleted. Do You want to continue ?
+                                    qsTr("chat_list_delete_chat_popup_message"),
                                     "",
                                     function(confirmed) {
                                         if (confirmed) {
-                                            modelData.core.lLeave()
+                                            modelData.core.lDelete()
                                             chatroomPopup.close()
                                         }
                                     })
                             }
-                            style: ButtonStyle.hoveredBackground
+                            style: ButtonStyle.hoveredBackgroundRed
                         }
-                    }
-                    Rectangle {
-                        visible: deleteButton.visible
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
-                        color: DefaultStyle.main2_400
-                    }
-                    IconLabelButton {
-                        id: deleteButton
-                        //: "Delete"
-                        text: qsTr("chat_room_delete")
-                        icon.source: AppIcons.trashCan
-                        spacing: Utils.getSizeWithScreenRatio(10)
-                        Layout.fillWidth: true
-                        onClicked: {
-                            //: Delete the conversation ?
-                            mainWindow.showConfirmationLambdaPopup(qsTr("chat_list_delete_chat_popup_title"),
-                                                                   //: This conversation and all its messages will be deleted. Do You want to continue ?
-                                qsTr("chat_list_delete_chat_popup_message"),
-                                "",
-                                function(confirmed) {
-                                    if (confirmed) {
-                                        modelData.core.lDelete()
-                                        chatroomPopup.close()
-                                    }
-                                })
-                        }
-                        style: ButtonStyle.hoveredBackgroundRed
                     }
                 }
             }

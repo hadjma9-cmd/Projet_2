@@ -654,6 +654,30 @@ bool ToolModel::friendIsInFriendList(const std::shared_ptr<linphone::FriendList>
 	return (it != friends.end());
 }
 
+bool ToolModel::isInternalExtension(const std::shared_ptr<linphone::Friend> &contact) {
+	if (!contact) return false;
+	for (const auto &address : contact->getAddresses()) {
+		if (!address) continue;
+		const auto username = address->getUsername();
+		if (!username.empty() && username.size() <= 5 &&
+		    std::all_of(username.begin(), username.end(), [](char c) { return c >= '0' && c <= '9'; }))
+			return true;
+	}
+	return false;
+}
+
+bool ToolModel::applyPresenceSubscriptionRule(const std::shared_ptr<linphone::Friend> &contact) {
+	mustBeInLinphoneThread(sLog().arg(Q_FUNC_INFO));
+	if (!contact) return false;
+	const bool subscribe = isInternalExtension(contact);
+	if (contact->subscribesEnabled() == subscribe) return false;
+	// done() applique le changement : SUBSCRIBE pour un poste, fin d'abonnement (Expires: 0) sinon.
+	contact->edit();
+	contact->enableSubscribes(subscribe);
+	contact->done();
+	return true;
+}
+
 QString ToolModel::getMessageFromContent(std::list<std::shared_ptr<linphone::Content>> contents) {
 	mustBeInLinphoneThread(sLog().arg(Q_FUNC_INFO));
 	QString res;

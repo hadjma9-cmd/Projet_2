@@ -53,17 +53,49 @@ void CallHistoryProxy::reload() {
 	emit mHistoryList->lUpdate();
 }
 
+int CallHistoryProxy::getCallFilter() const {
+	auto list = dynamic_cast<SortFilterList *>(sourceModel());
+	return list ? list->mCallFilter : 0;
+}
+
+void CallHistoryProxy::setCallFilter(int filter) {
+	auto list = dynamic_cast<SortFilterList *>(sourceModel());
+	if (list && list->mCallFilter != filter) {
+		list->mCallFilter = filter;
+		list->invalidate();
+		emit callFilterChanged();
+	}
+}
+
 //------------------------------------------------------------------------------------------
 
 bool CallHistoryProxy::SortFilterList::filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const {
 	bool show = (mFilterText.isEmpty() || mFilterText == "*");
+	auto callLog = getItemAtSource<CallHistoryList, CallHistoryCore>(sourceRow);
 
 	if (!show) {
 		QRegularExpression search(QRegularExpression::escape(mFilterText),
 		                          QRegularExpression::CaseInsensitiveOption |
 		                              QRegularExpression::UseUnicodePropertiesOption);
-		auto callLog = getItemAtSource<CallHistoryList, CallHistoryCore>(sourceRow);
 		show = callLog && (callLog->mDisplayName.contains(search) || callLog->mRemoteAddress.contains(search));
+	}
+	// Type d'appel : manque (entrant sans reponse), entrant decroche, sortant.
+	if (show && mCallFilter != (int)CallFilter::All) {
+		if (!callLog) return false;
+		const bool missed = callLog->mStatus == LinphoneEnums::CallStatus::Missed;
+		switch (mCallFilter) {
+			case (int)CallFilter::Missed:
+				show = missed;
+				break;
+			case (int)CallFilter::Incoming:
+				show = !callLog->mIsOutgoing && !missed;
+				break;
+			case (int)CallFilter::Outgoing:
+				show = callLog->mIsOutgoing;
+				break;
+			default:
+				break;
+		}
 	}
 	return show;
 }

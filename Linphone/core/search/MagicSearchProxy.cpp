@@ -61,15 +61,45 @@ bool matchesSearchFilter(const QSharedPointer<FriendCore> &friendCore, const QSt
 		return false;
 	}
 	if (friendCore->getFullName().contains(filter, Qt::CaseInsensitive)) return true;
+	// Chiffres tapes sans separateurs (clavier de « Nouvel appel ») : « 0610 » trouve « 06 10 22 33 44 ».
+	const QString digits = dialedNumber(filter);
 	for (auto &friendAddress : friendCore->getAllAddresses()) {
-		auto address = friendAddress.toMap()["address"].toString();
-		if (Utils::getUsername(address).contains(filter, Qt::CaseInsensitive)) return true;
+		auto username = Utils::getUsername(friendAddress.toMap()["address"].toString());
+		if (username.contains(filter, Qt::CaseInsensitive)) return true;
+		if (!digits.isEmpty() && withoutNumberSeparators(username).contains(digits)) return true;
 	}
 	return false;
+}
+
+// Ordre du tri par statut : disponibles d'abord, puis en communication, occupes, absents, ne pas deranger,
+// hors ligne, sans statut connu, et enfin les contacts externes (sans statut, apres tous les collegues).
+int presenceRank(const QSharedPointer<FriendCore> &friendCore) {
+	if (!friendCore->isInternalExtension()) return 7;
+	if (friendCore->isInCall()) return 1;
+	switch (friendCore->getPresence()) {
+		case LinphoneEnums::Presence::Online:
+			return 0;
+		case LinphoneEnums::Presence::Busy:
+			return 2;
+		case LinphoneEnums::Presence::Away:
+			return 3;
+		case LinphoneEnums::Presence::DoNotDisturb:
+			return 4;
+		case LinphoneEnums::Presence::Offline:
+			return 5;
+		default:
+			return 6;
+	}
 }
 } // namespace
 
 MagicSearchProxy::MagicSearchProxy(QObject *parent) : LimitProxy(parent) {
+	mPresenceSortTimer = new QTimer(this);
+	mPresenceSortTimer->setSingleShot(true);
+	mPresenceSortTimer->setInterval(300);
+	connect(mPresenceSortTimer, &QTimer::timeout, this, [this]() {
+		if (auto list = dynamic_cast<SortFilterList *>(sourceModel())) list->invalidate();
+	});
 	auto magicSearchList = MagicSearchList::create();
 	setList(magicSearchList);
 	connect(this, &MagicSearchProxy::forceUpdate, [this] {
@@ -117,6 +147,7 @@ void MagicSearchProxy::setList(QSharedPointer<MagicSearchList> newList) {
 	if (oldModel) {
 		sortFilterList->mFilterType = oldModel->mFilterType;
 		sortFilterList->mHideListProxy = oldModel->mHideListProxy;
+		sortFilterList->mSortByPresence = oldModel->mSortByPresence;
 		if (sortFilterList->mHideListProxy) {
 			connect(sortFilterList->mHideListProxy, &MagicSearchProxy::countChanged, sortFilterList,
 			        [this, sortFilterList]() { sortFilterList->invalidate(); });
@@ -124,6 +155,9 @@ void MagicSearchProxy::setList(QSharedPointer<MagicSearchList> newList) {
 			        [this, sortFilterList]() { sortFilterList->invalidate(); });
 		}
 	}
+	// Nouveau texte recherche : ce qui est deja affiche est filtre sans attendre la reponse du SDK.
+	connect(mList.get(), &MagicSearchList::searchFilterChanged, sortFilterList,
+	        [sortFilterList]() { sortFilterList->invalidate(); });
 	// Reglage porte par la liste, partagee avec les listes filles (parentProxy) : toutes refiltrent.
 	connect(mList.get(), &MagicSearchList::exactNumberMatchChanged, sortFilterList, [this, sortFilterList]() {
 		sortFilterList->invalidate();
@@ -135,6 +169,10 @@ void MagicSearchProxy::setList(QSharedPointer<MagicSearchList> newList) {
 		    if ((getFilterType() & (int)FilteringTypes::Favorites) > 0) sortFilterList->invalidate();
 	    },
 	    Qt::QueuedConnection);
+	// Liste triee par statut : un changement de presence peut deplacer le contact.
+	connect(mList.get(), &MagicSearchList::friendPresenceChanged, this, [this]() {
+		if (getSortByPresence()) mPresenceSortTimer->start();
+	});
 	setSourceModels(sortFilterList);
 	sort(0);
 }
@@ -246,6 +284,20 @@ void MagicSearchProxy::setHideListProxy(MagicSearchProxy *hideListProxy) {
 	}
 }
 
+bool MagicSearchProxy::getSortByPresence() const {
+	auto list = dynamic_cast<SortFilterList *>(sourceModel());
+	return list && list->mSortByPresence;
+}
+
+void MagicSearchProxy::setSortByPresence(bool sortByPresence) {
+	auto list = dynamic_cast<SortFilterList *>(sourceModel());
+	if (list && list->mSortByPresence != sortByPresence) {
+		list->mSortByPresence = sortByPresence;
+		list->invalidate();
+		emit sortByPresenceChanged();
+	}
+}
+
 LinphoneEnums::MagicSearchAggregation MagicSearchProxy::getAggregationFlag() const {
 	return mList->getAggregationFlag();
 }
@@ -277,6 +329,9 @@ bool MagicSearchProxy::SortFilterList::filterAcceptsRow(int sourceRow, const QMo
 		if (!toShow && (mFilterType & (int)FilteringTypes::Other) > 0) {
 			toShow = !friendCore->getIsStored() && !friendCore->isLdap();
 		}
+		// Postes internes (1 a 5 chiffres) dans l'onglet Equipe, tous les autres dans Contacts.
+		if (toShow && (mFilterType & (int)FilteringTypes::Extensions) > 0) toShow = friendCore->isInternalExtension();
+		if (toShow && (mFilterType & (int)FilteringTypes::External) > 0) toShow = !friendCore->isInternalExtension();
 
 		// L'annuaire LDAP renvoie tout l'annuaire quel que soit le filtre envoye (le serveur
 		// l'ignore), et le SDK n'applique alors aucun filtre local. Sans ce test, la recherche
@@ -309,6 +364,11 @@ bool MagicSearchProxy::SortFilterList::lessThan(const QModelIndex &sourceLeft, c
 		bool rIsStored = r->getIsStored() || r->isLdap() || r->isCardDAV();
 		if (lIsStored && !rIsStored) return true;
 		else if (!lIsStored && rIsStored) return false;
+		if (mSortByPresence) {
+			auto lRank = presenceRank(l);
+			auto rRank = presenceRank(r);
+			if (lRank != rRank) return lRank < rRank;
+		}
 		auto lName = l->getFullName().toLower();
 		auto rName = r->getFullName().toLower();
 		if (lName == filter) return true;

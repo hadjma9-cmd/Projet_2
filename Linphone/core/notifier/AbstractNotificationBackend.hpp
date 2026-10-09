@@ -25,7 +25,8 @@ public:
 
 	enum NotificationType {
 		ReceivedMessage,
-		ReceivedCall
+		ReceivedCall,
+		MissedCall
 		// ReceivedFileMessage,
 		// SnapshotWasTaken,
 		// RecordingCompleted

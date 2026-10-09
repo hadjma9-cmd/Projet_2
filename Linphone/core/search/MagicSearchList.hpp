@@ -85,6 +85,10 @@ signals:
 
 	void friendCreated(int index, FriendGui *data);
 	void friendStarredChanged();
+	// Presence d'un des contacts de la liste changee (tri par statut de l'onglet Equipe).
+	void friendPresenceChanged();
+	// Texte recherche change : les listes filtrent tout de suite ce qu'elles affichent deja.
+	void searchFilterChanged();
 
 	void resultsProcessed();
 

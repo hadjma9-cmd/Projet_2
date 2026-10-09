@@ -204,6 +204,7 @@ void MagicSearchList::setSelf(const QSharedPointer<MagicSearchList> &me) {
 void MagicSearchList::connectContact(FriendCore *data) {
 	connect(data, &FriendCore::removed, this, qOverload<QObject *>(&MagicSearchList::remove));
 	connect(data, &FriendCore::starredChanged, this, &MagicSearchList::friendStarredChanged);
+	connect(data, &FriendCore::presenceChanged, this, &MagicSearchList::friendPresenceChanged);
 }
 
 void MagicSearchList::setResults(const QList<QSharedPointer<FriendCore>> &contacts) {
@@ -286,6 +287,9 @@ void MagicSearchList::add(QSharedPointer<FriendCore> contact) {
 
 void MagicSearchList::setSearch(const QString &search) {
 	mSearchFilter = search;
+	// Filtrage immediat des resultats deja affiches (l'annuaire est souvent deja charge en entier) ; la recherche
+	// du SDK, plus lente (delai LDAP, aller-retour reseau), complete ensuite la liste.
+	emit searchFilterChanged();
 	if (!search.isEmpty()) {
 		emit lSearch(search, mSourceFlags, mAggregationFlag, mMaxResults);
 	} else {

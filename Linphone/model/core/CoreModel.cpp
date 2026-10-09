@@ -109,6 +109,11 @@ void CoreModel::start() {
 		if (ldapFriendList) mCore->removeFriendList(ldapFriendList);
 	}
 	mCore->enableFriendListSubscription(true);
+	// Presence reservee aux postes internes : abonnements coupes avant l'enregistrement pour les contacts
+	// deja enregistres qui n'en sont pas (le reglage est garde avec le contact).
+	for (const auto &friendList : mCore->getFriendsLists())
+		for (const auto &contact : friendList->getFriends())
+			ToolModel::applyPresenceSubscriptionRule(contact);
 	if (mCore->getLogCollectionUploadServerUrl().empty())
 		mCore->setLogCollectionUploadServerUrl(Constants::DefaultUploadLogsServer);
 
@@ -502,7 +507,10 @@ void CoreModel::onCallEncryptionChanged(const std::shared_ptr<linphone::Core> &c
 }
 void CoreModel::onCallLogUpdated(const std::shared_ptr<linphone::Core> &core,
                                  const std::shared_ptr<linphone::CallLog> &callLog) {
-	if (callLog && callLog->getStatus() == linphone::Call::Status::Missed) emit unreadNotificationsChanged();
+	if (callLog && callLog->getStatus() == linphone::Call::Status::Missed) {
+		emit unreadNotificationsChanged();
+		if (auto notifier = App::getInstance()->getNotifier()) notifier->notifyMissedCall(callLog);
+	}
 	emit callLogUpdated(core, callLog);
 }
 void CoreModel::onCallStateChanged(const std::shared_ptr<linphone::Core> &core,

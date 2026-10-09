@@ -35,7 +35,7 @@ FocusScope {
     signal backButtonPressed()
 
     onActiveFocusChanged: if(activeFocus) {
-        if (chatMessagesListView.lastItemVisible) chat.core.lMarkAsRead()
+        if (chatMessagesListView.lastItemVisible && chat && chat.core.unreadMessagesCount > 0) chat.core.lMarkAsRead()
     }
     onChatChanged: {
         chatMessage = null
@@ -51,7 +51,7 @@ FocusScope {
 
     onOneOneCall: {
         if (contact)
-            mainWindow.startCallWithContact(contact, video, mainItem)
+            mainWindow.startCallWithContact(contact, video, mainItem, false)
         else
             UtilsCpp.createCall(mainItem.chat?.core.peerAddress, {'localVideoEnabled':video})
     }

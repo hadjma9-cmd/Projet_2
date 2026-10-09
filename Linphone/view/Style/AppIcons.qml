@@ -8,6 +8,10 @@ QtObject {
 	property string pushPinFill: "image://internal/push-pin-fill.svg"
 	property string windowSmall: "image://internal/window-small.svg"
 	property string windowLarge: "image://internal/window-large.svg"
+	// Changement de taille de fenetre : grande fenetre avec un telephone devant (passer en petite fenetre), et
+	// l'inverse (revenir en mode bureau).
+	property string modeCompact: "image://internal/mode-compact.svg"
+	property string modeDesktop: "image://internal/mode-desktop.svg"
 	property string logo: "image://internal/logo.svg"
 	property string welcomeLock: "image://internal/secured.svg"
 	property string lock: "image://internal/lock.svg"
@@ -43,6 +47,9 @@ QtObject {
 	property string interoperable: "image://internal/interoperable.svg"
 	property string phone: "image://internal/phone.svg"
 	property string phoneSelected: "image://internal/phone-fill.svg"
+	// Historique des appels (onglet Appels) : horloge et fleche, comme 3CX.
+	property string callHistory: "image://internal/clock-counter-clockwise.svg"
+	property string callHistorySelected: "image://internal/clock-counter-clockwise-fill.svg"
 	property string newCall: "image://internal/phone-plus.svg"
 	property string endCall: "image://internal/phone-disconnect.svg"
 	property string callList: "image://internal/phone-list.svg"

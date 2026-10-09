@@ -21,6 +21,7 @@
 #ifndef NOTIFIER_H_
 #define NOTIFIER_H_
 
+#include <QSet>
 #include <memory>
 
 #include "core/setting/SettingsCore.hpp"
@@ -44,6 +45,8 @@ public:
 
 	// void notifyReceivedCall(Call *call);
 	void notifyReceivedCall(const std::shared_ptr<linphone::Call> &call); // Call from Linphone
+	// Appel entrant reste sans reponse : notification « Appel manque » avec un bouton « Rappeler » (Windows).
+	void notifyMissedCall(const std::shared_ptr<linphone::CallLog> &callLog);
 
 	void notifyReceivedMessages(const std::shared_ptr<linphone::ChatRoom> &room,
 	                            const std::list<std::shared_ptr<linphone::ChatMessage>> &messages);
@@ -87,6 +90,8 @@ private:
 
 	QHash<QString, int> mScreenHeightOffset;
 	int mInstancesNumber = 0;
+	// Appels deja signales comme manques : le SDK peut mettre a jour plusieurs fois le meme historique.
+	QSet<QString> mNotifiedMissedCalls;
 
 	QMutex *mMutex = nullptr;
 	// QQmlComponent **mComponents = nullptr;

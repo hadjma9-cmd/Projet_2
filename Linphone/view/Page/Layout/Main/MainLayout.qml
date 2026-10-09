@@ -48,6 +48,7 @@ Item {
     signal openNewCallRequest
     signal callCreated
     signal openCallHistory
+    signal openCallHistoryFor(string text)
     signal openNumPadRequest
     signal displayContactRequested(string contactAddress)
     signal displayChatRequested(string contactAddress)
@@ -56,32 +57,65 @@ Item {
     signal scheduleMeetingRequested(string subject, list<string> addresses)
     signal accountRemoved
 
+    // Pages : 0 appels, 1 contacts, 2 messages, 3 reunions, 4 equipe. Le bouton de chaque page peut etre n'importe ou dans
+    // la barre (cle « page » du modele) : on passe toujours par ces fonctions, jamais par la position du bouton.
+    function tabIndexOfPage(page) {
+        for (var i = 0; i < tabbar.model.length; ++i)
+            if (tabbar.model[i].page === page)
+                return i;
+        return -1;
+    }
+    function pageOfTab(index) {
+        var entry = index >= 0 ? tabbar.model[index] : undefined;
+        return entry && entry.page !== undefined ? entry.page : -1;
+    }
+    function showPage(page) {
+        tabbar.currentIndex = tabIndexOfPage(page);
+    }
+    function dialerTabIndex() {
+        for (var i = 0; i < tabbar.model.length; ++i)
+            if (tabbar.model[i].dialer)
+                return i;
+        return -1;
+    }
+    // Page « Nouvel appel » affichee dans la page Appels, et son mode (Clavier ou Contacts) : relayes par CallPage.
+    property bool callDialerShown: false
+    property bool callDialerMode: true
+
     function goToNewCall() {
-        tabbar.currentIndex = 0;
+        showPage(0);
         mainItem.openNewCallRequest();
     }
     function goToCallHistory() {
-        tabbar.currentIndex = 0;
+        showPage(0);
         mainItem.openCallHistory();
     }
+    function goToCallHistoryFor(text) {
+        showPage(0);
+        mainItem.openCallHistoryFor(text);
+    }
+    // Poste interne (1 a 5 chiffres) : sa fiche est dans l'onglet Equipe, les autres dans Contacts.
+    function isTeamAddress(address) {
+        return /^[0-9]{1,5}$/.test(UtilsCpp.getUsername(address));
+    }
     function displayContactPage(contactAddress) {
-        tabbar.currentIndex = 1;
+        showPage(isTeamAddress(contactAddress) ? 4 : 1);
         mainItem.displayContactRequested(contactAddress);
     }
     function displayChatPage(contactAddress) {
-        tabbar.currentIndex = 2;
+        showPage(2);
         mainItem.displayChatRequested(contactAddress);
     }
     function openChat(chat) {
-        tabbar.currentIndex = 2;
+        showPage(2);
         mainItem.openChatRequested(chat);
     }
     function createContact(name, address) {
-        tabbar.currentIndex = 1;
+        showPage(1);
         mainItem.createContactRequested(name, address);
     }
     function scheduleMeeting(subject, addresses) {
-        tabbar.currentIndex = 3;
+        showPage(3);
         mainItem.scheduleMeetingRequested(subject, addresses);
     }
 
@@ -147,7 +181,7 @@ Item {
 
     AccountProxy {
         id: accountProxy
-        onDefaultAccountChanged: if (tabbar.currentIndex === 0 && defaultAccount)
+        onDefaultAccountChanged: if (mainItem.pageOfTab(tabbar.currentIndex) === 0 && defaultAccount)
             defaultAccount.core?.lResetMissedCalls()
     }
 
@@ -218,21 +252,36 @@ Item {
                 Layout.preferredWidth: Utils.getSizeWithScreenRatio(82)
                 defaultAccount: accountProxy.defaultAccount
                 currentIndex: 0
+                // Page « Nouvel appel » affichee : c'est Clavier (ou Contacts, selon son mode) qui parait selectionne,
+                // pas Appels.
+                highlightedIndex: mainItem.callDialerShown && mainItem.pageOfTab(currentIndex) === 0
+                                  ? (mainItem.callDialerMode ? mainItem.dialerTabIndex() : mainItem.tabIndexOfPage(1))
+                                  : currentIndex
+                // Appels choisi alors que le clavier est affiche : retour a l'historique.
+                onTabClicked: index => {
+                    if (mainItem.pageOfTab(index) === 0 && mainItem.callDialerShown)
+                        mainItem.goToCallHistory();
+                }
                 onCountChanged: if (currentIndex >= count) currentIndex = 0
                 Binding on currentIndex {
                     when: mainItem.contextualMenuOpenedComponent != undefined
                     value: -1
                 }
                 model: [
+                    // Ordre de la barre. « page » : numero de la page affichee (0 appels, 1 contacts, 2 messages,
+                    // 3 reunions, 4 equipe), independant de la position du bouton (voir showPage). Les entrees sans page
+                    // sont des actions : construites comme les onglets pour un espacement identique, elles s'executent
+                    // au clic sans devenir l'onglet courant (voir VerticalTabBar).
                     {
-                        "icon": AppIcons.phone,
-                        "selectedIcon": AppIcons.phoneSelected,
-                        //: "Appels"
-                        "label": qsTr("bottom_navigation_calls_label"),
-                        //: "Open calls page"
-                        "accessibilityLabel": qsTr("open_calls_page_accessible_name")
+                        // Collegues : postes internes du domaine, tries par statut.
+                        "page": 4,
+                        "icon": AppIcons.usersThree,
+                        "selectedIcon": AppIcons.usersThreeSelected,
+                        "label": "Équipe",
+                        "accessibilityLabel": "Équipe"
                     },
                     {
+                        "page": 1,
                         "icon": AppIcons.adressBook,
                         "selectedIcon": AppIcons.adressBookSelected,
                         //: "Contacts"
@@ -241,26 +290,8 @@ Item {
                         "accessibilityLabel": qsTr("open_contacts_page_accessible_name")
                     },
                     {
-                        "icon": AppIcons.chatTeardropText,
-                        "selectedIcon": AppIcons.chatTeardropTextSelected,
-                        //: "Messages" (« Conversations » etait coupe dans la barre laterale)
-                        "label": qsTr("bottom_navigation_conversations_label"),
-                        //: "Open conversations page"
-                        "accessibilityLabel": qsTr("open_conversations_page_accessible_name"),
-                        "visible": !SettingsCpp.disableChatFeature
-                    },
-                    {
-                        "icon": AppIcons.videoconference,
-                        "selectedIcon": AppIcons.videoconferenceSelected,
-                        //: "Réunions"
-                        "label": qsTr("bottom_navigation_meetings_label"),
-                        //: "Open meetings page"
-                        "accessibilityLabel": qsTr("open_contact_page_accessible_name"),
-                        "visible": !SettingsCpp.disableMeetingsFeature
-                    },
-                    // Actions, construites comme les onglets pour un espacement identique ; elles
-                    // s'executent au clic sans devenir l'onglet courant (voir VerticalTabBar).
-                    {
+                        // Selectionne tant que la page « Nouvel appel » est affichee en mode Clavier (voir highlightedIndex).
+                        "dialer": true,
                         "icon": AppIcons.dialer,
                         "selectedIcon": AppIcons.dialer,
                         //: "Clavier"
@@ -273,6 +304,26 @@ Item {
                             mainItem.goToNewCall();
                             mainItem.openNumPadRequest();
                         }
+                    },
+                    {
+                        // Historique des appels : horloge, le telephone etant deja sur tous les boutons d'appel.
+                        "page": 0,
+                        "icon": AppIcons.callHistory,
+                        "selectedIcon": AppIcons.callHistorySelected,
+                        //: "Appels"
+                        "label": qsTr("bottom_navigation_calls_label"),
+                        //: "Open calls page"
+                        "accessibilityLabel": qsTr("open_calls_page_accessible_name")
+                    },
+                    {
+                        "page": 2,
+                        "icon": AppIcons.chatTeardropText,
+                        "selectedIcon": AppIcons.chatTeardropTextSelected,
+                        //: "Messages" (« Conversations » etait coupe dans la barre laterale)
+                        "label": qsTr("bottom_navigation_conversations_label"),
+                        //: "Open conversations page"
+                        "accessibilityLabel": qsTr("open_conversations_page_accessible_name"),
+                        "visible": !SettingsCpp.disableChatFeature
                     },
                     {
                         "icon": AppIcons.voicemail,
@@ -296,21 +347,25 @@ Item {
                             mainItem.openVoicemail();
                         }
                     },
-                    // Passage a la petite fenetre (format telephone), a la suite des autres entrees.
                     {
-                        "icon": AppIcons.windowSmall,
-                        "selectedIcon": AppIcons.windowSmall,
-                        "label": "Petite fenêtre",
-                        "accessibilityLabel": "Petite fenêtre",
-                        "action": function () {
-                            AppCpp.compactMode = true;
-                        }
+                        "page": 3,
+                        "icon": AppIcons.videoconference,
+                        "selectedIcon": AppIcons.videoconferenceSelected,
+                        //: "Réunions"
+                        "label": qsTr("bottom_navigation_meetings_label"),
+                        //: "Open meetings page"
+                        "accessibilityLabel": qsTr("open_contact_page_accessible_name"),
+                        // Masquee : les reunions Linphone demandent un serveur de conference, absent avec FusionPBX.
+                        // Remettre !SettingsCpp.disableMeetingsFeature pour la reafficher.
+                        "visible": false
                     }
                 ]
                 onCurrentIndexChanged: {
-                    if (currentIndex === -1 || currentIndex >= tabbar.visibleCount)
+                    // Action, raccourci externe ou aucun onglet : pas de page.
+                    var page = mainItem.pageOfTab(currentIndex);
+                    if (page === -1)
                         return;
-                    if (currentIndex === 0 && accountProxy.defaultAccount)
+                    if (page === 0 && accountProxy.defaultAccount)
                         accountProxy.defaultAccount.core?.lResetMissedCalls();
                     if (mainItem.contextualMenuOpenedComponent) {
                         closeContextualMenuComponent();
@@ -347,10 +402,11 @@ Item {
                         });
                     }
                     initButtons();
-                    currentIndex = SettingsCpp.getLastActiveTabIndex();
                     tabbar.updateVisibleCount()
-                    if (currentIndex === -1 || currentIndex >= tabbar.visibleCount)
-                        currentIndex = 0;
+                    // Derniere page ouverte (enregistree par numero de page), si son bouton est affiche ; sinon
+                    // le premier bouton de la barre.
+                    var lastTab = mainItem.tabIndexOfPage(SettingsCpp.getLastActiveTabIndex());
+                    currentIndex = lastTab !== -1 && model[lastTab].visible !== false ? lastTab : 0;
                 }
             }
             ColumnLayout {
@@ -556,9 +612,11 @@ Item {
                             popup.padding: Utils.getSizeWithScreenRatio(14)
                             //: "Application options"
                             popUpTitle: qsTr("application_options_accessible_name")
-                            popup.Accessible.role: Accessible.PopupMenu
+                            // Role porte par le contenu : pose sur le Popup (qui n'est pas un Item), il etait ignore et
+                            // levait un avertissement a chaque demarrage.
                             popup.contentItem: FocusScope {
                                 id: popupFocus
+                                Accessible.role: Accessible.PopupMenu
                                 implicitHeight: settingsButtons.implicitHeight
                                 implicitWidth: settingsButtons.implicitWidth
                                 Keys.onPressed: event => {
@@ -729,18 +787,45 @@ Item {
                     StackLayout {
                         id: mainStackLayout
                         objectName: "mainStackLayout"
+                        // Position du bouton choisi dans la barre ; la page affichee est sa cle « page ».
                         property int _currentIndex: tabbar.currentIndex
                         currentIndex: -1
                         onActiveFocusChanged: if (activeFocus && currentIndex >= 0)
                             children[currentIndex].forceActiveFocus()
-                        on_CurrentIndexChanged: {
-                            if (count > 0) {
-                                if (_currentIndex >= count && tabbar.model[_currentIndex].link) {
-                                    Qt.openUrlExternally(tabbar.model[_currentIndex].link);
-                                } else if (_currentIndex >= 0) {
-                                    currentIndex = _currentIndex;
-                                    SettingsCpp.setLastActiveTabIndex(currentIndex);
+                        function applyTab() {
+                            if (count === 0)
+                                return;
+                            var entry = _currentIndex >= 0 ? tabbar.model[_currentIndex] : undefined;
+                            if (entry && entry.link) {
+                                Qt.openUrlExternally(entry.link);
+                            } else if (entry && entry.page !== undefined) {
+                                currentIndex = entry.page;
+                                SettingsCpp.setLastActiveTabIndex(entry.page);
+                            }
+                        }
+                        on_CurrentIndexChanged: applyTab()
+                        // L'onglet a pu etre choisi avant la creation de la pile : sans changement ensuite, la
+                        // page ne s'afficherait pas.
+                        Component.onCompleted: if (mainItem.pageOfTab(_currentIndex) !== -1)
+                            applyTab()
+                        // Prechargement des onglets une fois l'application au calme (3 s apres l'ouverture) : Equipe,
+                        // Contacts et Messages s'ouvrent ensuite instantanement des le premier clic. Un onglet a la fois,
+                        // construit par petits morceaux (asynchrone) pour ne rien figer.
+                        Timer {
+                            interval: 3000
+                            repeat: true
+                            running: true
+                            onTriggered: {
+                                var next = [teamPageLoader, contactsPageLoader, chatPageLoader].find(function (loader) {
+                                    return !loader.active
+                                })
+                                if (!next) {
+                                    stop()
+                                    return
                                 }
+                                next.asynchronous = true
+                                next.keptAlive = true
+                                interval = 1500
                             }
                         }
                         Loader {
@@ -753,6 +838,8 @@ Item {
                             active: keptAlive || mainStackLayout.currentIndex === 0
                             sourceComponent: CallPage {
                                 id: callPage
+                                onNewCallShownChanged: mainItem.callDialerShown = newCallShown
+                                onNewCallDialerModeChanged: mainItem.callDialerMode = newCallDialerMode
                                 Connections {
                                     target: mainItem
                                     function onOpenNewCallRequest() {
@@ -763,6 +850,9 @@ Item {
                                     }
                                     function onOpenCallHistory() {
                                         callPage.goToCallHistory();
+                                    }
+                                    function onOpenCallHistoryFor(text) {
+                                        callPage.showHistoryFor(text);
                                     }
                                     function onOpenNumPadRequest() {
                                         callPage.openNumPadRequest();
@@ -782,8 +872,11 @@ Item {
                                 // Differe : pose pendant le chargement, que declenche la liaison « active »,
                                 // il reevaluait cette liaison en cours de route (boucle signalee au journal).
                                 Qt.callLater(function() { keptAlive = true })
-                                if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
-                                focusPageOnNextLoad = false
+                                // Page prechargee en arriere-plan (cachee) : elle ne prend pas le focus.
+                                if (visible) {
+                                    if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
+                                    focusPageOnNextLoad = false
+                                }
                             }
                             // La page n'etant plus reconstruite, onLoaded ne se declenche qu'une fois :
                             // le focus clavier est donc repose quand elle redevient l'onglet courant.
@@ -793,6 +886,7 @@ Item {
                             }
                         }
                         Loader {
+                            id: contactsPageLoader
                             property bool keptAlive: false
                             active: keptAlive || mainStackLayout.currentIndex === 1
                             sourceComponent: ContactPage {
@@ -803,7 +897,8 @@ Item {
                                         contactPage.createContact(name, address);
                                     }
                                     function onDisplayContactRequested(contactAddress) {
-                                        contactPage.initialFriendToDisplay = contactAddress;
+                                        if (!mainItem.isTeamAddress(contactAddress))
+                                            contactPage.initialFriendToDisplay = contactAddress;
                                     }
                                 }
                             }
@@ -811,8 +906,11 @@ Item {
                                 // Differe : pose pendant le chargement, que declenche la liaison « active »,
                                 // il reevaluait cette liaison en cours de route (boucle signalee au journal).
                                 Qt.callLater(function() { keptAlive = true })
-                                if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
-                                focusPageOnNextLoad = false
+                                // Page prechargee en arriere-plan (cachee) : elle ne prend pas le focus.
+                                if (visible) {
+                                    if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
+                                    focusPageOnNextLoad = false
+                                }
                             }
                             // La page n'etant plus reconstruite, onLoaded ne se declenche qu'une fois :
                             // le focus clavier est donc repose quand elle redevient l'onglet courant.
@@ -822,6 +920,7 @@ Item {
                             }
                         }
                         Loader {
+                            id: chatPageLoader
                             property bool keptAlive: false
                             active: keptAlive || mainStackLayout.currentIndex === 2
                             sourceComponent: ChatPage {
@@ -843,8 +942,11 @@ Item {
                                 // Differe : pose pendant le chargement, que declenche la liaison « active »,
                                 // il reevaluait cette liaison en cours de route (boucle signalee au journal).
                                 Qt.callLater(function() { keptAlive = true })
-                                if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
-                                focusPageOnNextLoad = false
+                                // Page prechargee en arriere-plan (cachee) : elle ne prend pas le focus.
+                                if (visible) {
+                                    if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
+                                    focusPageOnNextLoad = false
+                                }
                             }
                             // La page n'etant plus reconstruite, onLoaded ne se declenche qu'une fois :
                             // le focus clavier est donc repose quand elle redevient l'onglet courant.
@@ -873,11 +975,43 @@ Item {
                                 // Differe : pose pendant le chargement, que declenche la liaison « active »,
                                 // il reevaluait cette liaison en cours de route (boucle signalee au journal).
                                 Qt.callLater(function() { keptAlive = true })
-                                if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
-                                focusPageOnNextLoad = false
+                                // Page prechargee en arriere-plan (cachee) : elle ne prend pas le focus.
+                                if (visible) {
+                                    if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
+                                    focusPageOnNextLoad = false
+                                }
                             }
                             // La page n'etant plus reconstruite, onLoaded ne se declenche qu'une fois :
                             // le focus clavier est donc repose quand elle redevient l'onglet courant.
+                            onVisibleChanged: if (visible && item && focusPageOnNextLoad) {
+                                item.forceActiveFocus(Qt.TabFocusReason)
+                                focusPageOnNextLoad = false
+                            }
+                        }
+                        // Page 4 : Equipe, la page Contacts limitee aux postes internes, triee par statut.
+                        Loader {
+                            id: teamPageLoader
+                            property bool keptAlive: false
+                            active: keptAlive || mainStackLayout.currentIndex === 4
+                            sourceComponent: ContactPage {
+                                id: teamPage
+                                teamMode: true
+                                Connections {
+                                    target: mainItem
+                                    function onDisplayContactRequested(contactAddress) {
+                                        if (mainItem.isTeamAddress(contactAddress))
+                                            teamPage.initialFriendToDisplay = contactAddress;
+                                    }
+                                }
+                            }
+                            onLoaded: {
+                                Qt.callLater(function() { keptAlive = true })
+                                // Page prechargee en arriere-plan (cachee) : elle ne prend pas le focus.
+                                if (visible) {
+                                    if(focusPageOnNextLoad) item.forceActiveFocus(Qt.TabFocusReason)
+                                    focusPageOnNextLoad = false
+                                }
+                            }
                             onVisibleChanged: if (visible && item && focusPageOnNextLoad) {
                                 item.forceActiveFocus(Qt.TabFocusReason)
                                 focusPageOnNextLoad = false
@@ -952,6 +1086,70 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     initialItem: mainStackLayoutComponent
+                }
+            }
+        }
+
+        // Passage en petite fenetre : en bas de la barre, a part (ce n'est pas un onglet mais un changement
+        // d'affichage), icone seule, nom au survol. Au-dessus de la barre pour recevoir les clics.
+        Item {
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            width: tabbar.width
+            height: compactSwitchColumn.implicitHeight + Utils.getSizeWithScreenRatio(18)
+            visible: tabbar.visible
+            z: 1
+            ColumnLayout {
+                id: compactSwitchColumn
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                spacing: Utils.getSizeWithScreenRatio(12)
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: Utils.getSizeWithScreenRatio(44)
+                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
+                    color: Qt.rgba(1, 1, 1, 0.3)
+                }
+                Item {
+                    id: compactSwitchButton
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: Utils.getSizeWithScreenRatio(42)
+                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(42)
+                    activeFocusOnTab: true
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Passer en petite fenêtre"
+                    Keys.onPressed: event => {
+                        if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            AppCpp.compactMode = true
+                            event.accepted = true
+                        }
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: Utils.getSizeWithScreenRatio(10)
+                        color: compactSwitchArea.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                        border.width: compactSwitchButton.activeFocus ? Utils.getSizeWithScreenRatio(2) : 0
+                        border.color: DefaultStyle.grey_0
+                    }
+                    EffectImage {
+                        anchors.centerIn: parent
+                        width: Utils.getSizeWithScreenRatio(24)
+                        height: width
+                        imageSource: AppIcons.modeCompact
+                        colorizationColor: DefaultStyle.grey_0
+                    }
+                    MouseArea {
+                        id: compactSwitchArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: AppCpp.compactMode = true
+                    }
+                    ToolTip {
+                        text: "Passer en petite fenêtre"
+                        visible: compactSwitchArea.containsMouse
+                        delay: 300
+                    }
                 }
             }
         }

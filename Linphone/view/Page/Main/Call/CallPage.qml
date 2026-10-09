@@ -45,10 +45,12 @@ AbstractMainPage {
     signal createCallFromSearchBarRequested
     signal createContactRequested(string name, string address)
     signal openNumPadRequest
-    // Mode de « Nouvel appel » : Clavier (vrai) ou Contacts. Le dernier choix est garde ; le bouton
-    // pave du bandeau ouvre toujours le clavier.
+    // « Nouvel appel » n'a plus que le clavier (les listes sont dans les onglets Equipe et Contacts) : toujours
+    // vrai, garde pour la barre laterale (Clavier selectionne, MainLayout).
     property bool newCallDialerMode: true
     signal dialerFocusRequested
+    // Page « Nouvel appel » affichee : la barre laterale selectionne alors Clavier, et non Appels.
+    readonly property bool newCallShown: listStackView.currentItem?.objectName === "newCallItem"
 
     Connections {
         enabled: confInfoGui
@@ -85,6 +87,37 @@ AbstractMainPage {
     // recreer a chaque ouverture relancait ses recherches de contacts et figeait l'interface.
     // Elle est remise a zero en quittant la pile (voir newCallItem), comme une page neuve.
     property Item newCallPageItem: null
+    // Preparee en arriere-plan, par petits morceaux, peu apres l'ouverture de la page : le premier clic sur
+    // Clavier ou Nouvel appel ne la construit plus d'un bloc (gel d'une demi-seconde).
+    property var newCallPageIncubator: null
+    function prepareNewCallPage() {
+        if (newCallPageItem || newCallPageIncubator)
+            return
+        var incubator = newCallItem.incubateObject(newCallPageHolder, {}, Qt.Asynchronous)
+        if (!incubator)
+            return
+        var adopt = function () {
+            if (incubator.status === Component.Ready) {
+                if (!mainItem.newCallPageItem)
+                    mainItem.newCallPageItem = incubator.object
+                else if (mainItem.newCallPageItem !== incubator.object)
+                    incubator.object.destroy() // Construite entre-temps par un clic : celle-ci ne sert plus.
+            }
+            if (incubator.status !== Component.Loading && mainItem.newCallPageIncubator === incubator)
+                mainItem.newCallPageIncubator = null
+        }
+        if (incubator.status === Component.Loading) {
+            newCallPageIncubator = incubator
+            incubator.onStatusChanged = adopt
+        } else {
+            adopt()
+        }
+    }
+    Timer {
+        interval: 1500
+        running: true
+        onTriggered: mainItem.prepareNewCallPage()
+    }
     function goToNewCall() {
         if (!listStackView.currentItem || listStackView.currentItem.objectName == "newCallItem")
             return
@@ -93,6 +126,14 @@ AbstractMainPage {
         if (newCallPageItem && newCallPageItem.parent !== newCallPageHolder
                 && !listStackView.find(function (item) { return item === mainItem.newCallPageItem }))
             newCallPageItem = null
+        // Preparation en arriere-plan pas encore terminee : on l'acheve tout de suite.
+        if (!newCallPageItem && newCallPageIncubator) {
+            var incubator = newCallPageIncubator
+            incubator.forceCompletion()
+            if (incubator.status === Component.Ready && !newCallPageItem)
+                newCallPageItem = incubator.object
+            newCallPageIncubator = null
+        }
         if (!newCallPageItem)
             newCallPageItem = newCallItem.createObject(newCallPageHolder)
         if (!newCallPageItem)
@@ -105,6 +146,13 @@ AbstractMainPage {
     // Retour a l'historique, toujours au bas de la pile. replace() n'echangeait que l'element du
     // dessus : chaque retour empilait une nouvelle liste d'historique sur l'ancienne, et toutes
     // restaient en memoire, cachees, mises a jour a chaque appel.
+    // Historique filtre sur un numero (« Voir tout » des derniers appels d'une fiche contact).
+    function showHistoryFor(text) {
+        goToCallHistory()
+        var history = listStackView.get(0)
+        if (history && history.searchBar)
+            history.searchBar.setText(text)
+    }
     function goToCallHistory() {
         if (listStackView.depth > 1)
             listStackView.popToIndex(0, mainItem.visible ? Control.StackView.PopTransition
@@ -164,6 +212,7 @@ AbstractMainPage {
             objectName: "historyListItem"
             property alias listView: historyListView
             property alias newCallButton: newCallButton
+            property alias searchBar: searchBar
 
             ColumnLayout {
                 anchors.fill: parent
@@ -291,15 +340,57 @@ AbstractMainPage {
                         padding: 0
                         background: Item {}
                         contentItem: ColumnLayout {
+                            // Filtre par type d'appel, comme 3CX : une pastille par choix, la choisie en bleu.
+                            RowLayout {
+                                id: callFilterRow
+                                visible: historyListView.count !== 0 || historyListView.callFilter !== 0
+                                         || searchBar.text.length !== 0
+                                Layout.topMargin: Utils.getSizeWithScreenRatio(18)
+                                spacing: Utils.getSizeWithScreenRatio(8)
+                                Repeater {
+                                    model: [{"label": "Tous", "value": 0}, {"label": "Manqués", "value": 1},
+                                            {"label": "Entrants", "value": 2}, {"label": "Sortants", "value": 3}]
+                                    delegate: Rectangle {
+                                        id: filterPill
+                                        required property var modelData
+                                        readonly property bool selected: historyListView.callFilter === modelData.value
+                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(28)
+                                        Layout.preferredWidth: filterLabel.implicitWidth + Utils.getSizeWithScreenRatio(24)
+                                        radius: height / 2
+                                        color: selected ? DefaultStyle.main1_500_main
+                                                        : filterArea.containsMouse ? DefaultStyle.main2_100 : "transparent"
+                                        border.width: selected ? 0 : Utils.getSizeWithScreenRatio(1)
+                                        border.color: DefaultStyle.main2_300
+                                        Text {
+                                            id: filterLabel
+                                            anchors.centerIn: parent
+                                            text: filterPill.modelData.label
+                                            color: filterPill.selected ? DefaultStyle.grey_0 : DefaultStyle.main2_600
+                                            font.pixelSize: Utils.getSizeWithScreenRatio(13)
+                                            font.weight: filterPill.selected ? Font.DemiBold : Font.Normal
+                                        }
+                                        MouseArea {
+                                            id: filterArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: historyListView.callFilter = filterPill.modelData.value
+                                        }
+                                        Accessible.role: Accessible.RadioButton
+                                        Accessible.name: filterPill.modelData.label
+                                        Accessible.checked: filterPill.selected
+                                    }
+                                }
+                            }
                             Text {
                                 visible: historyListView.count === 0 && !historyListView.loading
                                 Layout.fillWidth: true
                                 horizontalAlignment: Text.AlignHCenter
                                 Layout.alignment: Qt.AlignHCenter
                                 maximumLineCount: 2
-                                Layout.topMargin: Utils.getSizeWithScreenRatio(137)
+                                Layout.topMargin: Utils.getSizeWithScreenRatio(callFilterRow.visible ? 100 : 137)
                                 //: "Aucun résultat…"
-                                text: searchBar.text.length != 0 ? qsTr("list_filter_no_result_found")
+                                text: searchBar.text.length != 0 || historyListView.callFilter !== 0 ? qsTr("list_filter_no_result_found")
                                                                    //: "Aucun appel dans votre historique"
                                                                  : qsTr("history_list_empty_history")
                                 font {
@@ -311,7 +402,7 @@ AbstractMainPage {
                                 id: historyListView
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-                                Layout.topMargin: Utils.getSizeWithScreenRatio(38)
+                                Layout.topMargin: Utils.getSizeWithScreenRatio(callFilterRow.visible ? 16 : 38)
                                 searchBar: searchBar
                                 Control.ScrollBar.vertical: scrollbar
 
@@ -366,10 +457,7 @@ AbstractMainPage {
             width: parent?.width
             height: parent?.height
             function focusCurrentMode(reason) {
-                if (mainItem.newCallDialerMode)
-                    dialerForm.focusNumber()
-                else
-                    callContactsList.forceActiveFocus(reason)
+                dialerForm.focusNumber()
             }
             Control.StackView.onActivated: {
                 const focusReason = FocusNavigator.doesLastFocusWasKeyboard() ? Qt.TabFocusReason : Qt.OtherFocusReason
@@ -383,7 +471,6 @@ AbstractMainPage {
                     newCallPage.destroy()
                     return
                 }
-                callContactsList.reset()
                 dialerForm.clear()
             }
             Connections {
@@ -428,79 +515,16 @@ AbstractMainPage {
                         Layout.fillWidth: true
                     }
                 }
-                // Deux facons d'appeler : composer un numero, comme sur un telephone (Clavier), ou
-                // choisir un contact par son nom (Contacts).
-                Rectangle {
-                    Layout.topMargin: Utils.getSizeWithScreenRatio(18)
-                    Layout.rightMargin: Utils.getSizeWithScreenRatio(39)
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
-                    radius: height / 2
-                    color: DefaultStyle.main2_100
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: Utils.getSizeWithScreenRatio(4)
-                        spacing: Utils.getSizeWithScreenRatio(4)
-                        Repeater {
-                            model: [{
-                                    //: "Contacts"
-                                    "label": qsTr("new_call_tab_contacts"),
-                                    "iconSource": AppIcons.adressBook,
-                                    "dialer": false
-                                }, {
-                                    //: "Clavier"
-                                    "label": qsTr("new_call_tab_dialer"),
-                                    "iconSource": AppIcons.dialer,
-                                    "dialer": true
-                                }]
-                            Button {
-                                required property var modelData
-                                readonly property bool selected: mainItem.newCallDialerMode === modelData.dialer
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                style: selected ? ButtonStyle.main : ButtonStyle.noBackground
-                                text: modelData.label
-                                icon.source: modelData.iconSource
-                                icon.width: Utils.getSizeWithScreenRatio(18)
-                                icon.height: Utils.getSizeWithScreenRatio(18)
-                                textSize: Utils.getSizeWithScreenRatio(15)
-                                textWeight: Font.Bold
-                                spacing: Utils.getSizeWithScreenRatio(8)
-                                Accessible.role: Accessible.PageTab
-                                onClicked: {
-                                    mainItem.newCallDialerMode = modelData.dialer
-                                    newCallPage.focusCurrentMode(Qt.OtherFocusReason)
-                                }
-                            }
-                        }
-                    }
-                }
-                StackLayout {
+                // Clavier seul : on compose un numero, ou on tape un nom au clavier de l'ordinateur ; les
+                // collegues et contacts correspondants sont proposes sous la saisie. Pour choisir dans une
+                // liste : onglets Equipe et Contacts.
+                DialerForm {
+                    id: dialerForm
                     Layout.topMargin: Utils.getSizeWithScreenRatio(18)
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    currentIndex: mainItem.newCallDialerMode ? 1 : 0
-                    // Contacts : recherche par nom, sans pave.
-                    NewCallForm {
-                        id: callContactsList
-                        searchBarColor: DefaultStyle.grey_100
-                        onContactClicked: contact => {
-                            mainWindow.startCallWithContact(contact, false, callContactsList)
-                        }
-                        onGroupCreationRequested: {
-                            console.log("groupe call requetsed")
-                            listStackView.push(groupCallItem)
-                        }
-                    }
-                    // Clavier : numero compose puis appel, sans recherche.
-                    Item {
-                        DialerForm {
-                            id: dialerForm
-                            anchors.fill: parent
-                            anchors.rightMargin: Utils.getSizeWithScreenRatio(39)
-                            onCallRequested: number => UtilsCpp.createCall(number)
-                        }
-                    }
+                    Layout.rightMargin: Utils.getSizeWithScreenRatio(39)
+                    onCallRequested: number => UtilsCpp.createCall(number)
                 }
             }
         }

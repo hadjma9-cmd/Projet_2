@@ -25,6 +25,8 @@
 #include "core/search/MagicSearchList.hpp"
 #include "tool/LinphoneEnums.hpp"
 
+#include <QTimer>
+
 // =============================================================================
 
 class MagicSearchProxy : public LimitProxy {
@@ -42,12 +44,24 @@ class MagicSearchProxy : public LimitProxy {
 
 	Q_PROPERTY(MagicSearchProxy *parentProxy READ getParentProxy WRITE setParentProxy NOTIFY parentProxyChanged)
 	Q_PROPERTY(MagicSearchProxy *hideListProxy READ getHideListProxy WRITE setHideListProxy NOTIFY hideListProxyChanged)
+	// Tri par statut (disponibles d'abord), puis par nom ; suit les changements de presence.
+	Q_PROPERTY(bool sortByPresence READ getSortByPresence WRITE setSortByPresence NOTIFY sortByPresenceChanged)
 
 public:
-	enum class FilteringTypes { None = 0, Favorites = 1, App = 2, Ldap = 4, CardDAV = 8, Other = 16 };
+	// Extensions : postes internes seulement (onglet Equipe) ; External : sans les postes internes (Contacts).
+	enum class FilteringTypes {
+		None = 0,
+		Favorites = 1,
+		App = 2,
+		Ldap = 4,
+		CardDAV = 8,
+		Other = 16,
+		Extensions = 32,
+		External = 64
+	};
 	Q_ENUM(FilteringTypes)
 
-	DECLARE_SORTFILTER_CLASS(MagicSearchProxy *mHideListProxy = nullptr;)
+	DECLARE_SORTFILTER_CLASS(MagicSearchProxy *mHideListProxy = nullptr; bool mSortByPresence = false;)
 	MagicSearchProxy(QObject *parent = Q_NULLPTR);
 	~MagicSearchProxy();
 
@@ -76,6 +90,9 @@ public:
 	MagicSearchProxy *getHideListProxy() const;
 	void setHideListProxy(MagicSearchProxy *proxy);
 
+	bool getSortByPresence() const;
+	void setSortByPresence(bool sortByPresence);
+
 	// Q_INVOKABLE forceUpdate();
 	Q_INVOKABLE int findFriendIndexByAddress(const QString &address);
 	Q_INVOKABLE FriendGui *findFriendByAddress(const QString &address);
@@ -92,6 +109,7 @@ signals:
 	void localFriendCreated(int index);
 	void parentProxyChanged();
 	void hideListProxyChanged();
+	void sortByPresenceChanged();
 	void initialized();
 	void resultsProcessed();
 
@@ -99,6 +117,8 @@ protected:
 	MagicSearchProxy *mParentProxy = nullptr;
 	QString mSearchText;
 	QSharedPointer<MagicSearchList> mList;
+	// Retri par statut groupe : une rafale de presences (connexion, reprise) ne retrie qu'une fois.
+	QTimer *mPresenceSortTimer = nullptr;
 };
 
 #endif
