@@ -39,6 +39,7 @@
 #include <QSystemTrayIcon>
 #include <QTimer>
 #include <QTranslator>
+#include <QUrl>
 #include <functional>
 
 #include "core/account/AccountCore.hpp"
@@ -391,33 +392,38 @@ void App::connectCoreModel() {
 			restartCore();
 		});
 	});
-	mCoreModelConnection->makeConnectToModel(&CoreModel::requestFetchConfig, [this](QString path,
-	                                                                                bool askForConfirmation) {
-		mCoreModelConnection->invokeToCore([this, path, askForConfirmation]() {
+	mCoreModelConnection->makeConnectToModel(&CoreModel::requestFetchConfig, [this](QString path, bool) {
+		mCoreModelConnection->invokeToCore([this, path]() {
+			// Seuls les liens de configuration generes par le portail (service fusion-files), sur un serveur de
+			// confiance, sont acceptes ; ils s'appliquent directement, sans question. Toute autre adresse est refusee :
+			// un lien venu d'ailleurs ne doit pas pouvoir reconfigurer l'application (compte, annuaire).
+			static const QString trustedDomain = QStringLiteral(".gama-it.fr");
+			const QUrl url(path);
+			const bool trusted = url.scheme() == QLatin1String("https") &&
+			                     url.host().endsWith(trustedDomain, Qt::CaseInsensitive) &&
+			                     url.path().startsWith(QLatin1String("/gamaphone/p/"));
+			// La configuration est enregistree, puis l'application se ferme et se relance : le moteur l'applique a son
+			// demarrage. Un redemarrage du moteur sur place (restartCore) garde l'interface, donc des fiches de contact
+			// rattachees a l'ancien moteur, qui fermaient l'application a la premiere fin d'appel.
 			auto apply = [this, path] {
-				mCoreModelConnection->invokeToModel([this, path]() { CoreModel::getInstance()->setFetchConfig(path); });
-			};
-			auto callback = [this, path, askForConfirmation]() {
-				//: Voulez-vous télécharger et appliquer la configuration depuis cette adresse ?
-				RequestDialog *obj = new RequestDialog(tr("remote_provisioning_dialog"), path);
-				connect(obj, &RequestDialog::result, this, [this, obj, path](int result) {
-					if (result == 1) {
-						mCoreModelConnection->invokeToModel(
-						    [this, path]() { CoreModel::getInstance()->setFetchConfig(path); });
-					} else if (result == 0) {
-						mCoreModelConnection->invokeToModel([]() { CliModel::getInstance()->resetProcesses(); });
-					}
-					obj->deleteLater();
+				mCoreModelConnection->invokeToModel([this, path]() {
+					if (!CoreModel::getInstance()->setFetchConfig(path, false)) return;
+					mCoreModelConnection->invokeToCore([this]() { relaunch(); });
 				});
-				QMetaObject::invokeMethod(getMainWindow(), "showConfirmationPopup", QVariant::fromValue(obj));
 			};
+			auto refuse = [this] {
+				mCoreModelConnection->invokeToModel([]() { CliModel::getInstance()->resetProcesses(); });
+				Utils::showInformationPopup(
+				    QStringLiteral("Lien refusé"),
+				    QStringLiteral("Ce lien de configuration ne vient pas d'un serveur reconnu."), false);
+			};
+			if (!trusted) lWarning() << log().arg("Configuration link refused, untrusted origin:") << url.host();
 			if (!getMainWindow()) { // Delay
-				if (askForConfirmation)
-					connect(this, &App::mainWindowChanged, this, callback, Qt::SingleShotConnection);
-				else connect(this, &App::mainWindowChanged, this, apply, Qt::SingleShotConnection);
+				if (trusted) connect(this, &App::mainWindowChanged, this, apply, Qt::SingleShotConnection);
+				else connect(this, &App::mainWindowChanged, this, refuse, Qt::SingleShotConnection);
 			} else {
-				if (askForConfirmation) callback();
-				else apply();
+				if (trusted) apply();
+				else refuse();
 			}
 		});
 	});
@@ -1053,6 +1059,23 @@ void App::initCppInterfaces() {
 	    "SettingsCpp", 1, 0, "SettingsCpp",
 	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mSettings.get(); });
 
+	if (!mFusionClient) mFusionClient = FusionClient::create();
+	if (!mQueues) mQueues = QueueCore::create(mFusionClient);
+	if (!mStatus) mStatus = StatusCore::create(mFusionClient);
+	if (!mSharedContacts) mSharedContacts = SharedContactsCore::create(mFusionClient);
+	if (!mUpdate) mUpdate = UpdateCore::create(mFusionClient);
+	qmlRegisterSingletonType<QueueCore>(Constants::MainQmlUri, 1, 0, "QueuesCpp",
+	                                    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mQueues.get(); });
+	qmlRegisterSingletonType<SharedContactsCore>(
+	    Constants::MainQmlUri, 1, 0, "SharedContactsCpp",
+	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mSharedContacts.get(); });
+	qmlRegisterSingletonType<UpdateCore>(
+	    Constants::MainQmlUri, 1, 0, "UpdateCpp",
+	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mUpdate.get(); });
+	qmlRegisterSingletonType<StatusCore>(
+	    Constants::MainQmlUri, 1, 0, "StatusCpp",
+	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mStatus.get(); });
+
 	qmlRegisterSingletonType<AccessibilityHelper>(
 	    "AccessibilityHelperCpp", 1, 0, "AccessibilityHelperCpp",
 	    [](QQmlEngine *engine, QJSEngine *) -> QObject * { return new AccessibilityHelper(engine); });
@@ -1191,6 +1214,11 @@ void App::clean() {
 	}
 	mEngine = nullptr;
 	mSettings = nullptr; // Need it because of SettingsModel singleton for letting thread to remove it.
+	mQueues = nullptr;
+	mStatus = nullptr;
+	mSharedContacts = nullptr;
+	mUpdate = nullptr;
+	mFusionClient = nullptr;
 	// Wait 500ms to let time for log te be stored.
 	// mNotifier destroyed in mEngine deletion as it is its parent
 	// Hack: exec() must be used to process cleaning QSharedPointers memory. processEvents doesn't work.
@@ -1202,6 +1230,18 @@ void App::clean() {
 		delete mLinphoneThread;
 	}
 }
+static bool gRelaunchRequested = false;
+
+void App::relaunch() {
+	lInfo() << log().arg("Relaunching the application");
+	gRelaunchRequested = true;
+	quit();
+}
+
+bool App::relaunchRequested() {
+	return gRelaunchRequested;
+}
+
 void App::restartCore() {
 	setIsRestarting(true);
 	mCoreModelConnection->invokeToModel([this]() {
@@ -1303,6 +1343,16 @@ bool App::getCoreStarted() const {
 
 bool App::getCompactMode() const {
 	return mCompactMode;
+}
+
+bool App::getAdminMenus() const {
+	return mAdminMenus;
+}
+
+void App::setAdminMenus(bool shown) {
+	if (mAdminMenus == shown) return;
+	mAdminMenus = shown;
+	emit adminMenusChanged();
 }
 
 // Un appel en cours suit la fenetre : en petite fenetre, il s'affiche dans celle-ci (fenetre d'appel masquee, camera
@@ -1562,6 +1612,10 @@ void App::setLastActiveWindow(QQuickWindow *data) {
 	if (mLastActiveWindow != data) {
 		mLastActiveWindow = data;
 	}
+}
+
+QSharedPointer<StatusCore> App::getStatus() const {
+	return mStatus;
 }
 
 QSharedPointer<AccountList> App::getAccountList() const {
@@ -1972,15 +2026,12 @@ QString App::getQtVersion() const {
 	return qVersion();
 }
 
+// La mise a jour passe par le serveur du compte (service fusion-files), qui compare la version de l'application a
+// l'installeur qu'il propose : voir UpdateCore. Le controle du moteur n'est pas utilise : il interroge une adresse
+// fixe et compare les versions de travail comme du texte (« pre.9 » y passe apres « pre.13 »).
 void App::checkForUpdate(bool requestedByUser) {
 	mustBeInMainThread(log().arg(Q_FUNC_INFO));
-	if (CoreModel::getInstance() && mCoreModelConnection) {
-		mCoreModelConnection->invokeToModel([this, requestedByUser] {
-			mustBeInLinphoneThread(log().arg(Q_FUNC_INFO));
-			CoreModel::getInstance()->checkForUpdate(Utils::appStringToCoreString(applicationVersion()),
-			                                         requestedByUser);
-		});
-	}
+	if (mUpdate) mUpdate->check(requestedByUser);
 }
 
 ChatGui *App::getCurrentChat() const {

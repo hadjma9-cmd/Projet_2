@@ -29,6 +29,95 @@ MainRightPanel {
     property string saveButtonText: qsTr("save")
 	property string oldPictureUri
     property int addressCount: 0
+	// Nouveau contact (pas une modification) : choix obligatoire, rien de coche au depart, entre « Visible par toute
+	// l'equipe » (cree dans FusionPBX par le service, pour tout le domaine) et « Visible uniquement par vous » (garde
+	// sur ce PC). Meme formulaire pour les deux : prenom, nom et numero, les trois obligatoires.
+	property bool isNew: false
+	property int storage: 0 // 0 : pas encore choisi, 1 : toute l'equipe, 2 : vous seulement
+	readonly property bool shared: isNew && storage === 1
+	property bool waitingServer: false
+	// Modification d'un contact existant : entreprise, fonction et adresses SIP ne s'affichent que s'il en a deja
+	// (figes a l'ouverture, pour qu'un champ ne disparaisse pas pendant qu'on l'efface).
+	property bool showCompany: false
+	property bool showJob: false
+	property bool showSip: false
+	// Contact partage cree : la liste des contacts se recharge pour l'afficher tout de suite.
+	signal sharedContactCreated(string name)
+
+	Component.onCompleted: {
+		if (!contact)
+			return
+		if (isNew) {
+			// Un numero arrive comme adresse SIP (« Ajouter aux contacts » depuis l'historique des appels) devient un
+			// numero de telephone, seul moyen de joindre que ce formulaire affiche.
+			var addresses = contact.core.addresses
+			for (var i = addresses.length - 1; i >= 0; --i) {
+				var user = UtilsCpp.getUsername(addresses[i].address)
+				if (/^\+?[0-9]{3,20}$/.test(user)) {
+					contact.core.appendPhoneNumber(qsTr("phone"), user)
+					contact.core.removeAddress(i)
+				}
+			}
+		} else {
+			showCompany = contact.core.organization.length > 0
+			showJob = contact.core.job.length > 0
+			showSip = contact.core.addresses.length > 0
+		}
+	}
+
+	// Nouveau contact : prenom, nom et numero obligatoires, quel que soit le choix. Renvoie les numeros, ou null s'il
+	// manque quelque chose (le champ fautif passe alors en rouge).
+	function newContactPhones() {
+		var complete = true
+		if (mainItem.contact.core.givenName.trim().length === 0) {
+			givenName.errorMessage = "Saisissez le prénom"
+			complete = false
+		}
+		if (mainItem.contact.core.familyName.trim().length === 0) {
+			familyName.errorMessage = "Saisissez le nom"
+			complete = false
+		}
+		var phones = []
+		var numbers = mainItem.contact.core.phoneNumbers
+		for (var i = 0; i < numbers.length; ++i)
+			if (numbers[i].address.length > 0)
+				phones.push(numbers[i].address)
+		if (phones.length === 0) {
+			addressesErrorText.setText("Saisissez le numéro de téléphone")
+			complete = false
+		}
+		return complete ? phones : null
+	}
+	function saveShared(force) {
+		var phones = newContactPhones()
+		if (!phones)
+			return
+		mainItem.waitingServer = true
+		SharedContactsCpp.createContact(mainItem.contact.core.givenName, mainItem.contact.core.familyName, phones, force)
+	}
+	Connections {
+		target: SharedContactsCpp
+		enabled: mainItem.waitingServer
+		function onContactCreated(name) {
+			mainItem.waitingServer = false
+			mainItem.sharedContactCreated(name)
+			UtilsCpp.showInformationPopup("Contact ajouté", name + " est visible par toute l'équipe.", true)
+			mainItem.closeEdition('')
+		}
+		function onDuplicateFound(name, number) {
+			mainItem.waitingServer = false
+			UtilsCpp.getMainWindow().showConfirmationLambdaPopup("Ce numéro existe déjà",
+				number + " est déjà le numéro de " + name + " dans les contacts de l'équipe.", "",
+				function (confirmed) {
+					if (confirmed)
+						mainItem.saveShared(true)
+				}, "Annuler", "Créer quand même")
+		}
+		function onFailed(message) {
+			mainItem.waitingServer = false
+			addressesErrorText.setText(message)
+		}
+	}
 	
 	signal closeEdition(var redirectAddress)	
 
@@ -89,6 +178,18 @@ MainRightPanel {
 			id: saveDelay
 			interval: 200
 			onTriggered: {
+				if (mainItem.isNew) {
+					if (mainItem.storage === 0) {
+						storageChoice.errorText = "Choisissez qui peut voir ce contact"
+						editionLayout.contentY = 0
+						return
+					}
+					if (mainItem.shared)
+						mainItem.saveShared(false)
+					else if (mainItem.newContactPhones())
+						mainItem.contact.core.save()
+					return
+				}
 				//: "Veuillez saisir un prénom ou un nom d'entreprise"
 				if (mainItem.contact.core.givenName.length === 0 && mainItem.contact.core.organization.length === 0) {
 					givenName.errorMessage = qsTr("contact_editor_mandatory_first_name_or_company_not_filled")
@@ -101,6 +202,8 @@ MainRightPanel {
 				mainItem.contact.core.save()
 			}
 		}
+		// En attente du serveur (contact partage) : pas de deuxieme envoi.
+		button.enabled: !mainItem.waitingServer
 		button.onClicked: {
 			button.forceActiveFocus()
 			saveDelay.restart()
@@ -109,7 +212,7 @@ MainRightPanel {
 			IconLabelButton {
 				id: addPictureButton
 				Layout.preferredWidth: width
-				visible: !mainItem.contact || mainItem.contact.core.pictureUri.length === 0
+				visible: false
 				icon.source: AppIcons.camera
                 //: "Ajouter une image"
                 text: qsTr("contact_editor_add_image_label")
@@ -122,7 +225,7 @@ MainRightPanel {
 				onClicked: fileDialog.open()
 			},
 			RowLayout {
-				visible: mainItem.contact && mainItem.contact.core.pictureUri.length != 0
+				visible: !mainItem.isNew && mainItem.contact && mainItem.contact.core.pictureUri.length != 0
 				Layout.alignment: Qt.AlignHCenter
                 spacing: Utils.getSizeWithScreenRatio(32)
 				IconLabelButton {
@@ -214,6 +317,90 @@ MainRightPanel {
 				anchors.left: parent.left
 				anchors.right: parent.right
 
+				// Ou enregistrer le nouveau contact : rien de coche, enregistrement refuse (cadres et message en rouge)
+				// tant qu'on n'a pas choisi.
+				ColumnLayout {
+					id: storageChoice
+					visible: mainItem.isNew
+					Layout.fillWidth: true
+					spacing: Utils.getSizeWithScreenRatio(8)
+					property string errorText: ""
+					Text {
+						text: "Qui peut voir ce contact ?"
+						font: Typography.p2l
+						color: DefaultStyle.main2_700
+					}
+					Repeater {
+						model: [
+							{ "value": 1, "title": "Visible par toute l'équipe" },
+							{ "value": 2, "title": "Visible uniquement par vous" }
+						]
+						delegate: Rectangle {
+							id: storageOption
+							required property var modelData
+							readonly property bool selected: mainItem.storage === modelData.value
+							Layout.fillWidth: true
+							Layout.preferredHeight: optionRow.implicitHeight + Utils.getSizeWithScreenRatio(24)
+							radius: Utils.getSizeWithScreenRatio(12)
+							color: selected ? DefaultStyle.main1_100 : DefaultStyle.grey_0
+							border.width: 1
+							border.color: storageChoice.errorText.length > 0
+								? DefaultStyle.danger_500_main
+								: selected ? DefaultStyle.main1_500_main : DefaultStyle.grey_200
+							RowLayout {
+								id: optionRow
+								anchors.fill: parent
+								anchors.leftMargin: Utils.getSizeWithScreenRatio(14)
+								anchors.rightMargin: Utils.getSizeWithScreenRatio(14)
+								spacing: Utils.getSizeWithScreenRatio(12)
+								Rectangle {
+									Layout.preferredWidth: Utils.getSizeWithScreenRatio(18)
+									Layout.preferredHeight: Utils.getSizeWithScreenRatio(18)
+									radius: width / 2
+									color: DefaultStyle.grey_0
+									border.width: Utils.getSizeWithScreenRatio(2)
+									border.color: storageOption.selected
+										? DefaultStyle.main1_500_main
+										: storageChoice.errorText.length > 0 ? DefaultStyle.danger_500_main : DefaultStyle.main2_400
+									Rectangle {
+										visible: storageOption.selected
+										anchors.centerIn: parent
+										width: Utils.getSizeWithScreenRatio(8)
+										height: width
+										radius: width / 2
+										color: DefaultStyle.main1_500_main
+									}
+								}
+								Text {
+									Layout.fillWidth: true
+									text: storageOption.modelData.title
+									font: Typography.p1
+									color: DefaultStyle.main2_800
+								}
+							}
+							MouseArea {
+								anchors.fill: parent
+								cursorShape: Qt.PointingHandCursor
+								onClicked: {
+									mainItem.storage = storageOption.modelData.value
+									storageChoice.errorText = ""
+								}
+							}
+							Accessible.role: Accessible.RadioButton
+							Accessible.name: modelData.title
+							Accessible.checked: selected
+						}
+					}
+					Text {
+						visible: storageChoice.errorText.length > 0
+						Layout.fillWidth: true
+						text: storageChoice.errorText
+						font.pixelSize: Utils.getSizeWithScreenRatio(13)
+						color: DefaultStyle.danger_500_main
+						wrapMode: Text.WordWrap
+					}
+				}
+
 				FormItemLayout {
 					id: givenName
 					Layout.fillWidth: true
@@ -236,21 +423,27 @@ MainRightPanel {
 					}
 				}
                 FormItemLayout {
+					id: familyName
                     //: "Nom"
                     label: qsTr("contact_editor_last_name")
 					Layout.fillWidth: true
+					enableErrorText: true
 					contentItem: TextField {
 						id: nameTextField
                 		width: parent.width
 						initialText: contact.core.familyName
 						onTextEdited: contact.core.familyName = text
 						backgroundColor: DefaultStyle.grey_0
+						backgroundBorderColor: familyName.errorTextVisible ? DefaultStyle.danger_500_main : DefaultStyle.grey_200
 						KeyNavigation.up: givenNameEdit
 						KeyNavigation.down: companyTextField
 						Accessible.name: qsTr("contact_editor_last_name")
 					}
 				}
+				// Formulaire simple : prenom, nom, numero. Entreprise, fonction et adresses SIP seulement pour un contact
+				// existant qui en a deja.
 				FormItemLayout {
+					visible: mainItem.showCompany
                     //: "Entreprise"
                     label: qsTr("contact_editor_company")
 					Layout.fillWidth: true
@@ -266,6 +459,7 @@ MainRightPanel {
 					}
 				}
 				FormItemLayout {
+					visible: mainItem.showJob
                     //: "Fonction"
                     label: qsTr("contact_editor_job_title")
 					Layout.fillWidth: true
@@ -292,6 +486,7 @@ MainRightPanel {
 						model: mainItem.contact && mainItem.contact.core.addresses || []
 					}
 					delegate: FormItemLayout {
+						visible: mainItem.showSip
 						label: modelData.label
 						Layout.fillWidth: true
 						contentItem: RowLayout {
@@ -348,6 +543,7 @@ MainRightPanel {
 				}
 				FormItemLayout {
 					id: newAddressSipTextField
+					visible: mainItem.showSip
                     label: qsTr("sip_address")
 					Layout.fillWidth: true
 					onYChanged: {

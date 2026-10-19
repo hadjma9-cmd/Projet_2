@@ -18,13 +18,6 @@ AbstractSettingsLayout {
 			contentComponent: systemComponent
 		},
 		{
-            //: Remote provisioning
-            title: qsTr("settings_remote_provisioning_title"),
-			subTitle: "",
-			contentComponent: remoteProvisioningComponent,
-			hideTopSeparator: true
-		},
-		{
             //: Security / Encryption
             title: qsTr("settings_security_title"),
 			subTitle: "",
@@ -67,39 +60,6 @@ AbstractSettingsLayout {
                 titleText: qsTr("settings_advanced_auto_start_title").arg(applicationName)
 				propertyName: "autoStart"
 				propertyOwner: SettingsCpp
-			}
-		}
-	}
-
-	// Remote Provisioning
-	//////////////////////
-
-	Component {
-		id: remoteProvisioningComponent
-		ColumnLayout {
-            spacing: Utils.getSizeWithScreenRatio(6)
-			DecoratedTextField {
-				Layout.fillWidth: true
-				id: configUri
-                //: Remote provisioning URL
-                title: qsTr("settings_advanced_remote_provisioning_url")
-				toValidate: true
-			}
-			SmallButton {
-                Layout.topMargin: Utils.getSizeWithScreenRatio(-20)
-				Layout.alignment: Qt.AlignRight
-                //: Download and apply
-                text: qsTr("settings_advanced_download_apply_remote_provisioning")
-				style: ButtonStyle.tertiary
-				onClicked: {
-					if (UtilsCpp.isValidURL(configUri.text))
-						UtilsCpp.useFetchConfig(configUri.text)
-					else
-                        //: Invalid URL format
-                        UtilsCpp.showInformationPopup(qsTr("information_popup_error_title"), qsTr("settings_advanced_invalid_url_message"), false, UtilsCpp.getMainWindow())
-				}
-				//: "Download and apply remote provisioning"
-				Accessible.name: qsTr("download_apply_remote_provisioning_accessible_name")
 			}
 		}
 	}

@@ -273,14 +273,16 @@ FocusScope {
                 }
                 // Message et appel (Equipe et Contacts) : gris au repos, pastille de couleur seulement quand la souris est sur
                 // l'icone elle-meme (pas sur le reste de la ligne) : bleue pour le message, verte pour l'appel. Pas de
-                // message pour un externe (numero de telephone), qui ne peut pas en recevoir.
+                // message pour un externe (numero de telephone), qui ne peut pas en recevoir. Grande fenetre : rond de 36 et
+                // icone de 21 (taille des icones du bandeau) ; Combine : 32 et 19.
                 component RowActionButton: Item {
                     id: rowAction
                     property url iconSource
                     property color hoverColor
+                    property bool large: false
                     signal triggered()
-                    Layout.preferredWidth: Utils.getSizeWithScreenRatio(32)
-                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(32)
+                    Layout.preferredWidth: Utils.getSizeWithScreenRatio(large ? 36 : 32)
+                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(large ? 36 : 32)
                     Rectangle {
                         anchors.fill: parent
                         radius: width / 2
@@ -288,7 +290,7 @@ FocusScope {
                     }
                     EffectImage {
                         anchors.centerIn: parent
-                        width: Utils.getSizeWithScreenRatio(19)
+                        width: Utils.getSizeWithScreenRatio(rowAction.large ? 21 : 19)
                         height: width
                         imageSource: rowAction.iconSource
                         colorizationColor: rowActionArea.containsMouse ? DefaultStyle.grey_0 : DefaultStyle.main2_400
@@ -305,12 +307,13 @@ FocusScope {
                 RowLayout {
                     id: rowActions
                     visible: mainItem.showCallButton
-                    spacing: Utils.getSizeWithScreenRatio(8)
+                    spacing: Utils.getSizeWithScreenRatio(mainItem.dense ? 8 : 10)
                     RowActionButton {
                         visible: !SettingsCpp.disableChatFeature && !!mainItem.searchResultItem
                                  && mainItem.searchResultItem.core.internalExtension
                         iconSource: AppIcons.chatTeardropText
                         hoverColor: DefaultStyle.main1_500_main
+                        large: !mainItem.dense
                         onTriggered: mainItem.messageContact()
                         //: "Message %1"
                         Accessible.name: qsTr("message_with_contact_name_accessible_button").arg(mainItem.displayName)
@@ -318,6 +321,7 @@ FocusScope {
                     RowActionButton {
                         iconSource: AppIcons.phone
                         hoverColor: DefaultStyle.success_500_main
+                        large: !mainItem.dense
                         onTriggered: mainItem.callContact()
                         //: "Call %1"
                         Accessible.name: qsTr("call_with_contact_name_accessible_button").arg(mainItem.displayName)

@@ -9,6 +9,8 @@ ColumnLayout {
 	id: mainItem
 	
 	property var accountGui
+	// Files d'attente du Centre d'appels sous les statuts (menus du compte par defaut seulement).
+	property bool showQueues: false
 	signal setCustomStatusClicked
 	signal isSet
 	
@@ -92,6 +94,10 @@ ColumnLayout {
 				}
 			}
 		}
+	}
+	QueuesSection {
+		visible: mainItem.showQueues && QueuesCpp.agent && QueuesCpp.queueCount > 0
+		Layout.fillWidth: true
 	}
 	Item {
 		Layout.fillHeight: true

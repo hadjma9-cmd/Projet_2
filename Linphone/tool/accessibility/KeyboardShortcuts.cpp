@@ -37,14 +37,17 @@ KeyboardShortcuts::KeyboardShortcuts(QQuickWindow *window) {
 	// Define shortcuts
 	mAcceptCallShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A), mWindow);
 	mDeclineCallShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_D), mWindow);
+	mAdminMenusShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M), mWindow);
 
 	// Make some shortcut active for the whole app
 	mAcceptCallShortcut->setContext(Qt::ApplicationShortcut);
 	mDeclineCallShortcut->setContext(Qt::ApplicationShortcut);
+	mAdminMenusShortcut->setContext(Qt::ApplicationShortcut);
 
 	// Link shortcuts to action
 	QObject::connect(mAcceptCallShortcut, &QShortcut::activated, this, &KeyboardShortcuts::onAcceptCallShortcut);
 	QObject::connect(mDeclineCallShortcut, &QShortcut::activated, this, &KeyboardShortcuts::onDeclineCallShortcut);
+	QObject::connect(mAdminMenusShortcut, &QShortcut::activated, this, &KeyboardShortcuts::onAdminMenusShortcut);
 }
 
 KeyboardShortcuts::~KeyboardShortcuts() {
@@ -86,4 +89,15 @@ void KeyboardShortcuts::onDeclineCallShortcut() {
 		lInfo() << "Decline call with shortcut :" << currentPendingCall;
 		currentPendingCall->lDecline();
 	}
+}
+
+// Affiche ou masque les menus reserves a l'administrateur (reglages des annuaires, parametres techniques du compte).
+void KeyboardShortcuts::onAdminMenusShortcut() {
+	auto app = App::getInstance();
+	app->setAdminMenus(!app->getAdminMenus());
+	lInfo() << "Admin menus" << (app->getAdminMenus() ? "shown" : "hidden") << "with shortcut";
+	Utils::showInformationPopup(QStringLiteral("Menus administrateur"),
+	                            app->getAdminMenus() ? QStringLiteral("Affichés jusqu'à la fermeture de Gamaphone.")
+	                                                 : QStringLiteral("Masqués."),
+	                            true);
 }

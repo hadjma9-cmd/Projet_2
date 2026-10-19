@@ -890,3 +890,56 @@ function getSizeWithScreenRatio(size){
       ? Math.max(Math.round(size * Linphone.DefaultStyle.dp), 1)
       : Math.min(Math.round(size * Linphone.DefaultStyle.dp), -1);
 }
+
+// =============================================================================
+// Fiche de contact envoyee a un membre de l'equipe par la messagerie : un message texte ordinaire, lisible tel quel
+// (telephone fixe, apercu de la conversation, notification), que Gamaphone reconnait et affiche en carte.
+// Ligne 1 : l'icone « fichier de contacts » puis le prenom et le nom, separes par une espace insecable ;
+// lignes suivantes : un numero par ligne.
+var contactCardMark = "\uD83D\uDCC7 "
+
+function formatContactCard(givenName, familyName, phones) {
+	var clean = function (value) {
+		return String(value || "").replace(/[\u00A0\r\n]+/g, " ").trim()
+	}
+	var given = clean(givenName)
+	var family = clean(familyName)
+	var lines = [contactCardMark + (given.length > 0 && family.length > 0 ? given + "\u00A0" + family : given + family)]
+	for (var i = 0; i < phones.length && lines.length <= 5; ++i) {
+		var phone = clean(phones[i])
+		if (phone.length > 0)
+			lines.push(phone)
+	}
+	return lines.join("\n")
+}
+
+// Renvoie { name, given, family, phones } si le texte est une fiche de contact, null sinon.
+function parseContactCard(text) {
+	var value = String(text || "").replace(/\r/g, "")
+	if (value.indexOf(contactCardMark) !== 0)
+		return null
+	var lines = value.split("\n")
+	var rawName = lines[0].substring(contactCardMark.length).trim()
+	if (rawName.length === 0 || rawName.length > 120)
+		return null
+	var phones = []
+	for (var i = 1; i < lines.length; ++i) {
+		var line = lines[i].trim()
+		if (line.length === 0)
+			continue
+		if (!/^\+?[0-9][0-9 .-]{1,24}$/.test(line))
+			return null
+		phones.push(line.replace(/[ .-]/g, ""))
+	}
+	if (phones.length === 0 || phones.length > 5)
+		return null
+	var separator = rawName.indexOf("\u00A0")
+	if (separator === -1)
+		separator = rawName.indexOf(" ")
+	return {
+		"name": rawName.replace(/\u00A0/g, " "),
+		"given": separator === -1 ? rawName : rawName.substring(0, separator).trim(),
+		"family": separator === -1 ? "" : rawName.substring(separator + 1).replace(/\u00A0/g, " ").trim(),
+		"phones": phones
+	}
+}

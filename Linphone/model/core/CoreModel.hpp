@@ -65,7 +65,8 @@ public:
 
 	QString getFetchConfig(QString filePath, bool *error);
 	void useFetchConfig(QString filePath, bool askForConfirmation = true);
-	bool setFetchConfig(QString filePath);
+	// restartInPlace = false : la configuration est seulement enregistree, pour le prochain demarrage du moteur.
+	bool setFetchConfig(QString filePath, bool restartInPlace = true);
 	void migrate();
 
 	void searchInMagicSearch(QString filter,

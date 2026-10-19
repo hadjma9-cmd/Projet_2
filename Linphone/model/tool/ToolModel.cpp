@@ -520,14 +520,15 @@ bool ToolModel::createCall(const QString &sipAddress,
 	*/
 }
 
-std::shared_ptr<linphone::Conference> ToolModel::createConference(QString subject, QString *message) {
+std::shared_ptr<linphone::Conference> ToolModel::createConference(QString subject, QString *message, bool video) {
 	auto core = CoreModel::getInstance()->getCore();
 	auto conferenceParams = core->createConferenceParams(nullptr);
-	conferenceParams->enableVideo(true);
+	conferenceParams->enableVideo(video);
 	auto account = core->getDefaultAccount();
 	if (!account) {
 		qWarning() << "No default account found, can't create group call";
-		*message = tr("group_call_error_no_account");
+		// Message facultatif : la fusion des appels n'en passe pas.
+		if (message) *message = tr("group_call_error_no_account");
 		return nullptr;
 	}
 	conferenceParams->setAccount(account);

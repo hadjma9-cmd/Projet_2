@@ -362,12 +362,24 @@ QString FriendModel::getVCardAsString() const {
 	return Utils::coreStringToAppString(mMonitor->getVcard()->asVcard4String());
 }
 
+// Une fiche gardee apres un redemarrage du moteur n'a plus de moteur : le SDK leve alors une exception, qui
+// fermait l'application (a chaque fin d'appel, la fiche du contact appele relit ses appareils).
 std::list<std::shared_ptr<linphone::FriendDevice>> FriendModel::getDevices() const {
-	return mMonitor ? mMonitor->getDevices() : std::list<std::shared_ptr<linphone::FriendDevice>>();
+	try {
+		return mMonitor ? mMonitor->getDevices() : std::list<std::shared_ptr<linphone::FriendDevice>>();
+	} catch (const std::exception &e) {
+		lWarning() << log().arg("Devices unavailable, friend without core:") << e.what();
+		return {};
+	}
 }
 
 linphone::SecurityLevel FriendModel::getSecurityLevel() const {
-	return mMonitor ? mMonitor->getSecurityLevel() : linphone::SecurityLevel::None;
+	try {
+		return mMonitor ? mMonitor->getSecurityLevel() : linphone::SecurityLevel::None;
+	} catch (const std::exception &e) {
+		lWarning() << log().arg("Security level unavailable, friend without core:") << e.what();
+		return linphone::SecurityLevel::None;
+	}
 }
 
 linphone::SecurityLevel

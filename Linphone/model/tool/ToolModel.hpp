@@ -75,7 +75,9 @@ public:
 	                       linphone::MediaEncryption = linphone::MediaEncryption::None,
 	                       QString *errorMessage = nullptr);
 
-	static std::shared_ptr<linphone::Conference> createConference(QString subject, QString *message = nullptr);
+	// video : faux pour reunir des appels audio (FusionPBX) sans proposer la video a chaque participant.
+	static std::shared_ptr<linphone::Conference>
+	createConference(QString subject, QString *message = nullptr, bool video = true);
 	static bool
 	createGroupCall(QString subject, const std::list<QString> &participantAddresses, QString *message = nullptr);
 

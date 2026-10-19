@@ -16,8 +16,11 @@ AbstractSettingsMenu {
 	families: [
         //: "Général"
         {title: qsTr("settings_general_title"), layout: "AccountSettingsGeneralLayout", model: account},
+        // Paramètres de compte (registrar, proxy, STUN...) : réservé à l'administrateur (Ctrl+Maj+M), ces réglages
+        // viennent du lien de configuration et un changement casse le compte.
         //: "Paramètres de compte"
-        {title: qsTr("settings_account_title"), layout: "AccountSettingsParametersLayout", model: account}
+        {title: qsTr("settings_account_title"), layout: "AccountSettingsParametersLayout", model: account,
+         visible: AppCpp.adminMenus}
 	]
 	Connections {
 		target: account ? account.core : null

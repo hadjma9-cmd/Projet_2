@@ -43,6 +43,10 @@ list(APPEND _LINPHONEAPP_SOURCES
 	core/event-filter/LockEventFilter.cpp
 	core/fps-counter/FPSCounter.cpp
 	core/friend/FriendCore.cpp
+	core/fusion/FusionClient.cpp
+	core/fusion/SharedContactsCore.cpp
+	core/fusion/StatusCore.cpp
+	core/fusion/UpdateCore.cpp
 	core/friend/FriendGui.cpp
 	core/logger/QtLogger.cpp
 	core/login/LoginPage.cpp
@@ -60,6 +64,7 @@ list(APPEND _LINPHONEAPP_SOURCES
 	core/setting/SettingsCore.cpp
 	
 	core/proxy/ListProxy.cpp
+	core/queue/QueueCore.cpp
 	core/proxy/Proxy.cpp
 	core/proxy/SortFilterProxy.cpp
 	core/proxy/LimitProxy.cpp

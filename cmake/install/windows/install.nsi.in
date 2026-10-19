@@ -24,6 +24,9 @@ WriteRegStr HKCR "@EXECUTABLE_NAME@-sip" "URL Protocol" ""
 
 WriteRegStr HKCR "@EXECUTABLE_NAME@-config" "" "URL:@EXECUTABLE_NAME@-config Protocol"
 WriteRegStr HKCR "@EXECUTABLE_NAME@-config" "URL Protocol" ""
+# Lien de configuration (provisionnement) : ouverture directe dans l'application, sans que Windows demande avec quel
+# programme l'ouvrir. Ce type de lien n'appartient qu'a elle, contrairement a sip: ou tel:.
+WriteRegStr HKCR "@EXECUTABLE_NAME@-config\shell\open\command" "" "$INSTDIR\bin\@EXECUTABLE_NAME@.exe $\"%1$\""
 
 WriteRegStr HKCR "sips" "" "URL:sips Protocol"
 WriteRegStr HKCR "sips" "URL Protocol" ""

@@ -25,8 +25,14 @@ PopupButton {
     property int textWeight: Utils.getSizeWithScreenRatio(300)
     property real statusIconSize: Utils.getSizeWithScreenRatio(11)
     property real arrowSize: Utils.getSizeWithScreenRatio(14)
+    // Files d'attente du Centre d'appels : « · casque 1/2 » apres le statut, et leurs interrupteurs dans le menu
+    // (bandeau de la grande fenetre seulement).
+    property bool showQueues: false
+    readonly property bool queuesShown: showQueues && QueuesCpp.agent && QueuesCpp.queueCount > 0
+        && !!account && account.core.registrationState === LinphoneEnums.RegistrationState.Ok
     // 25 = marges et espacements ; avec les tailles par defaut on retrouve les 50 d'origine.
     width: presenceOrRegistrationText.implicitWidth + statusIconSize + arrowSize + Utils.getSizeWithScreenRatio(25)
+        + (queuesShown ? queuesPart.implicitWidth + presenceRow.spacing : 0)
     height: barHeight
     enabled: presenceAndRegistrationItem.account && presenceAndRegistrationItem.account.core.registrationState === LinphoneEnums.RegistrationState.Ok
     onEnabledChanged: if(!enabled) close()
@@ -44,6 +50,7 @@ PopupButton {
         }
 
         RowLayout {
+            id: presenceRow
             anchors.fill: parent
             Image {
                 id: registrationImage
@@ -75,6 +82,29 @@ PopupButton {
                 color: presenceBar.isRegistered ? presenceAndRegistrationItem.account.core.presenceColor : presenceAndRegistrationItem.account?.core.registrationColor
                 text: presenceBar.isRegistered ? presenceAndRegistrationItem.account.core.presenceStatus : presenceAndRegistrationItem.account?.core.humaneReadableRegistrationState
             }
+            // Files activees sur le total, dans la couleur du statut.
+            RowLayout {
+                id: queuesPart
+                visible: presenceAndRegistrationItem.queuesShown
+                spacing: Utils.getSizeWithScreenRatio(4)
+                Text {
+                    text: "·"
+                    font.pixelSize: presenceAndRegistrationItem.textPixelSize
+                    color: DefaultStyle.main2_400
+                }
+                EffectImage {
+                    Layout.preferredWidth: presenceAndRegistrationItem.statusIconSize + Utils.getSizeWithScreenRatio(2)
+                    Layout.preferredHeight: Layout.preferredWidth
+                    imageSource: AppIcons.headset
+                    colorizationColor: presenceOrRegistrationText.color
+                }
+                Text {
+                    text: QueuesCpp.connectedCount + "/" + QueuesCpp.queueCount
+                    font.pixelSize: presenceAndRegistrationItem.textPixelSize
+                    font.weight: presenceAndRegistrationItem.textWeight
+                    color: presenceOrRegistrationText.color
+                }
+            }
             EffectImage {
                 fillMode: Image.PreserveAspectFit
                 imageSource: AppIcons.downArrow
@@ -85,7 +115,14 @@ PopupButton {
             }
         }
     }
-    popup.onOpened: popup.forceActiveFocus()
+    popup.onOpened: {
+        popup.forceActiveFocus()
+        // Ouverture du menu : statut du poste relu (il a pu etre change sur un autre appareil), et etat des files
+        // (seulement pour un agent).
+        StatusCpp.refresh()
+        if (showQueues && QueuesCpp.agent)
+            QueuesCpp.refresh()
+    }
     popup.contentItem: FocusScope {
         implicitWidth: Utils.getSizeWithScreenRatio(280)
         implicitHeight: Utils.getSizeWithScreenRatio(20) + (setCustomStatus.visible ? Utils.getSizeWithScreenRatio(240) : setPresence.implicitHeight)
@@ -97,6 +134,7 @@ PopupButton {
                 anchors.fill: parent
                 anchors.margins: Utils.getSizeWithScreenRatio(20)
                 accountGui: presenceAndRegistrationItem.account
+                showQueues: presenceAndRegistrationItem.showQueues
                 onSetCustomStatusClicked: {
                     presenceAndRegistrationItem.editCustomStatus = true
                 }

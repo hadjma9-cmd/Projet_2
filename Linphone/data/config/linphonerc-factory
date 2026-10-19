@@ -40,6 +40,10 @@ mtu=1300
 accept_any_encryption=1
 
 [sip]
+# IPv6 coupe pour de bon : avec lui, l'annuaire LDAP ne repond plus. Le reglage n'est plus propose dans
+# l'application. ipv6_migration_done empeche le moteur d'effacer use_ipv6 a son premier demarrage.
+use_ipv6=0
+ipv6_migration_done=1
 publish_default_value=1
 auto_answer_replacing_calls=1
 auto_net_state_mon=1
@@ -76,6 +80,11 @@ hide_sip_addresses=1
 # N'active PAS la video sur les appels : c'est automatically_initiate qui decide.
 capture=1
 display=1
+# Video du correspondant acceptee en reception seulement (ma camera reste coupee),
+# jamais proposee par moi : sa camera allumee se voit, la mienne ne s'allume pas seule.
+automatically_accept=1
+automatically_accept_direction=2
+automatically_initiate=0
 auto_resize_preview_to_keep_ratio=1
 max_conference_size=vga
 other_display_mode=Hybrid
@@ -86,7 +95,7 @@ type=ldap
 uri=ldap://fusion.gama-it.fr:10389
 timeout=5
 min_characters=0
-results_limit=50
+results_limit=150
 delay=2000
 ldap_auth_method=1
 

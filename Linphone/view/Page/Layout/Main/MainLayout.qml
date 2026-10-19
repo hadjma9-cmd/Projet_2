@@ -495,6 +495,7 @@ Item {
                             ContactStatusPopup {
                                 id: headerStatusPopup
                                 account: accountProxy.defaultAccount
+                                showQueues: true
                                 barHeight: Utils.getSizeWithScreenRatio(30)
                                 textPixelSize: Utils.getSizeWithScreenRatio(13)
                                 // Graisse normale : en leger, le statut paraissait pale a cote du nom en gras.

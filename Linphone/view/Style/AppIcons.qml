@@ -49,6 +49,8 @@ QtObject {
 	property string phoneSelected: "image://internal/phone-fill.svg"
 	// Historique des appels (onglet Appels) : horloge et fleche, comme 3CX.
 	property string callHistory: "image://internal/clock-counter-clockwise.svg"
+	// Files d'attente du Centre d'appels (menu du statut, compteur sous la photo du Combine).
+	property string headset: "image://internal/headset.svg"
 	property string callHistorySelected: "image://internal/clock-counter-clockwise-fill.svg"
 	property string newCall: "image://internal/phone-plus.svg"
 	property string endCall: "image://internal/phone-disconnect.svg"

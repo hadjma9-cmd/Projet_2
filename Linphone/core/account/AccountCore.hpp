@@ -191,6 +191,8 @@ public:
 	QString getPresenceStatus();
 	LinphoneEnums::Presence getPresence();
 	Q_INVOKABLE void resetToAutomaticPresence();
+	// Statut relu sur le serveur (choisi sur un autre appareil) : appliqué ici sans être renvoyé au serveur.
+	void applyServerPresence(LinphoneEnums::Presence presence);
 	LinphoneEnums::Presence getExplicitPresence();
 	void setPresenceNote(QString presenceNote);
 	QString getPresenceNote();
@@ -241,6 +243,7 @@ signals:
 	void lSetNotificationsAllowed(bool value);
 	void lSetPresence(LinphoneEnums::Presence presence, bool userInitiated = true, bool resetToAuto = false);
 	void lResetToAutomaticPresence(bool userInitiated = true, bool resetToAuto = false);
+	void lSetPresenceFromServer(LinphoneEnums::Presence presence);
 
 protected:
 	void writeIntoModel(std::shared_ptr<AccountModel> model) const;

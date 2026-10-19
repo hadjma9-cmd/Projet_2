@@ -97,85 +97,42 @@ AbstractSettingsLayout {
 					}
 				}
 			}
-			RowLayout {
-				Layout.fillWidth: true
-                spacing: Utils.getSizeWithScreenRatio(5)
-				Text {
-					Layout.alignment: Qt.AlignLeft
-					//: SIP address
-                    text: "%1 :".arg(qsTr("sip_address"))
-					color: DefaultStyle.main2_600
-					font: Typography.p2l
-				}
-				Text {
-					Layout.alignment: Qt.AlignLeft
-					text: model.core.identityAddress
-					color: DefaultStyle.main2_600
-					font: Typography.p1
-				}
-				Item {
-					Layout.fillWidth: true
-				}
-				IconLabelButton {
-					Layout.alignment: Qt.AlignRight
-					icon.source: AppIcons.copy
-					style: ButtonStyle.noBackground
-					onClicked: {
-						if (UtilsCpp.copyToClipboard(model.core.identityAddress)) {
-							//: Copied
-							UtilsCpp.showInformationPopup(qsTr("copied"),
-							//: Your SIP address has been copied in the clipboard
-							qsTr("account_settings_sip_address_copied_message"))
-						} else {
-							UtilsCpp.showInformationPopup(qsTr("error"),
-							//: Error copying your SIP address
-							qsTr("account_settings_sip_address_copied_error_message"), false)
-						}
-					}
-				}
-			}
+			// Identité du poste, en lecture seule. Le nom présenté aux autres est celui de l'extension dans FusionPBX :
+			// le modifier ici ne changeait que l'affichage local, c'est à l'administrateur de le régler. L'indicatif
+			// international n'est plus proposé non plus (la valeur en place reste active).
 			ColumnLayout {
-                spacing: Utils.getSizeWithScreenRatio(5)
-				Layout.alignment: Qt.AlignLeft
+				Layout.fillWidth: true
+				spacing: Utils.getSizeWithScreenRatio(2)
 				Text {
-                    //: "Nom d'affichage
-                    text: qsTr("sip_address_display_name")
+					Layout.fillWidth: true
+					horizontalAlignment: Text.AlignHCenter
+					text: model.core.displayName
+					visible: text.length > 0
+					color: DefaultStyle.main2_700
+					font: Typography.h4
+					elide: Text.ElideRight
+				}
+				Text {
+					Layout.fillWidth: true
+					horizontalAlignment: Text.AlignHCenter
+					text: "Poste " + UtilsCpp.getUsername(model.core.identityAddress)
 					color: DefaultStyle.main2_600
 					font: Typography.p2l
 				}
 				Text {
-                    //: "Le nom qui sera affiché à vos correspondants lors de vos échanges."
-                    text: qsTr("sip_address_display_name_explaination")
-					color: DefaultStyle.main2_600
+					Layout.fillWidth: true
+					horizontalAlignment: Text.AlignHCenter
+					// Domaine : ce qui suit le « @ » de l'adresse, sans port ni paramètres.
+					text: {
+						var address = model.core.identityAddress
+						var at = address.indexOf("@")
+						return at < 0 ? "" : address.substring(at + 1).split(";")[0].split(":")[0]
+					}
+					visible: text.length > 0
+					color: DefaultStyle.main2_500_main
 					font: Typography.p1
+					elide: Text.ElideMiddle
 				}
-			}
-			TextField {
-				Layout.alignment: Qt.AlignLeft
-				Layout.fillWidth: true
-                Layout.preferredHeight: Utils.getSizeWithScreenRatio(49)
-				initialText: model.core.displayName
-				backgroundColor: DefaultStyle.grey_100
-				onEditingFinished: {
-					if (text.length != 0) model.core.displayName = text
-				}
-				toValidate: true
-			}
-			Text {
-                //: Indicatif international*
-                text: qsTr("manage_account_international_prefix")
-				color: DefaultStyle.main2_600
-				font: Typography.p2l
-			}
-			ComboSetting {
-				Layout.fillWidth: true
-                Layout.topMargin: Utils.getSizeWithScreenRatio(15)
-				entries: account.core.dialPlans
-				propertyName: "dialPlan"
-				propertyOwnerGui: account
-				textRole: 'text'
-				flagRole: 'flag'
-				accessibleLabel: qsTr("manage_account_international_prefix")
 			}
 			SwitchSetting {
 				titleText: account?.core.humaneReadableRegistrationState
@@ -201,8 +158,7 @@ AbstractSettingsLayout {
 						Layout.fillWidth: true
 					}
 					Text {
-                        // "Votre compte sera retiré de ce client linphone, mais vous restez connecté sur vos autres clients
-                        text: qsTr("manage_account_delete_message")
+                        text: "Retire ce poste de Gamaphone sur cet ordinateur."
 						font: Typography.p1
 						wrapMode: Text.WordWrap
 						color: DefaultStyle.main2_500_main
@@ -220,10 +176,8 @@ AbstractSettingsLayout {
 					onClicked: {
 						var mainWin = UtilsCpp.getMainWindow()
 						mainWin.showConfirmationLambdaPopup("",
-                            //: "Se déconnecter du compte ?"
-                            qsTr("manage_account_dialog_remove_account_title"),
-							//: Si vous souhaitez supprimer définitivement votre compte rendez-vous sur : https://subscribe.linphone.org
-                            qsTr("manage_account_dialog_remove_account_message"),
+                            "Retirer ce poste de Gamaphone ?",
+                            "Pour le remettre, il faudra un nouveau lien de configuration.",
 							function (confirmed) {
 								if (confirmed) {
 									account.core.removeAccount()

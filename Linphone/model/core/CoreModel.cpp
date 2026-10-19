@@ -101,6 +101,15 @@ void CoreModel::start() {
 	config->setString("sip", "rls_uri", "");
 	mCore->start();
 	migrate();
+	// Annuaire de l'equipe : 150 fiches gardees au plus (postes et contacts). Le serveur renvoie tout l'annuaire et
+	// l'application n'en gardait que 50 : au-dela, des collegues et des contacts etaient introuvables, meme en les
+	// cherchant. Releve aussi pour les postes deja installes, dont la configuration garde l'ancienne limite.
+	static constexpr unsigned int DirectoryResultsLimit = 150;
+	for (const auto &directory : mCore->getRemoteContactDirectories()) {
+		if (directory->getType() == linphone::RemoteContactDirectory::Type::Ldap && directory->getLimit() > 0 &&
+		    directory->getLimit() < DirectoryResultsLimit)
+			directory->setLimit(DirectoryResultsLimit);
+	}
 	setPathAfterStart();
 	if (SettingsModel::clearLocalLdapFriendsUponStartup(config)) {
 		// Remove ldap friends cache list. If not, old stored friends will take priority on merge and will not be
@@ -287,7 +296,7 @@ void CoreModel::useFetchConfig(QString filePath, bool askForConfirmation) {
 	}
 }
 
-bool CoreModel::setFetchConfig(QString filePath) {
+bool CoreModel::setFetchConfig(QString filePath, bool restartInPlace) {
 	bool fetched = false;
 	qDebug() << "setFetchConfig with " << filePath;
 	if (!filePath.isEmpty()) {
@@ -299,7 +308,9 @@ bool CoreModel::setFetchConfig(QString filePath) {
 	}
 	if (!fetched) {
 		qWarning() << "Remote provisionning cannot be retrieved. Command have been cleaned";
-	} else emit requestRestart();
+	} else if (restartInPlace) emit requestRestart();
+	// Sans redemarrage sur place, l'adresse doit etre sur le disque avant la fermeture de l'application.
+	else mCore->getConfig()->sync();
 	return fetched;
 }
 

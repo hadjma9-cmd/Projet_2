@@ -72,6 +72,12 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -DQT_QML_DEBUG -DQT_
 set(CMAKE_INCLUDE_CURRENT_DIR ON)#useful for config.h
 
 
+# La version vient de « git describe » (nombre de commits depuis la dernière étiquette). Sans cette dépendance, CMake ne
+# la recalcule pas après un commit : l'application et l'installeur garderaient l'ancien numéro, et la mise à jour ne
+# serait pas annoncée aux postes déjà installés. Le journal de git change à chaque commit.
+if(EXISTS "${CMAKE_SOURCE_DIR}/.git/logs/HEAD")
+	set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/logs/HEAD")
+endif()
 if(NOT LINPHONEAPP_VERSION)
 	bc_compute_full_version(LINPHONEAPP_VERSION)
 endif()

@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Linphone
 
 import UtilsCpp
+import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
 
 // TODO : into Loader
@@ -25,7 +26,9 @@ TextEdit {
 	}	
 	// property int removeWarningFromBindingLoop : implicitWidth	// Just a dummy variable to remove meaningless binding loop on implicitWidth
 	
-	visible: contentGui && contentGui.core.isText
+	// Fiche de contact (Utils.parseContactCard) : affichee en carte par ChatMessageContent, pas en texte.
+	readonly property bool isContactCard: !!contentGui && !!Utils.parseContactCard(contentGui.core.utf8Text)
+	visible: contentGui && contentGui.core.isText && !isContactCard
 	textMargin: 0
 	readOnly: true
 	selectByMouse: true

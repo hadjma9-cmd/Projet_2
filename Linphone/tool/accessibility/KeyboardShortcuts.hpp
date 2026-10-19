@@ -46,10 +46,12 @@ private:
 	// The shortcuts
 	QShortcut *mAcceptCallShortcut;
 	QShortcut *mDeclineCallShortcut;
+	QShortcut *mAdminMenusShortcut;
 
 	// Actions callable with the shortcuts
 	static void onAcceptCallShortcut();
 	static void onDeclineCallShortcut();
+	static void onAdminMenusShortcut();
 
 	DECLARE_ABSTRACT_OBJECT
 };

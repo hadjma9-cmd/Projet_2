@@ -298,6 +298,16 @@ void AccountCore::setSelf(QSharedPointer<AccountCore> me) {
 			        lInfo() << log().arg("Set presence for account") << mIdentityAddress << presence;
 			        mAccountModel->setPresence(presence, userInitiated, resetToAuto, presenceNote);
 		        });
+		    // Choix de l'utilisateur sur cet appareil : il devient le statut du poste, sur tous ses appareils.
+		    if (userInitiated && !resetToAuto && getIsDefaultAccount())
+			    if (auto status = App::getInstance()->getStatus()) status->choose(presence);
+	    });
+	mAccountModelConnection->makeConnectToCore(
+	    &AccountCore::lSetPresenceFromServer, [this](LinphoneEnums::Presence presence) {
+		    mAccountModelConnection->invokeToModel([this, presence, presenceNote = mPresenceNote]() {
+			    lInfo() << log().arg("Presence from the server for account") << mIdentityAddress << presence;
+			    mAccountModel->setPresence(presence, true, false, presenceNote);
+		    });
 	    });
 	mAccountModelConnection->makeConnectToCore(
 	    &AccountCore::lResetToAutomaticPresence, [this](bool userInitiated, bool resetToAuto) {
@@ -914,6 +924,13 @@ QString AccountCore::getPresenceStatus() {
 
 void AccountCore::resetToAutomaticPresence() {
 	emit lResetToAutomaticPresence(false, true);
+	// Statut automatique : « Disponible » pour le poste.
+	if (getIsDefaultAccount())
+		if (auto status = App::getInstance()->getStatus()) status->choose(LinphoneEnums::Presence::Online);
+}
+
+void AccountCore::applyServerPresence(LinphoneEnums::Presence presence) {
+	emit lSetPresenceFromServer(presence);
 }
 
 LinphoneEnums::Presence AccountCore::getExplicitPresence() {

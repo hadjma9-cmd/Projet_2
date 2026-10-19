@@ -12,6 +12,8 @@ AbstractWindow {
 	id: mainWindow
     // height: Utils.getSizeWithScreenRatio(982)
     title: applicationName
+	// Mise à jour obligatoire : s'ouvre d'elle-même quand le serveur propose un installeur plus récent.
+	UpdatePopup {}
 	// TODO : handle this bool when security mode is implemented
 	property bool firstConnection: true
     property int initialWidth
@@ -144,6 +146,9 @@ AbstractWindow {
 		mainStackViewLoader.item?.currentItem.displayContactPage(contactAddress)
 	}
 	function displayCreateContactPage(name, contactAddress) {
+		// La creation de contact se fait en mode bureau seulement : depuis le Combine, on y repasse d'abord.
+		if (mainWindow.compact)
+			AppCpp.compactMode = false
 		openMainPage()
 		mainStackViewLoader.item?.currentItem.createContact(name, contactAddress)
 	}

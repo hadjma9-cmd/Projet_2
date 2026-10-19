@@ -30,6 +30,10 @@
 #include "core/chat/ChatList.hpp"
 #include "core/conference/ConferenceInfoList.hpp"
 #include "core/event-filter/LockEventFilter.hpp"
+#include "core/fusion/SharedContactsCore.hpp"
+#include "core/fusion/StatusCore.hpp"
+#include "core/fusion/UpdateCore.hpp"
+#include "core/queue/QueueCore.hpp"
 #include "core/setting/SettingsCore.hpp"
 #include "core/singleapplication/singleapplication.h"
 #include "model/cli/CliModel.hpp"
@@ -70,6 +74,9 @@ class App : public SingleApplication, public AbstractObject {
 	// l'autre, comme l'epingle « toujours au premier plan ».
 	Q_PROPERTY(bool compactMode READ getCompactMode WRITE setCompactMode NOTIFY compactModeChanged)
 	Q_PROPERTY(bool compactPinned READ getCompactPinned WRITE setCompactPinned NOTIFY compactPinnedChanged)
+	// Menus reserves a l'administrateur (annuaires, parametres techniques du compte) : caches aux utilisateurs,
+	// affiches par Ctrl+Maj+M. Jamais enregistre : tout est de nouveau cache au lancement suivant.
+	Q_PROPERTY(bool adminMenus READ getAdminMenus WRITE setAdminMenus NOTIFY adminMenusChanged)
 
 public:
 	App(int &argc, char *argv[]);
@@ -147,6 +154,9 @@ public:
 	void initCppInterfaces();
 	void initFonts();
 	void restartCore();
+	// Ferme l'application et la relance dans un processus neuf (voir main.cpp).
+	void relaunch();
+	static bool relaunchRequested();
 	bool autoStartEnabled();
 	void setSysTrayIcon();
 	QSystemTrayIcon *getSystemTrayIcon() const {
@@ -163,6 +173,8 @@ public:
 
 	bool getCompactMode() const;
 	void setCompactMode(bool compact);
+	bool getAdminMenus() const;
+	void setAdminMenus(bool shown);
 	bool getCompactPinned() const;
 	void setCompactPinned(bool pinned);
 	void setCoreStarted(bool started);
@@ -188,6 +200,7 @@ public:
 	void setLastActiveWindow(QQuickWindow *data);
 
 	QSharedPointer<AccountList> getAccountList() const;
+	QSharedPointer<StatusCore> getStatus() const;
 	void setAccountList(QSharedPointer<AccountList> data);
 	Q_INVOKABLE AccountList *getAccounts() const;
 
@@ -270,6 +283,7 @@ signals:
 	void currentAccountChanged();
 	void restartCoreRequested();
 	void compactModeChanged();
+	void adminMenusChanged();
 	void compactPinnedChanged();
 #ifdef Q_OS_WIN
 	void sessionLockedChanged();
@@ -307,6 +321,15 @@ private:
 	ChatGui *mCurrentChat = nullptr;
 	QSharedPointer<SettingsCore> mSettings;
 	QSharedPointer<AccountList> mAccountList;
+	// Service fusion-files du serveur FusionPBX (demandes signees), et ce qui s'en sert : files d'attente du compte par
+	// defaut (QueuesCpp en QML) et contacts partages (SharedContactsCpp).
+	QSharedPointer<FusionClient> mFusionClient;
+	QSharedPointer<QueueCore> mQueues;
+	QSharedPointer<SharedContactsCore> mSharedContacts;
+	// Mise a jour obligatoire depuis le serveur du compte (UpdateCpp en QML).
+	QSharedPointer<UpdateCore> mUpdate;
+	// Statut du poste, le même sur tous ses appareils (StatusCpp en QML).
+	QSharedPointer<StatusCore> mStatus;
 	QSharedPointer<ConferenceInfoList> mConferenceInfoList;
 	QSharedPointer<ChatList> mChatList;
 	QSharedPointer<CallList> mCallList;
@@ -329,6 +352,7 @@ private:
 	QTimer mAvatarRevisionTimer;
 	int mAvatarRevision = 0;
 	bool mCompactMode = false;
+	bool mAdminMenus = false;
 	bool mCompactPinned = false;
 #ifdef Q_OS_WIN
 	bool mSessionLocked = false;

@@ -65,6 +65,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Display/Chat/ChatMessageContent.qml
 	view/Control/Display/Chat/ChatAudioContent.qml
 	view/Control/Display/Chat/ChatTextContent.qml
+	view/Control/Display/Chat/ChatContactCard.qml
 	view/Control/Display/Chat/ChatListView.qml
 	view/Control/Display/Chat/ChatMessage.qml
 	view/Control/Display/Chat/ChatMessageActions.qml
@@ -81,6 +82,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Display/Contact/ContactStatusPopup.qml
 	view/Control/Display/Contact/Presence.qml
 	view/Control/Display/Contact/PresenceStatusItem.qml
+	view/Control/Display/Contact/QueuesSection.qml
 	view/Control/Display/Contact/PresenceSetCustomStatus.qml
 	view/Control/Display/Contact/ContactListItem.qml
 	view/Control/Display/Contact/ContactListView.qml
@@ -117,6 +119,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Popup/Popup.qml
 	view/Control/Popup/Dialog/AuthenticationDialog.qml
 	view/Control/Popup/Dialog/Dialog.qml
+	view/Control/Popup/Dialog/UpdatePopup.qml
 	view/Control/Popup/Dialog/ZrtpAuthenticationDialog.qml
 	view/Control/Popup/Loading/LoadingPopup.qml
 	view/Control/Popup/Notification/Notification.qml
@@ -134,6 +137,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Page/Form/Chat/SelectedChatView.qml
 	view/Page/Form/Contact/ContactDescription.qml
 	view/Page/Form/Contact/ContactEdition.qml
+	view/Page/Form/Contact/ContactSendTo.qml
 	view/Page/Form/Contact/ContactSharedFiles.qml
 	view/Page/Form/Login/LoginPage.qml
 	view/Page/Form/Login/SIPLoginPage.qml

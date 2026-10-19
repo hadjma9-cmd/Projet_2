@@ -162,6 +162,25 @@ ColumnLayout {
 		// columnSpacing: 0
 		// rowSpacing: ChatStyle.entry.message.file.spacing
 	}
+	// FICHES DE CONTACT : un texte reconnu comme fiche (Utils.parseContactCard) s'affiche en carte, avec « Ajouter a mes
+	// contacts » pour celui qui la recoit. Le texte lui-meme se masque alors (ChatTextContent.isContactCard).
+	Repeater {
+		model: ChatMessageContentProxy {
+			filterType: ChatMessageContentProxy.FilterContentType.Text
+			chatMessageGui: mainItem.chatMessageGui
+		}
+		delegate: Loader {
+			id: contactCardLoader
+			readonly property var parsedCard: Utils.parseContactCard(modelData.core.utf8Text)
+			active: !!parsedCard
+			visible: active
+			Layout.maximumWidth: mainItem.maxWidth
+			sourceComponent: ChatContactCard {
+				card: contactCardLoader.parsedCard
+				isRemoteMessage: mainItem.isRemoteMessage
+			}
+		}
+	}
 	// TEXTS
 	Repeater {
 		id: messagesTextsList

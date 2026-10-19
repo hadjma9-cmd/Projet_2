@@ -77,10 +77,10 @@ public:
 	static constexpr int MaxMosaicParticipants =
 	    6; // From 7, the mosaic quality will be limited to avoid useless computations
 
-	// Creation de contacts depuis l'interface : desactivee, les contacts viennent de l'annuaire LDAP.
-	// Mise de cote, pas supprimee : repasser a true reaffiche tous les points d'entree
-	// (bouton + des contacts, panneau info d'une conversation, menus de l'historique et des participants).
-	static constexpr bool ContactCreationEnabled = false;
+	// Creation de contacts depuis l'interface : reactivee avec les contacts partages (crees dans FusionPBX par le
+	// service fusion-files, ou gardes sur ce PC). A false, tous les points d'entree disparaissent (bouton + des
+	// contacts, panneau info d'une conversation, menus de l'historique et des participants).
+	static constexpr bool ContactCreationEnabled = true;
 
 	static constexpr char LinphoneBZip2_exe[] = "https://www.linphone.org/releases/windows/tools/bzip2/bzip2.exe";
 	static constexpr char LinphoneBZip2_dll[] = "https://www.linphone.org/releases/windows/tools/bzip2/bzip2.dll";

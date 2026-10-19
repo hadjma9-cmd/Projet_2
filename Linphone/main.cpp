@@ -19,6 +19,7 @@ FILE *gStream = NULL;
 
 #include <QApplication>
 #include <QLocale>
+#include <QProcess>
 #include <QQmlApplicationEngine>
 #include <QSurfaceFormat>
 #include <QTranslator>
@@ -43,7 +44,35 @@ void cleanStream() {
 #endif
 }
 
+// Relance de l'application (App::relaunch) : un processus neuf, qui attend la fin de celui-ci avant de demarrer.
+static const char *gWaitPidVariable = "GAMAPHONE_WAIT_PID";
+
+static void relaunchApplication(const QString &program) {
+	QProcess process;
+	process.setProgram(program);
+	QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+	environment.insert(gWaitPidVariable, QString::number(QCoreApplication::applicationPid()));
+	process.setProcessEnvironment(environment);
+	if (!process.startDetached()) qWarning() << "[Main] Relaunch failed for" << program;
+}
+
+// Une seule instance tourne a la fois : relancee pendant que la precedente se ferme encore, l'application se
+// croirait en double et s'arreterait. Elle attend donc la fin de celle qui l'a lancee.
+static void waitForPreviousInstance() {
+	bool ok = false;
+	const qulonglong pid = qEnvironmentVariable(gWaitPidVariable).toULongLong(&ok);
+	qunsetenv(gWaitPidVariable);
+	if (!ok || pid == 0) return;
+#ifdef _WIN32
+	if (HANDLE previous = OpenProcess(SYNCHRONIZE, FALSE, static_cast<DWORD>(pid))) {
+		WaitForSingleObject(previous, 30000);
+		CloseHandle(previous);
+	}
+#endif
+}
+
 int main(int argc, char *argv[]) {
+	waitForPreviousInstance();
 
 #if defined _WIN32
 	qInfo() << "Thread ID:" << GetCurrentThreadId();
@@ -118,6 +147,7 @@ int main(int argc, char *argv[]) {
 	if (!result) lInfo() << message;
 	else lWarning() << message;
 	app->clean();
+	if (App::relaunchRequested()) relaunchApplication(QCoreApplication::applicationFilePath());
 	app = nullptr;
 	cleanStream();
 
