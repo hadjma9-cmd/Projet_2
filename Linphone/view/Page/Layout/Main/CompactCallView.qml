@@ -30,7 +30,51 @@ Rectangle {
 	readonly property bool paused: !!call && (call.core.paused || callState === LinphoneEnums.CallState.Paused
 		|| callState === LinphoneEnums.CallState.Pausing)
 
+	// Appels reunis en conference par ce poste (au moins deux) : photos et noms de l'ecran de conference.
+	readonly property var conferenceMembers: {
+		var list = []
+		for (var i = 0; i < conferenceCalls.count; ++i) {
+			var item = conferenceCalls.itemAt(i)
+			if (item && item.member)
+				list.push(item.modelData)
+		}
+		return list
+	}
+	readonly property bool inConference: !!call && call.core.isConference && conferenceMembers.length >= 2
+	// Participants affiches en photo : trois au plus, le reste en « +N ».
+	readonly property int shownMembers: Math.min(conferenceMembers.length, 3)
+
 	color: DefaultStyle.callBackground
+
+	CallProxy {
+		id: allCalls
+		sourceModel: AppCpp.calls
+		showCurrentCall: true
+	}
+	Repeater {
+		id: conferenceCalls
+		model: allCalls
+		delegate: Item {
+			required property var modelData
+			readonly property bool member: modelData.core.isConference
+		}
+	}
+	AccountProxy {
+		id: accountProxy
+	}
+
+	// Raccrocher en conference : la conference passe par ce poste, elle s'arrete donc pour tout le monde.
+	function endConference() {
+		UtilsCpp.getMainWindow().showConfirmationLambdaPopup("Terminer la conférence",
+			"Raccrocher terminera l'appel pour tout le monde.", "",
+			function (confirmed) {
+				if (!confirmed)
+					return
+				var members = mainItem.conferenceMembers
+				for (var i = 0; i < members.length; ++i)
+					members[i].core.lTerminate()
+			})
+	}
 
 	// Rien ne passe a la petite fenetre dessous : ni clic (droit compris), ni survol (bulles, curseur), ni molette.
 	MouseArea {
@@ -67,7 +111,10 @@ Rectangle {
 				colorizationColor: DefaultStyle.main2_300
 			}
 			Text {
-				text: mainItem.incoming
+				text: mainItem.inConference
+					? "Conférence" + (mainItem.connected && mainItem.call
+						? "  ·  " + UtilsCpp.formatElapsedTime(mainItem.call.core.duration) : "")
+					: mainItem.incoming
 					? "Appel entrant"
 					: mainItem.outgoing
 						? "Appel en cours…"
@@ -82,7 +129,17 @@ Rectangle {
 			}
 		}
 
-		// Le correspondant veut passer en video : proposee en grande fenetre seulement.
+		// Un autre appel sonne (Refuser, Repondre) ou attend (« Reunir », ou un clic pour basculer vers lui).
+		HeldCallsBar {
+			Layout.fillWidth: true
+			Layout.leftMargin: Utils.getSizeWithScreenRatio(16)
+			Layout.rightMargin: Utils.getSizeWithScreenRatio(16)
+			currentCall: mainItem.call
+			visible: !!shownCall && !mainItem.incoming && !mainItem.ended
+		}
+
+		// Le correspondant a allume sa camera (video reellement recue) : sa video se voit en grande fenetre. Ma camera
+		// reste coupee, a allumer moi-meme si je le veux.
 		Rectangle {
 			id: videoBanner
 			visible: !!mainItem.call && mainItem.call.core.remoteVideoRequested && mainItem.running
@@ -114,7 +171,7 @@ Rectangle {
 					}
 					Text {
 						Layout.fillWidth: true
-						text: (mainItem.call ? mainItem.call.core.remoteName : "") + " veut passer en vidéo"
+						text: (mainItem.call ? mainItem.call.core.remoteName : "") + " a activé sa caméra"
 						color: DefaultStyle.grey_0
 						elide: Text.ElideRight
 						font.pixelSize: Utils.getSizeWithScreenRatio(13)
@@ -149,7 +206,7 @@ Rectangle {
 					Text {
 						id: switchText
 						anchors.centerIn: parent
-						text: "Passer en grande fenêtre"
+						text: "Voir la vidéo"
 						color: DefaultStyle.grey_0
 						font.pixelSize: Utils.getSizeWithScreenRatio(12)
 					}
@@ -159,22 +216,103 @@ Rectangle {
 						hoverEnabled: true
 						cursorShape: Qt.PointingHandCursor
 						onClicked: {
-							var call = mainItem.call
-							call.core.remoteVideoRequested = false
-							// Grande fenetre (la fenetre d'appel revient), puis la video.
+							mainItem.call.core.remoteVideoRequested = false
+							// Grande fenetre : la fenetre d'appel revient et montre sa video.
 							AppCpp.compactMode = false
-							call.core.lSetCameraEnabled(true)
 						}
 					}
 				}
 			}
 		}
 
-		// Correspondant : photo, halo (voix ou sonnerie), nom et numero.
+		// Correspondant : photo, halo (voix ou sonnerie), nom et numero. En conference : les photos des participants qui
+		// se chevauchent (la sienne en dernier), le nombre de personnes et leurs noms.
 		Item {
 			Layout.fillWidth: true
 			Layout.fillHeight: true
 			ColumnLayout {
+				visible: mainItem.inConference
+				anchors.centerIn: parent
+				spacing: Utils.getSizeWithScreenRatio(6)
+				Row {
+					Layout.alignment: Qt.AlignHCenter
+					Layout.bottomMargin: Utils.getSizeWithScreenRatio(8)
+					spacing: -Utils.getSizeWithScreenRatio(18)
+					Repeater {
+						model: mainItem.conferenceMembers.slice(0, mainItem.shownMembers)
+						delegate: Rectangle {
+							required property var modelData
+							width: Utils.getSizeWithScreenRatio(80)
+							height: width
+							radius: width / 2
+							color: DefaultStyle.callBackground
+							Avatar {
+								anchors.centerIn: parent
+								width: Utils.getSizeWithScreenRatio(74)
+								height: width
+								call: parent.modelData
+								displayPresence: false
+								shadowEnabled: false
+							}
+						}
+					}
+					Rectangle {
+						visible: mainItem.conferenceMembers.length > mainItem.shownMembers
+						width: Utils.getSizeWithScreenRatio(80)
+						height: width
+						radius: width / 2
+						color: DefaultStyle.callBackground
+						Rectangle {
+							anchors.centerIn: parent
+							width: Utils.getSizeWithScreenRatio(74)
+							height: width
+							radius: width / 2
+							color: DefaultStyle.callButton
+							Text {
+								anchors.centerIn: parent
+								text: "+" + (mainItem.conferenceMembers.length - mainItem.shownMembers)
+								color: DefaultStyle.grey_0
+								font.pixelSize: Utils.getSizeWithScreenRatio(22)
+								font.weight: Font.Medium
+							}
+						}
+					}
+					Rectangle {
+						width: Utils.getSizeWithScreenRatio(80)
+						height: width
+						radius: width / 2
+						color: DefaultStyle.callBackground
+						Avatar {
+							anchors.centerIn: parent
+							width: Utils.getSizeWithScreenRatio(74)
+							height: width
+							account: accountProxy.defaultAccount
+							displayPresence: false
+							shadowEnabled: false
+						}
+					}
+				}
+				Text {
+					Layout.alignment: Qt.AlignHCenter
+					text: "Conférence · " + (mainItem.conferenceMembers.length + 1) + " personnes"
+					color: DefaultStyle.grey_0
+					font {
+						pixelSize: Utils.getSizeWithScreenRatio(20)
+						weight: Font.Medium
+					}
+				}
+				Text {
+					Layout.alignment: Qt.AlignHCenter
+					Layout.maximumWidth: mainItem.width - Utils.getSizeWithScreenRatio(40)
+					text: mainItem.conferenceMembers.map(function (c) { return c.core.remoteName }).join(", ") + " et vous"
+					color: DefaultStyle.main2_300
+					elide: Text.ElideRight
+					horizontalAlignment: Text.AlignHCenter
+					font.pixelSize: Utils.getSizeWithScreenRatio(13)
+				}
+			}
+			ColumnLayout {
+				visible: !mainItem.inConference
 				anchors.centerIn: parent
 				spacing: Utils.getSizeWithScreenRatio(6)
 				Item {
@@ -420,7 +558,7 @@ Rectangle {
 				size: Utils.getSizeWithScreenRatio(54)
 				iconSource: AppIcons.endCall
 				label: mainItem.incoming ? "Refuser" : "Raccrocher"
-				onClicked: mainItem.call.core.lTerminate()
+				onClicked: mainItem.inConference ? mainItem.endConference() : mainItem.call.core.lTerminate()
 			}
 			CallRoundButton {
 				visible: mainItem.callState === LinphoneEnums.CallState.IncomingReceived

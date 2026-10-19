@@ -54,7 +54,9 @@ ApplicationWindow {
             // For C++, requestDialog need to be call directly
             onAccepted: requestDialog ? requestDialog.result(1) : callback(1)
             onRejected: requestDialog ? requestDialog.result(0) : callback(0)
-            width: Utils.getSizeWithScreenRatio(title.length === 0 ? 278 : 637)
+            // Jamais plus large que la fenetre (petite fenetre / Combine : 414 de large), avec une marge de chaque cote.
+            width: Math.min(Utils.getSizeWithScreenRatio(title.length === 0 ? 278 : 637),
+                            mainWindow.width - Utils.getSizeWithScreenRatio(32))
         }
     }
 

@@ -295,6 +295,23 @@ AbstractWindow {
         // the CallGui it handed us). Fall back to the calls model so the hangup button
         // always terminates the live call instead of silently leaving it running.
         var c = callToFinish || mainWindow.call || callsModel.currentCall
+        // Appels reunis par ce poste (« Reunir ») : la conference passe par lui, raccrocher la termine donc pour tout le
+        // monde. callsModel ne compte pas l'appel en cours ; une reunion distante n'a qu'un appel.
+        if (c && c.core.isConference && !callsModel.haveNonAdminMeeting && callsModel.count >= 1) {
+            mainWindow.showConfirmationLambdaPopup("Terminer la conférence",
+                "Raccrocher terminera l'appel pour tout le monde.", "",
+                function (confirmed) {
+                    if (!confirmed)
+                        return
+                    for (var i = 0; i < callsModel.count; ++i) {
+                        var other = callsModel.getAt(i)
+                        if (other && other.core.isConference)
+                            other.core.lTerminate()
+                    }
+                    c.core.lTerminate()
+                })
+            return
+        }
         if (c)
             c.core.lTerminate()
         else if (!callsModel.haveCall)
@@ -607,6 +624,17 @@ AbstractWindow {
                     id: middleArea
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    // Un autre appel sonne (Refuser, Repondre) ou attend (« Reunir », ou un clic pour basculer vers lui).
+                    HeldCallsBar {
+                        z: 2
+                        anchors.top: parent.top
+                        anchors.topMargin: Utils.getSizeWithScreenRatio(16)
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: Math.min(parent.width - Utils.getSizeWithScreenRatio(40), Utils.getSizeWithScreenRatio(360))
+                        currentCall: mainWindow.call
+                        visible: !!shownCall && !!middleItemStackView.currentItem
+                            && middleItemStackView.currentItem.objectName == "inCallItem"
+                    }
                     Control.StackView {
                         id: middleItemStackView
                         initialItem: inCallItem

@@ -38,6 +38,7 @@
 
 #include "core/App.hpp"
 #include "core/call/CallGui.hpp"
+#include "core/call/CallList.hpp"
 #include "core/chat/ChatGui.hpp"
 #include "model/tool/ToolModel.hpp"
 #include "tool/accessibility/AccessibilityHelper.hpp"
@@ -362,8 +363,22 @@ void Notifier::notifyReceivedCall(const shared_ptr<linphone::Call> &call) {
 		auto settings = App::getInstance()->getSettings();
 		if (settings && settings->dndEnabled()) return;
 		lInfo() << log().arg("Display call notification");
+		// L'appel tel que la liste des appels le connait (elle l'a recu avant cette notification). La notification
+		// en faisait sa propre copie, remise a la fenetre d'appel quand on decroche depuis elle : deux objets pour un
+		// meme appel, que la barre « en attente » prenait pour deux appels (« Reunir » avec la meme personne), et
+		// les touches du casque agissaient deux fois. La copie ne sert que si l'appel n'est pas dans la liste.
+		auto callCore = model;
+		const QString callId = model->getCallId();
+		if (auto callList = App::getInstance()->getCallList(); callList && !callId.isEmpty()) {
+			for (const auto &listed : callList->getSharedList<CallCore>()) {
+				if (listed->getCallId() == callId) {
+					callCore = listed;
+					break;
+				}
+			}
+		}
 		QVariantMap map;
-		auto gui = new CallGui(model);
+		auto gui = new CallGui(callCore);
 		map["displayName"].setValue(displayName);
 		map["remoteAddress"].setValue(remoteAddrString);
 		map["call"].setValue(gui);

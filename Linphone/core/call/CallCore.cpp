@@ -116,10 +116,9 @@ CallCore::CallCore(const std::shared_ptr<linphone::Call> &call) : QObject(nullpt
 	    videoDirection == linphone::MediaDirection::SendOnly || videoDirection == linphone::MediaDirection::SendRecv;
 	mCameraEnabled = mLocalVideoEnabled && callParams->cameraEnabled();
 	qDebug() << "create call with camera enabled" << mLocalVideoEnabled << callParams->cameraEnabled();
-	auto remoteParams = call->getRemoteParams();
-	videoDirection = remoteParams ? remoteParams->getVideoDirection() : linphone::MediaDirection::Inactive;
-	mRemoteVideoEnabled =
-	    videoDirection == linphone::MediaDirection::SendOnly || videoDirection == linphone::MediaDirection::SendRecv;
+	// Camera du correspondant : d'apres la video reellement recue, mesuree par CallModel. Ce qu'il annonce ne dit rien
+	// (FusionPBX propose la video dans chaque appel).
+	mRemoteVideoEnabled = false;
 	mState = LinphoneEnums::fromLinphone(call->getState());
 	auto remoteAddress = call->getCallLog()->getRemoteAddress();
 	mRemoteAddress = Utils::coreStringToAppString(remoteAddress->asStringUriOnly());
@@ -202,7 +201,11 @@ void CallCore::setSelf(QSharedPointer<CallCore> me) {
 		mCallModelConnection->invokeToCore([this, isMuted]() { setMicrophoneMuted(isMuted); });
 	});
 	mCallModelConnection->makeConnectToModel(&CallModel::remoteVideoEnabledChanged, [this](bool enabled) {
-		mCallModelConnection->invokeToCore([this, enabled]() { setRemoteVideoEnabled(enabled); });
+		mCallModelConnection->invokeToCore([this, enabled]() {
+			setRemoteVideoEnabled(enabled);
+			// Camera du correspondant coupee : le bandeau qui l'annoncait n'a plus lieu d'etre.
+			if (!enabled) setRemoteVideoRequested(false);
+		});
 	});
 	mCallModelConnection->makeConnectToCore(&CallCore::lSetSpeakerMuted, [this](bool isMuted) {
 		mCallModelConnection->invokeToModel([this, isMuted]() { mCallModel->setSpeakerMuted(isMuted); });
@@ -380,8 +383,11 @@ void CallCore::setSelf(QSharedPointer<CallCore> me) {
 	});
 	mCallModelConnection->makeConnectToModel(
 	    &CallModel::conferenceChanged, [this](const std::shared_ptr<linphone::Conference> &conference) {
-		    // Force enable video if in conference to handle screen sharing
-		    if (conference && !mCallModel->videoEnabled()) mCallModel->enableVideo(true);
+		    // Force enable video if in conference to handle screen sharing. Pas pour des appels audio reunis
+		    // (conference sans video) : chaque participant recevrait une proposition de video.
+		    if (conference && !mCallModel->videoEnabled() && conference->getCurrentParams() &&
+		        conference->getCurrentParams()->videoEnabled())
+			    mCallModel->enableVideo(true);
 		    QSharedPointer<ConferenceCore> core = conference ? ConferenceCore::create(conference) : nullptr;
 		    if (conference) {
 			    LinphoneEnums::ConferenceSecurityLevel level;

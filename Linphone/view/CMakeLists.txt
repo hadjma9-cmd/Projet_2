@@ -59,6 +59,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Display/ToolTip.qml
 	view/Control/Display/UnreadNotification.qml
 	view/Control/Display/Call/CallListView.qml
+	view/Control/Display/Call/HeldCallsBar.qml
 	view/Control/Display/Call/CallHistoryListView.qml
 	view/Control/Display/Call/CallStatistics.qml
 	view/Control/Display/Chat/Emoji/EmojiPicker.qml

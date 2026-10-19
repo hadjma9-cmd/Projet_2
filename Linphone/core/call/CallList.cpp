@@ -86,30 +86,61 @@ void CallList::setSelf(QSharedPointer<CallList> me) {
 	mModelConnection->makeConnectToCore(&CallList::lMergeAll, [this]() {
 		mModelConnection->invokeToModel([this]() {
 			auto core = CoreModel::getInstance()->getCore();
-			auto currentCalls = core->getCalls();
+			// Seulement les appels decroches (en cours ou en attente) : un appel qui sonne encore, ou qui se termine,
+			// n'est pas mis en conference.
+			std::list<std::shared_ptr<linphone::Call>> currentCalls;
+			for (auto call : core->getCalls()) {
+				switch (call->getState()) {
+					case linphone::Call::State::Connected:
+					case linphone::Call::State::StreamsRunning:
+					case linphone::Call::State::Pausing:
+					case linphone::Call::State::Paused:
+					case linphone::Call::State::PausedByRemote:
+					case linphone::Call::State::Resuming:
+					case linphone::Call::State::Updating:
+					case linphone::Call::State::UpdatedByRemote:
+						currentCalls.push_back(call);
+						break;
+					default:
+						break;
+				}
+			}
+			if (currentCalls.size() < 2) {
+				lWarning() << log().arg("Merge requested with less than two answered calls");
+				return;
+			}
 			std::shared_ptr<linphone::Conference> conference = nullptr;
 
 			// Search a managable conference from calls
 			for (auto call : currentCalls) {
 				auto dbConference = call->getConference();
-				if (dbConference && dbConference->getMe()->isAdmin()) {
+				auto me = dbConference ? dbConference->getMe() : nullptr;
+				if (me && me->isAdmin()) {
 					conference = dbConference;
 					break;
 				}
 			}
 
+			// Video seulement si ma camera est allumee dans l'appel en cours. La video negociee ne suffit pas : avec
+			// FusionPBX elle l'est presque toujours (en reception), et chaque participant recevrait une proposition de
+			// video.
 			auto currentCall = core->getCurrentCall();
 			bool enablingVideo = false;
-			if (currentCall) enablingVideo = currentCall->getCurrentParams()->videoEnabled();
-			if (!conference) {
-				auto audioVideoConfFactoryUri =
-				    core->getDefaultAccount()->getParams()->getAudioVideoConferenceFactoryAddress();
+			if (auto params = currentCall ? currentCall->getParams() : nullptr) {
+				const auto direction = params->getVideoDirection();
+				enablingVideo = params->cameraEnabled() && (direction == linphone::MediaDirection::SendOnly ||
+				                                            direction == linphone::MediaDirection::SendRecv);
+			}
+			// Sans compte par defaut, pas de conference possible : message d'echec ci-dessous.
+			auto account = core->getDefaultAccount();
+			if (!conference && account) {
+				auto audioVideoConfFactoryUri = account->getParams()->getAudioVideoConferenceFactoryAddress();
 				QString subject = audioVideoConfFactoryUri
 				                      //: Remote group call
 				                      ? tr("remote_group_call")
 				                      //: "Local group call"
 				                      : tr("local_group_call");
-				conference = ToolModel::createConference(subject, nullptr);
+				conference = ToolModel::createConference(subject, nullptr, enablingVideo);
 			}
 			if (!conference) {
 				lWarning() << log().arg("Failed to merge calls");
@@ -122,6 +153,8 @@ void CallList::setSelf(QSharedPointer<CallList> me) {
 				return;
 			} else {
 				conference->addParticipants(currentCalls);
+				// Sans cela, on n'entre dans la conference que si un des appels ajoutes est deja etabli (doc du SDK).
+				if (!conference->isIn()) conference->enter();
 			}
 		});
 	});

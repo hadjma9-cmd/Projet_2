@@ -21,6 +21,7 @@
 #include "CallModel.hpp"
 
 #include <QDebug>
+#include <QRegularExpression>
 #include <algorithm>
 
 #include "core/path/Paths.hpp"
@@ -44,6 +45,7 @@ CallModel::CallModel(const std::shared_ptr<linphone::Call> &call, QObject *paren
 	mDurationTimer.setSingleShot(false);
 	connect(&mDurationTimer, &QTimer::timeout, this, [this]() { this->durationChanged(mMonitor->getDuration()); });
 	connect(&mDurationTimer, &QTimer::timeout, this, [this]() { this->qualityUpdated(mMonitor->getCurrentQuality()); });
+	connect(&mDurationTimer, &QTimer::timeout, this, [this]() { updateRemoteCamera(); });
 
 	mMicroVolumeTimer.setInterval(50);
 	mMicroVolumeTimer.setSingleShot(false);
@@ -228,6 +230,36 @@ void CallModel::setPlayVolumeMonitoring(bool enabled) {
 		mPlayVolumeTimer.stop();
 		emit playVolumeChanged(0.f);
 	}
+}
+
+// Camera du correspondant, d'apres la video reellement recue. Ce que le correspondant annonce ne suffit pas : FusionPBX
+// propose la video dans chaque appel, camera allumee ou non, et peut envoyer une image fixe (quelques kbit/s) quand il
+// n'y en a pas. Une vraie camera depasse largement le seuil. Mesure chaque seconde (minuterie de la duree) ; il faut
+// deux secondes au-dessus pour l'allumer, quatre en dessous pour l'eteindre (une scene immobile ne la fait pas
+// clignoter). Rien n'est mesure pendant une mise en attente : la reprise ne passe pas pour un nouvel allumage.
+void CallModel::updateRemoteCamera() {
+	static constexpr float MinKbps = 15.f;
+	static constexpr int SecondsToSwitchOn = 2;
+	static constexpr int SecondsToSwitchOff = 4;
+	if (mMonitor->getState() != linphone::Call::State::StreamsRunning) return;
+	auto stats = mMonitor->getVideoStats();
+	const bool receiving = stats && stats->getDownloadBandwidth() >= MinKbps;
+	if (receiving == mRemoteCameraActive) {
+		mRemoteCameraSeconds = 0;
+		return;
+	}
+	if (++mRemoteCameraSeconds >= (receiving ? SecondsToSwitchOn : SecondsToSwitchOff))
+		setRemoteCameraActive(receiving);
+}
+
+void CallModel::setRemoteCameraActive(bool active) {
+	mRemoteCameraSeconds = 0;
+	if (mRemoteCameraActive == active) return;
+	mRemoteCameraActive = active;
+	lInfo() << log().arg("Remote camera") << (active ? "on" : "off");
+	emit remoteVideoEnabledChanged(active);
+	// Petite fenetre (audio seulement) : on le signale, pour proposer de voir la video en grande fenetre.
+	if (active && gAudioOnly) emit remoteVideoRequested();
 }
 
 float CallModel::getMicrophoneVolume() const {
@@ -446,10 +478,19 @@ void CallModel::updateCallErrorFromReason(linphone::Reason reason) {
 			//: "Le correspondant ne peut être dérangé"
 			error = tr("call_error_do_not_disturb_toast");
 			break;
-		case linphone::Reason::TemporarilyUnavailable:
-			//: "Temporarily unavailable"
-			error = tr("call_error_temporarily_unavailable_toast");
+		case linphone::Reason::TemporarilyUnavailable: {
+			// Le serveur repond ainsi pour un poste qui n'est pas joignable comme pour un numero exterieur qu'il ne
+			// peut pas acheminer (pas de sortie vers l'exterieur) : « Temporairement indisponible » ne disait rien.
+			// Jusqu'a 6 chiffres, c'est un poste ; au-dela, un numero exterieur.
+			static const QRegularExpression extensionPattern(QStringLiteral("^[0-9*#]{1,6}$"));
+			const auto remoteAddress = mMonitor ? mMonitor->getRemoteAddress() : nullptr;
+			const QString number =
+			    remoteAddress ? Utils::coreStringToAppString(remoteAddress->getUsername()) : QString();
+			error = extensionPattern.match(number).hasMatch()
+			            ? QStringLiteral("Ce poste n'est pas joignable pour le moment.")
+			            : QStringLiteral("Appel vers l'extérieur impossible pour le moment.");
 			break;
+		}
 		case linphone::Reason::ServerTimeout:
 			//: "Server timeout"
 			error = tr("call_error_server_timeout_toast");
@@ -494,41 +535,33 @@ void CallModel::onInfoMessageReceived(const std::shared_ptr<linphone::Call> &cal
 void CallModel::onStateChanged(const std::shared_ptr<linphone::Call> &call,
                                linphone::Call::State state,
                                const std::string &message) {
-	// Petite fenetre, audio seulement : video proposee par le correspondant (a l'appel ou en cours d'appel) refusee
-	// et signalee.
-	if (gAudioOnly && (state == linphone::Call::State::UpdatedByRemote || state == linphone::Call::State::Connected)) {
-		auto remoteParams = call->getRemoteParams();
-		auto currentParams = call->getCurrentParams();
-		if (remoteParams && remoteParams->videoEnabled() && (!currentParams || !currentParams->videoEnabled())) {
-			if (state == linphone::Call::State::UpdatedByRemote) {
-				call->deferUpdate();
-				auto params = CoreModel::getInstance()->getCore()->createCallParams(call);
-				params->enableVideo(false);
-				call->acceptUpdate(params);
-			}
-			emit remoteVideoRequested();
-		}
-	}
 	if (state == linphone::Call::State::StreamsRunning) {
 		setConference(call->getConference());
 		mDurationTimer.start();
 		// After UpdatedByRemote, video direction could be changed.
 		auto params = call->getParams();
 		auto videoDirection = params->getVideoDirection();
-		auto remoteVideoDirection = call->getRemoteParams()->getVideoDirection();
+		auto remoteParams = call->getRemoteParams();
+		auto remoteVideoDirection =
+		    remoteParams ? remoteParams->getVideoDirection() : linphone::MediaDirection::Inactive;
 		lInfo() << log().arg("State changed, camera enabled =") << params->cameraEnabled()
-		        << "| video direction =" << (int)videoDirection;
+		        << "| video direction =" << (int)videoDirection
+		        << "| remote video direction =" << (int)remoteVideoDirection;
 		emit localVideoEnabledChanged(videoDirection == linphone::MediaDirection::SendOnly ||
 		                              videoDirection == linphone::MediaDirection::SendRecv);
 		emit cameraEnabledChanged((videoDirection == linphone::MediaDirection::SendOnly ||
 		                           videoDirection == linphone::MediaDirection::SendRecv) &&
 		                          params->cameraEnabled());
-		emit remoteVideoEnabledChanged(remoteVideoDirection == linphone::MediaDirection::SendOnly ||
-		                               remoteVideoDirection == linphone::MediaDirection::SendRecv);
+		// Le correspondant n'envoie plus de video : sa camera est coupee, sans attendre la mesure. Qu'il en envoie,
+		// c'est la mesure de la video recue qui le dira (updateRemoteCamera).
+		if (remoteVideoDirection != linphone::MediaDirection::SendOnly &&
+		    remoteVideoDirection != linphone::MediaDirection::SendRecv)
+			setRemoteCameraActive(false);
 		updateConferenceVideoLayout();
 	} else if (state == linphone::Call::State::End || state == linphone::Call::State::Error) {
 		mDurationTimer.stop();
 		mPlayVolumeTimer.stop();
+		setRemoteCameraActive(false);
 		updateCallErrorFromReason(call->getReason());
 	}
 	emit stateChanged(call, state, message);

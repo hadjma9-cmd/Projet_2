@@ -93,8 +93,8 @@ public:
 	// Mesure du volume de la voix du correspondant (halo de la fenetre d'appel), seulement quand il est affiche.
 	void setPlayVolumeMonitoring(bool enabled);
 
-	// Petite fenetre : appels en audio seulement. Une demande de video du correspondant est repondue sans video et
-	// signalee (remoteVideoRequested), pour proposer de passer en grande fenetre.
+	// Petite fenetre : appels en audio seulement (camera coupee). Quand le correspondant allume sa camera, c'est
+	// signale (remoteVideoRequested), pour proposer de voir sa video en grande fenetre.
 	static void setAudioOnly(bool audioOnly);
 
 	void updateCallErrorFromReason(linphone::Reason reason);
@@ -126,6 +126,11 @@ private:
 	QTimer mMicroVolumeTimer;
 	QTimer mPlayVolumeTimer;
 	static std::atomic<bool> gAudioOnly;
+	// Camera du correspondant allumee, d'apres la video recue (remoteVideoEnabledChanged).
+	void updateRemoteCamera();
+	void setRemoteCameraActive(bool active);
+	bool mRemoteCameraActive = false;
+	int mRemoteCameraSeconds = 0; // secondes de suite ou la video recue contredit l'etat ci-dessus
 	std::shared_ptr<linphone::Conference> mConference;
 	LinphoneEnums::ConferenceLayout mConferenceVideoLayout;
 	static constexpr int gDtmfSoundDelay = 200;
