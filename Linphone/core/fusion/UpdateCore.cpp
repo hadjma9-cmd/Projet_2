@@ -273,7 +273,9 @@ void UpdateCore::launch(const QString &path) {
 	// Le temps d'afficher « Installation… » : la demande d'autorisation de Windows fige la fenêtre.
 	QTimer::singleShot(600, this, [this, path] {
 		lInfo() << log().arg("Launching installer") << path;
-		if (QProcess::startDetached(path, {})) {
+		// Mode silencieux (/S) : l'installeur attend la fermeture de Gamaphone, remplace l'ancienne version sans
+		// question et le relance tout seul (NSIS.template.in). Seule reste l'autorisation de Windows.
+		if (QProcess::startDetached(path, {QStringLiteral("/S")})) {
 			// L'installeur remplace les fichiers de l'application : elle doit être fermée.
 			App::getInstance()->quit();
 		} else {

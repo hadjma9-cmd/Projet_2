@@ -292,10 +292,19 @@ Function AddToPath
 FunctionEnd
 
 Function checkRunning
+	StrCpy $1 0
 	retry:
 	ClearErrors
 	ExecWait '"cmd" /C ""%SystemRoot%\System32\tasklist" /NH /FI "IMAGENAME eq @CPACK_NSIS_MUI_FINISHPAGE_RUN@" | "%SystemRoot%\System32\find" /I /C "@CPACK_NSIS_MUI_FINISHPAGE_RUN@""' $0
 	IntCmp $0 1 notRunning
+	; Mise a jour silencieuse, lancee par Gamaphone : il se ferme juste apres l'avoir lancee. On attend sa fermeture
+	; (30 secondes au plus) au lieu d'abandonner.
+	IfSilent 0 askUser
+	IntOp $1 $1 + 1
+	IntCmp $1 30 askUser 0 askUser
+	Sleep 1000
+	Goto retry
+	askUser:
 	MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "@CPACK_NSIS_MUI_FINISHPAGE_RUN@ is running. Please close it first from the application menu and restart the installation." /SD IDCANCEL IDRETRY retry
 	Abort
 	notRunning:
@@ -989,6 +998,13 @@ SectionEnd
 
 
 
+; Mise a jour silencieuse : Gamaphone est relance tout seul a la fin, au nom de l'utilisateur. Il passe par
+; l'Explorateur : lance directement, il tournerait avec les droits administrateur de l'installeur.
+Function .onInstSuccess
+  IfSilent 0 +2
+  Exec '"$WINDIR\explorer.exe" "$INSTDIR\@CPACK_NSIS_EXECUTABLES_DIRECTORY@\@CPACK_NSIS_MUI_FINISHPAGE_RUN@"'
+FunctionEnd
+
 Function .onInit
   Call checkRunning
 
@@ -997,6 +1013,15 @@ notRunning:
   ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\@CPACK_PACKAGE_INSTALL_REGISTRY_KEY@" "UninstallString"
   StrCmp $0 "" inst
 
+  ; Mise a jour silencieuse (lancee par Gamaphone) : l'ancienne version est remplacee sans question ni fenetre. Les
+  ; reglages et donnees de l'utilisateur, dans son profil, ne sont pas touches.
+  IfSilent 0 askUninstall
+  StrLen $2 "\Uninstall.exe"
+  StrCpy $3 $0 -$2
+  ExecWait '$0 /S _?=$3'
+  Goto inst
+
+askUninstall:
   MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION \
   "@CPACK_PACKAGE_NAME@ is already installed. $\n$\nDo you want to continue and uninstall the old version before installing the new one?" \
   IDOK uninst

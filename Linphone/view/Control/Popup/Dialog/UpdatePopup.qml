@@ -49,9 +49,9 @@ Popup {
 			color: DefaultStyle.main2_600
 			font: Typography.p1
 			text: mainItem.step === "downloading" ? "%1 Mo sur %2 Mo".arg(UpdateCpp.receivedMb).arg(UpdateCpp.totalMb)
-				: mainItem.step === "launching" ? "L'installeur démarre, Gamaphone va se fermer."
+				: mainItem.step === "launching" ? "Gamaphone se ferme, s'installe puis redémarre tout seul."
 				: mainItem.step === "failed" ? UpdateCpp.errorText
-				: "Cette mise à jour est nécessaire pour continuer. Gamaphone se fermera le temps de l'installation."
+				: "Cette mise à jour est nécessaire pour continuer. Gamaphone se fermera le temps de l'installation, puis redémarrera tout seul."
 		}
 
 		// Avancement du téléchargement.
