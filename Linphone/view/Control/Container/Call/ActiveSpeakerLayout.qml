@@ -77,12 +77,14 @@ Item {
                 height: visible ? Utils.getSizeWithScreenRatio(180 + 15) : 0
                 width: Utils.getSizeWithScreenRatio(300)
 				Sticker {
-					previewEnabled: index == 0	// before anchors for priority initialization
+					// Soi-meme : l'appareil marque « moi », et non la premiere case (la liste range « moi » en dernier).
+					readonly property bool isMeTile: $modelData ? $modelData.core.isMe : index == 0
+					previewEnabled: isMeTile	// before anchors for priority initialization
 					anchors.fill: parent
                     anchors.bottomMargin: Utils.getSizeWithScreenRatio(15)// Spacing
 					qmlName: 'S_'+index
 					visible: parent.visible
-					videoEnabled: (index === 0 && mainItem.call.core.cameraEnabled)
+					videoEnabled: (isMeTile && mainItem.call.core.cameraEnabled)
 						|| (!previewEnabled && call && call.core.remoteVideoEnabled)
 						|| (!previewEnabled && participantDevice && participantDevice.core.videoEnabled)
 					participantDevice: $modelData

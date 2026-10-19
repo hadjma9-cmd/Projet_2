@@ -111,6 +111,22 @@ QString ToolModel::getRemoteAvatarUrl(const std::shared_ptr<const linphone::Addr
 	return QString();
 }
 
+// Le correspondant est un poste (1 a 5 chiffres, comme l'onglet Equipe) et, s'il a appele, l'appel est adresse a notre
+// propre poste. Un appel arrive par une file (ou un groupe d'appel) est adresse au numero de la file : la regle
+// FusionPBX gamaphone_contact_unique y met ce numero, voir LISEZMOI de fusion-files.
+bool ToolModel::isInternalCall(const std::shared_ptr<linphone::Call> &call) {
+	static const QRegularExpression extension(QStringLiteral("^[0-9]{1,5}$"));
+	if (!call) return false;
+	auto remote = call->getRemoteAddress();
+	if (!remote || !extension.match(Utils::coreStringToAppString(remote->getUsername())).hasMatch()) return false;
+	if (call->getDir() != linphone::Call::Dir::Incoming) return true;
+	auto core = CoreModel::getInstance()->getCore();
+	auto account = core ? core->getDefaultAccount() : nullptr;
+	auto identity = account ? account->getParams()->getIdentityAddress() : nullptr;
+	auto to = call->getToAddress();
+	return identity && to && to->getUsername() == identity->getUsername();
+}
+
 bool ToolModel::isVoicemailAddress(const std::shared_ptr<const linphone::Address> &address) {
 	if (!address) return false;
 	for (auto &account : CoreModel::getInstance()->getCore()->getAccountList()) {
@@ -464,7 +480,10 @@ bool ToolModel::createCall(const QString &sipAddress,
 		SettingsModel::getInstance()->setCallToneIndicationsEnabled(true);
 	}
 	std::shared_ptr<linphone::CallParams> params = core->createCallParams(nullptr);
-	params->enableVideo(localVideoEnabled);
+	// Video toujours prevue (en reception seulement, camera coupee, si on ne l'allume pas), comme a la reponse a un
+	// appel (CallModel::accept) : sinon l'appel n'avait aucun canal video avec FreeSWITCH, et la camera allumee ensuite
+	// par l'un ou l'autre ne passait que si les deux l'allumaient.
+	params->enableVideo(localVideoEnabled || SettingsModel::getInstance()->getVideoEnabled());
 	params->enableCamera(localVideoEnabled);
 	auto videoDirection = localVideoEnabled ? linphone::MediaDirection::SendRecv : linphone::MediaDirection::RecvOnly;
 	params->setVideoDirection(videoDirection);

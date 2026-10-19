@@ -54,6 +54,8 @@ public:
 	// Adresse de messagerie vocale d'un compte (*97) : affichee « Messagerie » partout, a la place de
 	// son numero technique et avant tout nom de contact.
 	static bool isVoicemailAddress(const std::shared_ptr<const linphone::Address> &address);
+	// Appel interne, poste a poste : seuls ceux-la peuvent etre reunis (pas d'appel exterieur, ni venu d'une file).
+	static bool isInternalCall(const std::shared_ptr<linphone::Call> &call);
 	static QString getVoicemailDisplayName();
 	static QString getDisplayName(const std::shared_ptr<const linphone::Address> &address);
 	static QString getDisplayName(QString address);

@@ -124,6 +124,7 @@ CallCore::CallCore(const std::shared_ptr<linphone::Call> &call) : QObject(nullpt
 	mRemoteAddress = Utils::coreStringToAppString(remoteAddress->asStringUriOnly());
 	mRemoteUsername = Utils::coreStringToAppString(remoteAddress->getUsername());
 	mCallId = Utils::coreStringToAppString(call->getCallLog()->getCallId());
+	mInternalCall = ToolModel::isInternalCall(call);
 	// Messagerie vocale : son nom (getDisplayName), pas celui d'un contact ou d'une recherche.
 	const bool isVoicemail = ToolModel::isVoicemailAddress(remoteAddress);
 	auto linphoneFriend = isVoicemail ? nullptr : ToolModel::findFriendByAddress(remoteAddress);

@@ -41,6 +41,9 @@ Rectangle {
 	}
 	readonly property bool showRinging: !!ringingCall
 	readonly property var shownCall: showRinging ? ringingCall : (heldCalls.length > 0 ? heldCalls[0] : null)
+	// Reunir : seulement des appels internes (poste a poste), aucun appel exterieur ni venu d'une file.
+	readonly property bool mergeAllowed: !!currentCall && currentCall.core.internalCall
+		&& heldCalls.every(function (c) { return c.core.internalCall })
 	readonly property bool heldConference: heldCalls.length > 1
 		&& heldCalls.every(function (c) { return c.core.isConference })
 	readonly property string title: showRinging
@@ -204,7 +207,7 @@ Rectangle {
 		}
 		// Reunir : seulement quand la personne appelee a decroche.
 		BarButton {
-			visible: !mainItem.showRinging && mainItem.currentConnected
+			visible: !mainItem.showRinging && mainItem.currentConnected && mainItem.mergeAllowed
 			label: "Réunir"
 			iconSource: AppIcons.arrowsMerge
 			onClicked: allCalls.lMergeAll()

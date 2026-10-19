@@ -109,6 +109,13 @@ void CallList::setSelf(QSharedPointer<CallList> me) {
 				lWarning() << log().arg("Merge requested with less than two answered calls");
 				return;
 			}
+			// Appels internes seulement : jamais un appel exterieur ni un appel venu d'une file.
+			for (const auto &call : currentCalls) {
+				if (!ToolModel::isInternalCall(call)) {
+					lWarning() << log().arg("Merge refused: not an internal call");
+					return;
+				}
+			}
 			std::shared_ptr<linphone::Conference> conference = nullptr;
 
 			// Search a managable conference from calls

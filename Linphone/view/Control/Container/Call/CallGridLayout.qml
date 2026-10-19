@@ -37,13 +37,16 @@ Mosaic {
             width: grid.cellWidth - Utils.getSizeWithScreenRatio(10)
 			Sticker {
 				id: cameraView
-				previewEnabled: index == 0
+				// Soi-meme : l'appareil marque « moi », et non la premiere case (la liste range « moi » en dernier : la premiere
+				// case affichait un participant sous notre nom et notre photo, et notre propre case sous notre numero).
+				readonly property bool isMeTile: avatarCell.currentDevice ? avatarCell.currentDevice.core.isMe : index == 0
+				previewEnabled: isMeTile
 				visible: mainItem.callState != LinphoneEnums.CallState.End  && mainItem.callState != LinphoneEnums.CallState.Released
 				anchors.fill: parent
 				qmlName: 'G_'+index
 				call: grid.call && !grid.call.core.isConference ? grid.call : null
 				property var accountObj: UtilsCpp.findLocalAccountByAddress(mainItem.localAddress)
-				account: (index == 0 && accountObj) ? accountObj.value : null
+				account: (isMeTile && accountObj) ? accountObj.value : null
 				displayAll: false
 				displayPresence: false
 				participantDevice: avatarCell.currentDevice

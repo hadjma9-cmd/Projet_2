@@ -241,18 +241,32 @@ void Utils::setupConference(ConferenceInfoGui *confGui) {
 	window->show();
 }
 
+// Fenetre montree au premier plan et activee, meme si Gamaphone n'est pas l'application en cours : Windows refuse
+// souvent l'activation dans ce cas (show() et raise() seuls la laissaient derriere). Passage au-dessus de tout puis
+// retour a la normale, ce qui la laisse devant, et activation.
+static void bringToFront(QQuickWindow *window) {
+	if (!window) return;
+	Utils::smartShowWindow(window);
+#ifdef Q_OS_WIN
+	auto hwnd = reinterpret_cast<HWND>(window->winId());
+	// Fenetre epinglee (toujours au-dessus) : elle est deja devant, et le retour a la normale lui ferait perdre
+	// l'epinglage.
+	if (!(GetWindowLongPtr(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST)) {
+		SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+		SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+	}
+	SetForegroundWindow(hwnd);
+#endif
+}
+
+// Appel decroche ou ouvert (notification, casque) : sa fenetre passe au premier plan.
 void Utils::openCallsWindow(CallGui *call) {
 	// Petite fenetre : l'appel s'y affiche, pas de fenetre d'appel.
 	if (call && App::getInstance()->getCompactMode()) {
-		smartShowWindow(App::getInstance()->getMainWindow());
+		bringToFront(App::getInstance()->getMainWindow());
 		return;
 	}
-	if (call) {
-		auto window = App::getInstance()->getOrCreateCallsWindow(QVariant::fromValue(call));
-		if (!window) return;
-		window->show();
-		window->raise();
-	}
+	if (call) bringToFront(App::getInstance()->getOrCreateCallsWindow(QVariant::fromValue(call)));
 }
 
 QQuickWindow *Utils::getOrCreateCallsWindow(CallGui *callGui) {

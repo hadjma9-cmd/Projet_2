@@ -1280,7 +1280,9 @@ AbstractWindow {
                     Component {
                         id: mergeCallPopupButton
                         PopupButton {
-                            visible: callsModel.count >= 2 && !callsModel.haveNonAdminMeeting
+                            // « Reunir » passe par la barre des appels en attente, qui verifie que tous les appels sont
+                            // internes (pas d'appel exterieur ni venu d'une file) : plus de fusion de tous les appels ici.
+                            visible: false
                             id: popupbutton
                             popup.contentItem: IconLabelButton {
                                 icon.source: AppIcons.arrowsMerge

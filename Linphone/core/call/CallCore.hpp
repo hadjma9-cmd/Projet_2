@@ -134,6 +134,8 @@ public:
 	Q_PROPERTY(LinphoneEnums::CallState transferState READ getTransferState NOTIFY transferStateChanged)
 	Q_PROPERTY(ConferenceGui *conference READ getConferenceGui NOTIFY conferenceChanged)
 	Q_PROPERTY(bool isConference READ isConference NOTIFY isConferenceChanged)
+	// Appel poste a poste, ni exterieur ni venu d'une file : seul ce genre d'appel peut etre reuni.
+	Q_PROPERTY(bool internalCall MEMBER mInternalCall CONSTANT)
 	Q_PROPERTY(LinphoneEnums::ConferenceLayout conferenceVideoLayout READ getConferenceVideoLayout WRITE
 	               lSetConferenceVideoLayout NOTIFY conferenceVideoLayoutChanged)
 
@@ -368,6 +370,7 @@ private:
 	bool mRemoteRecording = false;
 	bool mRecordable = false;
 	bool mIsConference = false;
+	bool mInternalCall = false;
 	QString mLocalToken;
 	QStringList mRemoteTokens;
 	float mMicrophoneVolume;
