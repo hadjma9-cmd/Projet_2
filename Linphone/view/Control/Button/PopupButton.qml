@@ -13,6 +13,8 @@ Button {
     backgroundColor: checked ? pressedColor : hovered || mainItem.activeFocus ? hoveredColor : color
     property string popUpTitle: ""
     property int popupY: height
+    // Menu a droite du bouton, aligne sur son haut (bouton dans une bande etroite, petite fenetre), au lieu de dessous.
+    property bool popupBeside: false
     Accessible.role: Accessible.ButtonMenu
     Accessible.name: popup.visible ?
     //: "Close %1 popup"
@@ -184,6 +186,12 @@ Button {
                 "x": 0,
                 "y": 0
             };
+            if (mainItem.popupBeside) {
+                var gap = Utils.getSizeWithScreenRatio(8)
+                y = Math.max(Math.min(winPosition.y + mainItem.Window.height - popupHeight - gap, 0), winPosition.y + gap);
+                x = Math.min(mainItem.width + gap, winPosition.x + mainItem.Window.width - popupWidth - gap);
+                return;
+            }
             // Stay inside main window
             y = Math.max(Math.min(winPosition.y + mainItem.Window.height - popupHeight, mainItem.popupY), winPosition.y);
             x = Math.max(Math.min(winPosition.x + mainItem.Window.width - popupWidth, 0), winPosition.x);

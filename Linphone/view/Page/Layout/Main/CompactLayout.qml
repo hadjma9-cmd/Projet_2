@@ -126,6 +126,9 @@ Item {
 			text: bandButton.label
 			visible: bandArea.containsMouse
 			delay: 300
+			// A droite de l'icone : au-dessus (place par defaut), la bulle cachait l'icone d'au-dessus.
+			x: parent.width + Utils.getSizeWithScreenRatio(6)
+			y: (parent.height - height) / 2
 		}
 	}
 
@@ -283,6 +286,7 @@ Item {
 					shadowEnabled: false
 					enabled: !!mainItem.account && mainItem.account.core.registrationState === LinphoneEnums.RegistrationState.Ok
 					popUpTitle: "Statut"
+					popupBeside: true
 					contentItem: Item {
 						Avatar {
 							anchors.fill: parent
@@ -312,6 +316,8 @@ Item {
 						visible: accountButton.hovered && !accountButton.popup.visible && queuesBadge.visible
 						delay: 300
 						text: queuesBadge.tooltipText
+						x: parent.width + Utils.getSizeWithScreenRatio(6)
+						y: (parent.height - height) / 2
 					}
 				}
 				// Files d'attente : « casque 1/2 » sous la photo. Centre au pixel sur la bande d'apres l'encre de l'icone et
@@ -367,6 +373,8 @@ Item {
 						visible: queuesBadgeArea.containsMouse && !accountButton.popup.visible
 						delay: 300
 						text: queuesBadge.tooltipText
+						x: parent.width + Utils.getSizeWithScreenRatio(6)
+						y: (parent.height - height) / 2
 					}
 				}
 				// Equipe en premier, comme dans la grande fenetre (page 4, ajoutee apres les autres).
