@@ -40,11 +40,19 @@ Loader{
 			: ""
 	// Source unique de l'avatar, pour que l'image affichee et le test haveAvatar ne
 	// puissent pas diverger.
-	property string avatarUri: (account?.core
+	property string avatarUri: directoryPhoto((account?.core
 		? account.core.pictureUri
 		: contact
 			? contact.core.pictureUri
-			: computedAvatarUri) || ""
+			: computedAvatarUri) || "")
+	// Photo de l'annuaire (avatar.php?user=...) : seuls les postes (1 a 5 chiffres) en ont une. Pour un numero externe,
+	// l'annuaire en donne aussi l'adresse, mais la photo n'existe jamais : elle n'est pas demandee au serveur.
+	function directoryPhoto(uri) {
+		if (!uri.startsWith("http") || uri.indexOf("/avatars/avatar.php") === -1)
+			return uri
+		var user = /[?&]user=([^&#]*)/.exec(uri)
+		return user && /^[0-9]{1,5}$/.test(decodeURIComponent(user[1])) ? uri : ""
+	}
 	// L'avatar peut etre une URL distante (annuaire) qui renvoie 404 quand l'utilisateur
 	// n'a pas de photo. Sans ce drapeau, haveAvatar resterait vrai et on afficherait une
 	// image vide au lieu des initiales.

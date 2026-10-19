@@ -274,7 +274,8 @@ Item {
 				PopupButton {
 					id: accountButton
 					Layout.alignment: Qt.AlignHCenter
-					Layout.bottomMargin: Utils.getSizeWithScreenRatio(6)
+					// Avec le compteur des files dessous : l'espacement de la bande seul, au-dessus comme au-dessous de lui.
+					Layout.bottomMargin: queuesBadge.visible ? 0 : Utils.getSizeWithScreenRatio(6)
 					// Sa propre photo : 42 et pastille d'environ 13, lisibles dans une bande fine (les listes, elles, sont en 45).
 					Layout.preferredWidth: Utils.getSizeWithScreenRatio(42)
 					Layout.preferredHeight: Utils.getSizeWithScreenRatio(42)
@@ -298,8 +299,74 @@ Item {
 							anchors.fill: parent
 							anchors.margins: Utils.getSizeWithScreenRatio(10)
 							accountGui: mainItem.account
+							showQueues: true
 							onIsSet: accountButton.popup.close()
 						}
+					}
+					// Ouverture du menu : etat des files relu tout de suite (seulement pour un agent).
+					popup.onOpened: {
+						StatusCpp.refresh()
+						if (QueuesCpp.agent) QueuesCpp.refresh()
+					}
+					ToolTip {
+						visible: accountButton.hovered && !accountButton.popup.visible && queuesBadge.visible
+						delay: 300
+						text: queuesBadge.tooltipText
+					}
+				}
+				// Files d'attente : « casque 1/2 » sous la photo. Centre au pixel sur la bande d'apres l'encre de l'icone et
+				// du texte (pas leurs cadres, aux marges inegales) ; sa hauteur est celle de l'encre, pour des ecarts egaux
+				// avec la photo et avec le premier bouton. Un clic ouvre le menu du statut, comme la photo.
+				Item {
+					id: queuesBadge
+					visible: QueuesCpp.agent && QueuesCpp.queueCount > 0
+					Layout.fillWidth: true
+					Layout.preferredHeight: Math.round(Math.max(iconInkHeight, textInk.height))
+					readonly property string tooltipText: (mainItem.account ? mainItem.account.core.presenceStatus + " · " : "")
+						+ QueuesCpp.connectedCount + (QueuesCpp.connectedCount > 1 ? " files activées" : " file activée")
+						+ " sur " + QueuesCpp.queueCount
+					readonly property real iconSize: Utils.getSizeWithScreenRatio(12)
+					// Encre de headset.svg dans son cadre de 256 : x de 24 a 232, y de 24 a 248.
+					readonly property real iconInkLeft: iconSize * 24 / 256
+					readonly property real iconInkWidth: iconSize * 208 / 256
+					readonly property real iconInkTop: iconSize * 24 / 256
+					readonly property real iconInkHeight: iconSize * 224 / 256
+					readonly property real gap: Utils.getSizeWithScreenRatio(3)
+					readonly property rect textInk: badgeMetrics.tightBoundingRect
+					readonly property real inkLeft: Math.round((width - (iconInkWidth + gap + textInk.width)) / 2)
+					TextMetrics {
+						id: badgeMetrics
+						font: badgeText.font
+						text: badgeText.text
+					}
+					EffectImage {
+						x: Math.round(queuesBadge.inkLeft - queuesBadge.iconInkLeft)
+						y: Math.round((queuesBadge.height - queuesBadge.iconInkHeight) / 2 - queuesBadge.iconInkTop)
+						width: queuesBadge.iconSize
+						height: queuesBadge.iconSize
+						imageSource: AppIcons.headset
+						colorizationColor: DefaultStyle.grey_0
+					}
+					Text {
+						id: badgeText
+						x: Math.round(queuesBadge.inkLeft + queuesBadge.iconInkWidth + queuesBadge.gap - queuesBadge.textInk.x)
+						y: Math.round((queuesBadge.height - queuesBadge.textInk.height) / 2 - baselineOffset - queuesBadge.textInk.y)
+						text: QueuesCpp.connectedCount + "/" + QueuesCpp.queueCount
+						font.pixelSize: Utils.getSizeWithScreenRatio(11)
+						font.weight: Font.DemiBold
+						color: DefaultStyle.grey_0
+					}
+					MouseArea {
+						id: queuesBadgeArea
+						anchors.fill: parent
+						hoverEnabled: true
+						cursorShape: accountButton.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+						onClicked: if (accountButton.enabled) accountButton.open()
+					}
+					ToolTip {
+						visible: queuesBadgeArea.containsMouse && !accountButton.popup.visible
+						delay: 300
+						text: queuesBadge.tooltipText
 					}
 				}
 				// Equipe en premier, comme dans la grande fenetre (page 4, ajoutee apres les autres).
@@ -444,13 +511,9 @@ Item {
 				pageIndex: 0
 				sourceComponent: Item {
 					// Petite fenetre gardee en memoire : la liste est relue quand on l'affiche (onglet ou retour en
-					// Combiné), au plus toutes les 10 minutes, comme dans la grande fenetre. Une extension creee entre-temps
-					// apparait ainsi.
-					property double lastRefresh: Date.now()
-					onVisibleChanged: if (visible && Date.now() - lastRefresh >= 10 * 60 * 1000) {
-						lastRefresh = Date.now()
-						contactsForm.refreshContacts()
-					}
+					// Combiné), au plus une fois par minute, comme dans la grande fenetre. Une extension creee
+					// entre-temps apparait ainsi.
+					onVisibleChanged: if (visible) contactsForm.refreshContactsIfStale()
 					CreationFormLayout {
 						id: contactsForm
 						autoRefresh: true
@@ -565,12 +628,8 @@ Item {
 				id: teamLazyPage
 				pageIndex: 4
 				sourceComponent: Item {
-					// Relue quand on l'affiche, au plus toutes les 10 minutes (voir Contacts).
-					property double lastRefresh: Date.now()
-					onVisibleChanged: if (visible && Date.now() - lastRefresh >= 10 * 60 * 1000) {
-						lastRefresh = Date.now()
-						teamForm.refreshContacts()
-					}
+					// Relue quand on l'affiche, au plus une fois par minute (voir Contacts).
+					onVisibleChanged: if (visible) teamForm.refreshContactsIfStale()
 					CreationFormLayout {
 						id: teamForm
 						autoRefresh: true

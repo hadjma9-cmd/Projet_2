@@ -42,6 +42,9 @@ AbstractMainPage {
     // Un contact d'annuaire (LDAP) est en lecture seule : ni edition, ni favori, ni suppression.
     property bool contactEditable: selectedContact && selectedContact.core.isStored
                                    && !selectedContact.core.readOnly
+    // Contact de l'annuaire de l'entreprise (FusionPBX), visible par toute l'equipe ; pas un poste de l'equipe.
+    readonly property bool sharedContactSelected: !!selectedContact && !contactEditable && selectedContact.core.isLdap
+                                                  && !selectedContact.core.internalExtension
     property string initialFriendToDisplay
     onInitialFriendToDisplayChanged: {
         if (initialFriendToDisplay != '' && contactList.selectContact(initialFriendToDisplay) != -1)
@@ -59,14 +62,9 @@ AbstractMainPage {
         // sans elle, un contact supprime, ou ajoute directement dans le LDAP, n'apparaitrait
         // qu'a la recherche suivante. Les autres onglets n'en ont pas besoin, leurs listes
         // etant alimentees en continu par les signaux du SDK.
-        // Au plus une fois toutes les 10 minutes : chaque retour sur l'onglet interrogeait l'annuaire.
-        var now = Date.now()
-        if (now - mainItem.lastDirectoryRefresh >= 10 * 60 * 1000) {
-            mainItem.lastDirectoryRefresh = now
-            contactList.refresh()
-        }
+        // Au plus une fois par minute (refreshIfStale) : chaque retour sur l'onglet interrogeait l'annuaire.
+        contactList.refreshIfStale()
     }
-    property double lastDirectoryRefresh: 0
     function goToContactDetails(focusEditButton=false) {
         if (selectedContact) {
             var firstItem = rightPanelStackView.get(0)
@@ -113,11 +111,17 @@ AbstractMainPage {
                 || rightPanelStackView.currentItem.objectName != "contactEdition")
             rightPanelStackView.push(contactEdition, {
                                          "contact": friendGui,
+                                         "isNew": true,
                                          //: "Nouveau contact"
                                          "title": qsTr("contact_new_title"),
                                          // "Créer"
                                          "saveButtonText": qsTr("create")
                                      })
+    }
+
+    function sendContact(friendGui) {
+        if (friendGui)
+            rightPanelStackView.push(contactSendTo, {"contact": friendGui})
     }
 
     function editContact(friendGui) {
@@ -127,6 +131,44 @@ AbstractMainPage {
                                      "title": qsTr("contact_edit_title"),
                                      "saveButtonText": qsTr("save")
                                  })
+    }
+
+    // Contact partage (annuaire de l'entreprise, FusionPBX) : supprime pour tout le domaine par le service, apres
+    // confirmation. Le serveur le retrouve par son nom et ses numeros.
+    property bool sharedDeletePending: false
+    function deleteSharedContact(contact) {
+        if (!contact)
+            return
+        var name = contact.core.fullName
+        var phones = []
+        var numbers = contact.core.phoneNumbers
+        for (var i = 0; i < numbers.length; ++i)
+            phones.push(numbers[i].address)
+        var addresses = contact.core.addresses
+        for (var j = 0; j < addresses.length; ++j)
+            phones.push(UtilsCpp.getUsername(addresses[j].address))
+        UtilsCpp.getMainWindow().showConfirmationLambdaPopup("Supprimer " + name + " ?",
+            "Ce contact sera supprimé pour toute l'équipe.", "",
+            function (confirmed) {
+                if (!confirmed)
+                    return
+                mainItem.sharedDeletePending = true
+                SharedContactsCpp.deleteContact(name, phones)
+            }, "Annuler", "Supprimer")
+    }
+    Connections {
+        target: SharedContactsCpp
+        enabled: mainItem.sharedDeletePending
+        function onContactDeleted(name) {
+            mainItem.sharedDeletePending = false
+            contactList.resetSelections()
+            contactList.refresh()
+            UtilsCpp.showInformationPopup("Contact supprimé", name + " a été supprimé des contacts de l'équipe.", true)
+        }
+        function onFailed(message) {
+            mainItem.sharedDeletePending = false
+            UtilsCpp.showInformationPopup("Suppression impossible", message, false)
+        }
     }
 
     // rightPanelStackView.initialItem: contactDetail
@@ -446,7 +488,8 @@ AbstractMainPage {
                 button.style: ButtonStyle.tertiary
                 button.icon.source: AppIcons.pencil
                 button.onClicked: mainItem.editContact(mainItem.selectedContact)
-                button.visible: mainItem.selectedContact && mainItem.selectedContact.core.isStored && !mainItem.selectedContact.core.readOnly
+                // Plus de bouton isole a droite : « Modifier » est dans la liste des actions, sous la fiche.
+                button.visible: false
                 property string contactAddress: contact ? contact.core.defaultAddress : ""
                 // Cle de recherche dans l'historique : l'adresse SIP complete (un poste « 878 » ne doit pas ramener
                 // « 0878… »), ou, pour un contact qui n'a qu'un numero de telephone, ce numero sans separateurs.
@@ -610,6 +653,24 @@ AbstractMainPage {
                                 color: DefaultStyle.main2_700
                                 font.pixelSize: Utils.getSizeWithScreenRatio(13)
                                 font.weight: Font.DemiBold
+                            }
+                        }
+                        RowLayout {
+                            // Ce qu'est le contact, pas qui le voit : reste vrai meme si la fiche a ete envoyee a
+                            // un membre de l'equipe. Rien pour un poste de l'equipe.
+                            visible: mainItem.contactEditable || mainItem.sharedContactSelected
+                            Layout.topMargin: Utils.getSizeWithScreenRatio(6)
+                            spacing: Utils.getSizeWithScreenRatio(5)
+                            EffectImage {
+                                Layout.preferredWidth: Utils.getSizeWithScreenRatio(13)
+                                Layout.preferredHeight: Utils.getSizeWithScreenRatio(13)
+                                imageSource: mainItem.contactEditable ? AppIcons.lockSimple : AppIcons.usersThree
+                                colorizationColor: DefaultStyle.main2_500_main
+                            }
+                            Text {
+                                text: mainItem.contactEditable ? "Contact personnel" : "Contact de l'équipe"
+                                color: DefaultStyle.main2_500_main
+                                font.pixelSize: Utils.getSizeWithScreenRatio(12)
                             }
                         }
                     },
@@ -1031,82 +1092,78 @@ AbstractMainPage {
                                 }
                             }
                         }
-                        ContactDetailLayout {
+                        // Actions sur un contact de l'onglet Contacts, personnel ou de l'equipe (pas un poste de l'equipe) :
+                        // la meme carte pour les deux, directement visible, sans titre ni repli. Un contact de l'equipe
+                        // n'a ni « Envoyer » (toute l'equipe le voit deja) ni « Modifier ».
+                        RoundedPane {
+                            visible: mainItem.contactEditable || mainItem.sharedContactSelected
                             Layout.fillWidth: true
-                            // Reservee aux contacts locaux. Pour un contact d'annuaire elle ne
-                            // contiendrait que « Partager » : une section entiere pour un bouton.
-                            visible: mainItem.contactEditable
-                            //: "Autres actions"
-                            label: qsTr("contact_details_actions_title")
-                            content: ColumnLayout {
-                                spacing: Utils.getSizeWithScreenRatio(10)
-                                // « Éditer » retire : il doublonnait le bouton « Modifier » de l'en-tete.
-                                ColumnLayout {
-                                    visible: mainItem.selectedContact && mainItem.selectedContact.core.isStored && !mainItem.selectedContact.core.readOnly
-                                    IconLabelButton {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
-                                        icon.source: mainItem.selectedContact
-                                                    && mainItem.selectedContact.core.starred ? AppIcons.heartFill : AppIcons.heart
-                                        text: mainItem.selectedContact
-                                            && mainItem.selectedContact.core.starred
-                                            //: "Retirer des favoris"
-                                            ? qsTr("contact_details_remove_from_favourites")
-                                            //: "Ajouter aux favoris"
-                                            : qsTr("contact_details_add_to_favourites")
-                                        style: ButtonStyle.noBackground
-                                        onClicked: if (mainItem.selectedContact)
-                                                    mainItem.selectedContact.core.lSetStarred(
-                                                                !mainItem.selectedContact.core.starred)
-                                    }
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
-                                        color: DefaultStyle.main2_200
-                                    }
+                            leftPadding: Utils.getSizeWithScreenRatio(20)
+                            rightPadding: Utils.getSizeWithScreenRatio(20)
+                            topPadding: Utils.getSizeWithScreenRatio(4)
+                            bottomPadding: Utils.getSizeWithScreenRatio(4)
+                            contentItem: ColumnLayout {
+                                spacing: 0
+                                component ActionSeparator: Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
+                                    color: DefaultStyle.main2_200
                                 }
-                                // IconLabelButton {
-                                // 	Layout.fillWidth: true
-                                // 	Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
-                                // 	icon.source: AppIcons.bellSlash
-                                // 	text: qsTr("Mettre en sourdine")
-                                // 	onClicked: console.log("TODO : mute contact")
-                                // }
-                                // Rectangle {
-                                // 	Layout.fillWidth: true
-                                // 	Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
-                                // 	color: DefaultStyle.main2_200
-                                // }
-                                // IconLabelButton {
-                                // 	Layout.fillWidth: true
-                                // 	Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
-                                // 	icon.source: AppIcons.empty
-                                // 	text: qsTr("Bloquer")
-                                // 	onClicked: console.log("TODO : block contact")
-                                // }
-                                // Rectangle {
-                                // 	Layout.fillWidth: true
-                                // 	Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
-                                // 	color: DefaultStyle.main2_200
-                                // }
-                                ColumnLayout {
-                                    visible: mainItem.selectedContact && mainItem.selectedContact.core.isStored && !mainItem.selectedContact.core.readOnly
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
-                                        color: DefaultStyle.main2_200
-                                    }
-                                    IconLabelButton {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
-                                        icon.source: AppIcons.trashCan
-                                        //: "Supprimer ce contact"
-                                        text: qsTr("contact_details_delete")
-                                        onClicked: {
-                                            mainItem.deleteContact(mainItem.selectedContact)
-                                        }
-                                        style: ButtonStyle.noBackgroundRed
-                                    }
+                                IconLabelButton {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
+                                    icon.source: mainItem.selectedContact
+                                                && mainItem.selectedContact.core.starred ? AppIcons.heartFill : AppIcons.heart
+                                    text: mainItem.selectedContact
+                                        && mainItem.selectedContact.core.starred
+                                        //: "Retirer des favoris"
+                                        ? qsTr("contact_details_remove_from_favourites")
+                                        //: "Ajouter aux favoris"
+                                        : qsTr("contact_details_add_to_favourites")
+                                    style: ButtonStyle.noBackground
+                                    onClicked: if (mainItem.selectedContact)
+                                                mainItem.selectedContact.core.lSetStarred(
+                                                            !mainItem.selectedContact.core.starred)
+                                }
+                                ActionSeparator {
+                                    visible: mainItem.contactEditable
+                                }
+                                IconLabelButton {
+                                    visible: mainItem.contactEditable
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
+                                    icon.source: AppIcons.paperPlaneRight
+                                    text: "Envoyer à un membre de l'équipe"
+                                    style: ButtonStyle.noBackground
+                                    onClicked: mainItem.sendContact(mainItem.selectedContact)
+                                }
+                                ActionSeparator {
+                                    visible: mainItem.contactEditable
+                                }
+                                IconLabelButton {
+                                    visible: mainItem.contactEditable
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
+                                    icon.source: AppIcons.pencil
+                                    text: "Modifier"
+                                    style: ButtonStyle.noBackground
+                                    onClicked: mainItem.editContact(mainItem.selectedContact)
+                                }
+                                ActionSeparator {
+                                }
+                                // Meme libelle pour les deux ; pour un contact de l'equipe, la confirmation precise
+                                // qu'il disparait pour toute l'equipe (supprime dans FusionPBX par le service).
+                                IconLabelButton {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
+                                    enabled: mainItem.contactEditable || !SharedContactsCpp.busy
+                                    icon.source: AppIcons.trashCan
+                                    //: "Supprimer ce contact"
+                                    text: qsTr("contact_details_delete")
+                                    style: ButtonStyle.noBackgroundRed
+                                    onClicked: mainItem.contactEditable
+                                               ? mainItem.deleteContact(mainItem.selectedContact)
+                                               : mainItem.deleteSharedContact(mainItem.selectedContact)
                                 }
                             }
                         }
@@ -1123,12 +1180,21 @@ AbstractMainPage {
         id: contactEdition
         ContactEdition {
             objectName: "contactEdition"
+            onSharedContactCreated: contactList.refresh()
             onCloseEdition: redirectAddress => {
                 goToContactDetails(true)
                 if (redirectAddress) {
                     initialFriendToDisplay = redirectAddress
                 }
             }
+        }
+    }
+
+    Component {
+        id: contactSendTo
+        ContactSendTo {
+            objectName: "contactSendTo"
+            onClose: rightPanelStackView.pop()
         }
     }
 

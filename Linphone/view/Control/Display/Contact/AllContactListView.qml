@@ -31,17 +31,25 @@ Flickable {
     property bool showCallButton: false
     // Lignes resserrees (petite fenetre) : 44 de haut, photo de 32.
     property bool dense: false
-    // Relecture automatique tant que la liste est affichee (onglets Equipe et Contacts) : une extension creee pendant
-    // qu'on regarde la liste finit par apparaitre. Toutes les 5 min ; rien quand la fenetre est reduite ou cachee.
+    // Relecture de la liste, annuaire compris (onglets Equipe et Contacts), sans minuterie : au retour sur Gamaphone et a
+    // l'ouverture de l'onglet (refreshIfStale), au plus une fois par minute. Rien tant que l'application est en
+    // arriere-plan. Les ajouts et suppressions faits depuis ce poste relisent la liste aussitot (refresh). La liste reste
+    // affichee pendant la relecture : seules les fiches changees sont mises a jour.
     property bool autoRefresh: false
-    Timer {
-        id: autoRefreshTimer
-        interval: 5 * 60 * 1000
-        repeat: true
-        running: mainItem.autoRefresh && mainItem.visible && !!mainItem.Window.window
-                 && mainItem.Window.window.visibility !== Window.Minimized
-                 && mainItem.Window.window.visibility !== Window.Hidden
-        onTriggered: mainItem.refresh()
+    property double lastRefreshTime: 0
+    function refreshIfStale() {
+        if (Date.now() - lastRefreshTime >= 60 * 1000)
+            refresh()
+    }
+    Connections {
+        target: Qt.application
+        enabled: mainItem.autoRefresh
+        function onStateChanged() {
+            if (Qt.application.state === Qt.ApplicationActive && mainItem.visible && !!mainItem.Window.window
+                    && mainItem.Window.window.visibility !== Window.Minimized
+                    && mainItem.Window.window.visibility !== Window.Hidden)
+                mainItem.refreshIfStale()
+        }
     }
     property string highlightText: searchText // Bold characters in Display name.
     property var sourceFlags: LinphoneEnums.MagicSearchSource.All
@@ -165,6 +173,7 @@ Flickable {
     // rafraichit toutes. Meme mecanisme qu'upstream emploie au passage de minuit.
     property bool silentRefresh: false
     function refresh() {
+        lastRefreshTime = Date.now()
         silentRefresh = true
         // La liste affichee reste en place pendant la relance (MagicSearchList) ; loading
         // n'affiche le sablier que si elle est vide, et evite « Aucun contact » entre-temps.
@@ -262,6 +271,7 @@ Flickable {
         }
         onResultsProcessed: {
             mainItem.loading = false
+            mainItem.lastRefreshTime = Date.now()
             // Remonter en haut sert quand la recherche change ; lors d'une relance silencieuse
             // (retour sur l'onglet) ce serait perdre la position de defilement.
             if (!mainItem.silentRefresh) mainItem.contentY = 0
@@ -271,6 +281,7 @@ Flickable {
         onInitialized: {
             if (mainItem.searchOnEmpty || searchText != '') {
                 mainItem.loading = true
+                mainItem.lastRefreshTime = Date.now() // premiere lecture : pas de relecture en meme temps
                 forceUpdate()
             }
         }

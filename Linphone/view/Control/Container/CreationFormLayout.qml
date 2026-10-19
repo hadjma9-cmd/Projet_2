@@ -26,7 +26,7 @@ FocusScope {
     // (showTeam), avant les favoris et contacts externes.
     property bool teamMode: false
     property bool showTeam: true
-    // Relecture automatique tant que la liste est affichee (onglets de la petite fenetre).
+    // Relecture au retour sur Gamaphone, au plus une fois par minute (onglets de la petite fenetre).
     property bool autoRefresh: false
     // Petite fenetre : recherche de 36 (au lieu de 50) et lignes resserrees, titres de section plus petits.
     property bool dense: false
@@ -35,6 +35,10 @@ FocusScope {
     // Relit la liste (annuaire compris) sans changer la recherche.
     function refreshContacts() {
         contactList.refresh()
+    }
+    // Idem, sauf si elle a ete relue il y a moins d'une minute.
+    function refreshContactsIfStale() {
+        contactList.refreshIfStale()
     }
 
 	// Formulaire garde d'une ouverture a l'autre (page « Nouvel appel ») : sans recherche, sans
