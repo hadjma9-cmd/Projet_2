@@ -6,25 +6,34 @@ import SettingsCpp
 import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
-Column {
+// Ecriture du message de statut, a la place des statuts dans le menu : titre, zone de texte (avec le nombre de
+// caracteres), puis Annuler / Enregistrer de meme largeur.
+ColumnLayout {
 	id: mainItem
-	spacing: Utils.getSizeWithScreenRatio(20)
-	anchors.centerIn: parent
+	spacing: Utils.getSizeWithScreenRatio(12)
 	property var accountGui
 	signal isSet
+	signal canceled
+
+	onVisibleChanged: if (visible) {
+		statusMessage.text = mainItem.accountGui ? mainItem.accountGui.core.presenceNote : ""
+		statusMessage.forceActiveFocus()
+		statusMessage.cursorPosition = statusMessage.text.length
+	}
 
 	Text {
-		text: qsTr("contact_presence_button_set_custom_status_title")
-		horizontalAlignment: Text.AlignHCenter
-		color: DefaultStyle.main2_600
-		font: Typography.p2
+		Layout.fillWidth: true
+		text: "Message de statut"
+		font.pixelSize: Utils.getSizeWithScreenRatio(14)
+		font.weight: Font.DemiBold
+		color: DefaultStyle.main2_800
 	}
 
 	Rectangle {
-		width: parent.width
-		height: Utils.getSizeWithScreenRatio(150)
+		Layout.fillWidth: true
+		Layout.preferredHeight: Utils.getSizeWithScreenRatio(110)
 		color: "transparent"
-		border.color: DefaultStyle.main1_500_main
+		border.color: statusMessage.activeFocus ? DefaultStyle.main1_500_main : DefaultStyle.main2_300
 		border.width: Utils.getSizeWithScreenRatio(1)
 		radius: Utils.getSizeWithScreenRatio(8)
 
@@ -34,41 +43,48 @@ Column {
 			TextEdit {
 				id: statusMessage
 				wrapMode: TextEdit.Wrap
-				font: Typography.p1
-				color: DefaultStyle.main2_500_main
+				font.pixelSize: Utils.getSizeWithScreenRatio(14)
+				color: DefaultStyle.main2_800
 				Layout.fillHeight: true
 				Layout.fillWidth: true
 				property string previoustext: ""
-				text: mainItem.accountGui.core.presenceNote
 				onTextChanged: {
-					if (statusMessage.text.length > accountGui.core.maxPresenceNoteSize) {
+					if (mainItem.accountGui && statusMessage.text.length > mainItem.accountGui.core.maxPresenceNoteSize) {
 						statusMessage.text = previoustext
 						statusMessage.cursorPosition = statusMessage.text.length
 					} else {
 						previoustext = statusMessage.text
 					}
 				}
-			}
-			Item {
-				   Layout.fillHeight: true
+				Text {
+					visible: statusMessage.text.length === 0
+					text: "Ex. : en réunion jusqu'à 15 h"
+					font: statusMessage.font
+					color: DefaultStyle.main2_400
+				}
 			}
 			Text {
 				Layout.fillWidth: true
-				text: statusMessage.text.length + " / " + accountGui.core.maxPresenceNoteSize
-				font: Typography.p1
+				text: statusMessage.text.length + " / " + (mainItem.accountGui ? mainItem.accountGui.core.maxPresenceNoteSize : 0)
+				font.pixelSize: Utils.getSizeWithScreenRatio(12)
 				color: DefaultStyle.main2_400
 				horizontalAlignment: Text.AlignRight
 			}
 		}
 	}
 
-	Row {
+	RowLayout {
+		Layout.fillWidth: true
 		spacing: Utils.getSizeWithScreenRatio(10)
-		anchors.right: parent.right
-
-		SmallButton {
+		DialogButton {
+			text: "Annuler"
 			style: ButtonStyle.secondary
+			onClicked: mainItem.canceled()
+		}
+		DialogButton {
+			//: "Enregistrer"
 			text: qsTr("contact_presence_button_save_custom_status")
+			style: ButtonStyle.main
 			enabled: statusMessage.text.length > 0
 			onClicked: {
 				mainItem.accountGui.core.presenceNote = statusMessage.text

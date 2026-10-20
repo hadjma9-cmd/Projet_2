@@ -42,6 +42,6 @@ AbstractSettingsMenu {
                 //: "Ne pas enregistrer"
                 //: "Enregistrer"
             }, qsTr("contact_editor_dialog_abort_confirmation_do_not_save"), qsTr("contact_editor_dialog_abort_confirmation_save")
-		)
+		, undefined, "warning", AppIcons.warningCircle)
 	} else {mainItem.goBack()}
 }

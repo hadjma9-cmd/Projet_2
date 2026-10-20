@@ -19,7 +19,8 @@ Rectangle {
 
 	component AboutLine: RowLayout {
 		id: line
-        spacing: Utils.getSizeWithScreenRatio(20)
+		Layout.fillWidth: true
+        spacing: Utils.getSizeWithScreenRatio(16)
 		property var imageSource
 		property string title
 		property string text
@@ -32,6 +33,7 @@ Rectangle {
 			colorizationColor: DefaultStyle.main1_500_main
 		}
 		ColumnLayout {
+			Layout.fillWidth: true
 			spacing: 0
 			Text {
 				Layout.fillWidth: true
@@ -49,6 +51,7 @@ Rectangle {
 				text: line.text
 				color: DefaultStyle.main2_500_main
                 font.pixelSize: Utils.getSizeWithScreenRatio(14)
+				wrapMode: Text.Wrap
 				horizontalAlignment: Layout.AlignLeft
 				Keys.onPressed: (event)=> {
 					if (event.key == Qt.Key_Space || event.key == Qt.Key_Enter || event.key == Qt.Key_Return) {
@@ -71,55 +74,47 @@ Rectangle {
 
 	Dialog {
 		id: aboutPopup
-		anchors.centerIn: parent
-        width: Utils.getSizeWithScreenRatio(637)
+		kind: "info"
+		iconSource: AppIcons.info
         //: À propos de %1
         title: qsTr("help_about_title").arg(applicationName)
-        bottomPadding: Utils.getSizeWithScreenRatio(10)
-		buttons: []
-		content: RowLayout {
-			ColumnLayout {
-                spacing: Utils.getSizeWithScreenRatio(17)
-				Layout.alignment: Qt.AlignTop | Qt.AlignLeft
-				AboutLine {
-					imageSource: AppIcons.detective
-                    //: "Politique de confidentialité"
-                    title: qsTr("help_about_privacy_policy_title")
-                    //: "Visiter notre potilique de confidentialité"
-                    text: qsTr("help_about_privacy_policy_link")
-					enableMouseArea: true
-					onContentClicked: Qt.openUrlExternally(ConstantsCpp.PrivatePolicyUrl)
-				}
-				AboutLine {
-					imageSource: AppIcons.info
-                    //: "Version"
-                    title: qsTr("help_about_version_title")
-					text: Qt.application.version
-				}
-				AboutLine {
-					imageSource: AppIcons.checkSquareOffset
-                    //: "Licence"
-                    title: qsTr("help_about_licence_title")
-					text: applicationLicence
-				}
-				AboutLine {
-					imageSource: AppIcons.copyright
-                    //: "Copyright
-                    title: qsTr("help_about_copyright_title")
-					text: applicationVendor
-				}
-				Item {
-					// Item to shift close button
-                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(10)
-				}
+		// Les lignes d'information alignees a gauche sur toute la largeur, « Fermer » en bas sur toute la largeur.
+		content: ColumnLayout {
+			Layout.fillWidth: true
+			spacing: Utils.getSizeWithScreenRatio(14)
+			AboutLine {
+				imageSource: AppIcons.detective
+				//: "Politique de confidentialité"
+				title: qsTr("help_about_privacy_policy_title")
+				//: "Visiter notre potilique de confidentialité"
+				text: qsTr("help_about_privacy_policy_link")
+				enableMouseArea: true
+				onContentClicked: Qt.openUrlExternally(ConstantsCpp.PrivatePolicyUrl)
 			}
-			MediumButton {
-				Layout.alignment: Qt.AlignRight | Qt.AlignBottom
-                //: "Fermer"
-                text: qsTr("close")
-				style: ButtonStyle.main
-				onClicked: aboutPopup.close()
+			AboutLine {
+				imageSource: AppIcons.info
+				//: "Version"
+				title: qsTr("help_about_version_title")
+				text: Qt.application.version
 			}
+			AboutLine {
+				imageSource: AppIcons.checkSquareOffset
+				//: "Licence"
+				title: qsTr("help_about_licence_title")
+				text: applicationLicence
+			}
+			AboutLine {
+				imageSource: AppIcons.copyright
+				//: "Copyright
+				title: qsTr("help_about_copyright_title")
+				text: applicationVendor
+			}
+		}
+		buttons: DialogButton {
+			//: "Fermer"
+			text: qsTr("close")
+			style: ButtonStyle.main
+			onClicked: aboutPopup.close()
 		}
 	}
 

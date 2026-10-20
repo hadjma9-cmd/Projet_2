@@ -188,7 +188,7 @@ ColumnLayout {
 											if (confirmed) {
 												mainItem.chatGui.core.lRemoveParticipant(participantGui.core.sipAddress)
 											}
-										})
+										}, undefined, undefined, undefined, "danger", AppIcons.signOut)
 									}
 								}
 							}

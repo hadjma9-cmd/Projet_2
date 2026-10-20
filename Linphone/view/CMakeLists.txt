@@ -84,6 +84,9 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Display/Contact/Presence.qml
 	view/Control/Display/Contact/PresenceStatusItem.qml
 	view/Control/Display/Contact/QueuesSection.qml
+	view/Control/Display/Contact/QueuesRing.qml
+	view/Control/Display/Contact/MenuRow.qml
+	view/Control/Display/Contact/StatusMenu.qml
 	view/Control/Display/Contact/PresenceSetCustomStatus.qml
 	view/Control/Display/Contact/ContactListItem.qml
 	view/Control/Display/Contact/ContactListView.qml
@@ -120,6 +123,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Popup/Popup.qml
 	view/Control/Popup/Dialog/AuthenticationDialog.qml
 	view/Control/Popup/Dialog/Dialog.qml
+	view/Control/Popup/Dialog/DialogButton.qml
 	view/Control/Popup/Dialog/UpdatePopup.qml
 	view/Control/Popup/Dialog/ZrtpAuthenticationDialog.qml
 	view/Control/Popup/Loading/LoadingPopup.qml

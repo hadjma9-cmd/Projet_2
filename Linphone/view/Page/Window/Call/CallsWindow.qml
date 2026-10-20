@@ -309,7 +309,7 @@ AbstractWindow {
                             other.core.lTerminate()
                     }
                     c.core.lTerminate()
-                })
+                }, undefined, undefined, undefined, "danger", AppIcons.endCall)
             return
         }
         if (c)
@@ -402,7 +402,8 @@ AbstractWindow {
             mainWindow.callTerminatedByUser = true
             call.core.lTerminateAllCalls()
         }
-        width: Utils.getSizeWithScreenRatio(278)
+        kind: "danger"
+        iconSource: AppIcons.endCall
         //: "Terminer tous les appels en cours ?"
         title: qsTr("call_close_window_dialog_title")
         //: "La fenêtre est sur le point d'être fermée. Cela terminera tous les appels en cours."
@@ -1148,7 +1149,7 @@ AbstractWindow {
                                     if (confirmed) {
                                         mainWindow.transferCallToContact(mainWindow.call,contact,newCallForm)
                                     }
-                                })
+                                }, undefined, undefined, undefined, "info", AppIcons.transferCall)
                         }
                         onTransferCallToAnotherRequested: dest => {
                             var callsWin = UtilsCpp.getOrCreateCallsWindow()
@@ -1159,7 +1160,7 @@ AbstractWindow {
                                 if (confirmed) {
                                     mainWindow.call.core.lTransferCallToAnother(dest.core.remoteAddress)
                                 }
-                            })
+                            }, undefined, undefined, undefined, "info", AppIcons.transferCall)
                         }
                         numPadPopup: numPadPopup
 

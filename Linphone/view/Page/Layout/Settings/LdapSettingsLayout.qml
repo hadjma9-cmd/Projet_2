@@ -61,7 +61,7 @@ AbstractSettingsLayout {
 								mainItem.container.pop()
 							}
 						}
-					)
+					, undefined, undefined, undefined, "danger", AppIcons.trashCan)
 				}
 				//: Delete LDAP server
 				Accessible.name: qsTr("delete_ldap_server_accessible_name")

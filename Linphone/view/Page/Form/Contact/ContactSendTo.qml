@@ -65,7 +65,7 @@ MainRightPanel {
 				mainItem.pendingTargetName = targetName
 				sendTimeout.restart()
 				mainItem.pendingChatObj = UtilsCpp.getChatForAddress(target.core.defaultAddress)
-			}, "Annuler", "Envoyer")
+			}, "Annuler", "Envoyer", undefined, "info", AppIcons.addressBook)
 	}
 
 	headerContentItem: RowLayout {

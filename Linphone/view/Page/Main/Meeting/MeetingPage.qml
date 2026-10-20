@@ -86,7 +86,8 @@ AbstractMainPage {
 		property ConferenceInfoGui confInfoToDelete
 		property bool cancel: false
 		signal cancelRequested()
-        // width: Utils.getSizeWithScreenRatio(278)
+		kind: "danger"
+		iconSource: AppIcons.trashCan
         //: "Souhaitez-vous annuler cette réunion et envoyer une notification aux participants ?"
         text: cancel ? qsTr("meeting_schedule_cancel_dialog_message")
                        //: Souhaitez-vous supprimer cette réunion ?
@@ -98,10 +99,17 @@ AbstractMainPage {
 		onAccepted: {
 			confInfoToDelete.core.lDeleteConferenceInfo()
 		}
-		buttons: [
-			BigButton {
+		// Deux choix : Retour a gauche, Supprimer a droite. Trois (annuler la reunion aussi) : en colonne, pleine
+		// largeur, Retour en bas.
+		buttons: GridLayout {
+			Layout.fillWidth: true
+			columns: cancelAndDeleteConfDialog.cancel ? 1 : 2
+			layoutDirection: columns === 2 ? Qt.RightToLeft : Qt.LeftToRight
+			rowSpacing: Utils.getSizeWithScreenRatio(10)
+			columnSpacing: Utils.getSizeWithScreenRatio(10)
+			DialogButton {
 				visible: cancelAndDeleteConfDialog.cancel
-				style: ButtonStyle.main
+				style: cancelAndDeleteConfDialog.actionStyle
                 //: "Annuler et supprimer"
                 text: qsTr("meeting_schedule_cancel_and_delete_action")
 				onClicked: {
@@ -109,19 +117,19 @@ AbstractMainPage {
 					cancelAndDeleteConfDialog.accepted()
 					cancelAndDeleteConfDialog.close()
 				}
-			},
-			BigButton {
+			}
+			DialogButton {
                 //: "Supprimer seulement"
                 text: cancelAndDeleteConfDialog.cancel ? qsTr("meeting_schedule_delete_only_action")
                                                         //: "Supprimer"
                                                        : qsTr("meeting_schedule_delete_action")
-				style: ButtonStyle.main
+				style: cancelAndDeleteConfDialog.actionStyle
 				onClicked: {
 					cancelAndDeleteConfDialog.accepted()
 					cancelAndDeleteConfDialog.close()
 				}
-			},
-			BigButton {
+			}
+			DialogButton {
                 //: Retour
                 text: qsTr("back_action")
 				style: ButtonStyle.secondary
@@ -130,7 +138,7 @@ AbstractMainPage {
 					cancelAndDeleteConfDialog.close()
 				}
 			}
-		]
+		}
 	}
 
 	leftPanelContent: Control.StackView {

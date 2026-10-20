@@ -168,54 +168,45 @@ Item {
 		id: contactActionDialog
 		property FriendGui contact: null
 		property string target
-		// Nom en gras ; echappe pour qu'un « & » ou un « < » dans un nom ne casse pas le texte.
-		textFormat: Text.StyledText
-		text: "Que souhaitez-vous faire avec <b>" + target.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</b> ?"
+		// Le contact en titre, la question dessous.
+		title: target
+		text: "Que souhaitez-vous faire ?"
+		kind: "info"
+		iconSource: AppIcons.profile
 		onOpened: callChoiceButton.forceActiveFocus()
+		// Annuler a gauche, Appeler (l'action principale) a droite, Message au milieu : trois boutons de meme largeur.
 		buttons: [
-			MediumButton {
-				id: callChoiceButton
-				text: "Appeler"
-				style: ButtonStyle.main
-				leftPadding: Utils.getSizeWithScreenRatio(14)
-				rightPadding: Utils.getSizeWithScreenRatio(14)
-				topPadding: Utils.getSizeWithScreenRatio(8)
-				bottomPadding: Utils.getSizeWithScreenRatio(8)
-				KeyNavigation.right: messageChoiceButton
-				onClicked: {
-					var contact = contactActionDialog.contact
-					contactActionDialog.close()
-					// Choix explicite : pas de seconde confirmation.
-					UtilsCpp.getMainWindow().startCallWithContact(contact, false, mainItem, false)
-				}
+			DialogButton {
+				id: cancelChoiceButton
+				text: "Annuler"
+				style: ButtonStyle.secondary
+				KeyNavigation.right: messageChoiceButton.visible ? messageChoiceButton : callChoiceButton
+				onClicked: contactActionDialog.close()
 			},
-			MediumButton {
+			DialogButton {
 				id: messageChoiceButton
 				visible: !SettingsCpp.disableChatFeature
 				text: "Message"
 				style: ButtonStyle.secondary
-				leftPadding: Utils.getSizeWithScreenRatio(14)
-				rightPadding: Utils.getSizeWithScreenRatio(14)
-				topPadding: Utils.getSizeWithScreenRatio(8)
-				bottomPadding: Utils.getSizeWithScreenRatio(8)
-				KeyNavigation.left: callChoiceButton
-				KeyNavigation.right: cancelChoiceButton
+				KeyNavigation.left: cancelChoiceButton
+				KeyNavigation.right: callChoiceButton
 				onClicked: {
 					var contact = contactActionDialog.contact
 					contactActionDialog.close()
 					mainItem.messageContact(contact)
 				}
 			},
-			MediumButton {
-				id: cancelChoiceButton
-				text: "Annuler"
-				style: ButtonStyle.secondary
-				leftPadding: Utils.getSizeWithScreenRatio(14)
-				rightPadding: Utils.getSizeWithScreenRatio(14)
-				topPadding: Utils.getSizeWithScreenRatio(8)
-				bottomPadding: Utils.getSizeWithScreenRatio(8)
-				KeyNavigation.left: messageChoiceButton
-				onClicked: contactActionDialog.close()
+			DialogButton {
+				id: callChoiceButton
+				text: "Appeler"
+				style: ButtonStyle.main
+				KeyNavigation.left: messageChoiceButton.visible ? messageChoiceButton : cancelChoiceButton
+				onClicked: {
+					var contact = contactActionDialog.contact
+					contactActionDialog.close()
+					// Choix explicite : pas de seconde confirmation.
+					UtilsCpp.getMainWindow().startCallWithContact(contact, false, mainItem, false)
+				}
 			}
 		]
 	}
@@ -277,8 +268,8 @@ Item {
 				PopupButton {
 					id: accountButton
 					Layout.alignment: Qt.AlignHCenter
-					// Avec le compteur des files dessous : l'espacement de la bande seul, au-dessus comme au-dessous de lui.
-					Layout.bottomMargin: queuesBadge.visible ? 0 : Utils.getSizeWithScreenRatio(6)
+					// Photo a part des boutons de la bande (le casque des files compris) : double espacement dessous.
+					Layout.bottomMargin: Utils.getSizeWithScreenRatio(6)
 					// Sa propre photo : 42 et pastille d'environ 13, lisibles dans une bande fine (les listes, elles, sont en 45).
 					Layout.preferredWidth: Utils.getSizeWithScreenRatio(42)
 					Layout.preferredHeight: Utils.getSizeWithScreenRatio(42)
@@ -295,84 +286,52 @@ Item {
 							presenceScale: 0.3
 						}
 					}
-					popup.contentItem: FocusScope {
-						implicitWidth: Utils.getSizeWithScreenRatio(260)
-						implicitHeight: statusChoice.implicitHeight + Utils.getSizeWithScreenRatio(20)
-						Presence {
-							id: statusChoice
-							anchors.fill: parent
-							anchors.margins: Utils.getSizeWithScreenRatio(10)
-							accountGui: mainItem.account
-							showQueues: true
-							onIsSet: accountButton.popup.close()
+					// Menu du statut : photo, nom et poste, statuts et message de statut (la messagerie et les
+					// parametres sont deja dans la bande, les files dans leur casque).
+					popup.padding: Utils.getSizeWithScreenRatio(14)
+					popup.contentItem: StatusMenu {
+						menuWidth: Utils.getSizeWithScreenRatio(262)
+						showHeader: true
+						accountGui: mainItem.account
+						onDone: accountButton.popup.close()
+					}
+					// Ouverture du menu : statut du poste relu (il a pu etre change sur un autre appareil).
+					popup.onOpened: StatusCpp.refresh()
+				}
+				// Files d'attente : casque a anneau, un segment par file (blanc = active ; une seule file : casque allume ou
+				// eteint). Meme taille et memes etats de survol que le bouton des parametres ; un clic ouvre les interrupteurs.
+				PopupButton {
+					id: queuesButton
+					visible: QueuesCpp.agent && QueuesCpp.queueCount > 0 && accountButton.enabled
+					Layout.alignment: Qt.AlignHCenter
+					Layout.preferredWidth: Utils.getSizeWithScreenRatio(38)
+					Layout.preferredHeight: Utils.getSizeWithScreenRatio(38)
+					style: ButtonStyle.noBackground
+					shadowEnabled: false
+					hoveredColor: Qt.rgba(1, 1, 1, 0.1)
+					pressedColor: Qt.rgba(1, 1, 1, 0.2)
+					backgroundColor: checked ? pressedColor : hovered ? hoveredColor : color
+					popUpTitle: "Files d'attente"
+					popupBeside: true
+					contentItem: QueuesRing {}
+					popup.padding: Utils.getSizeWithScreenRatio(14)
+					// Largeur fixe portee par un Item : une mise en page la recalculerait d'apres son contenu.
+					popup.contentItem: Item {
+						implicitWidth: Utils.getSizeWithScreenRatio(262)
+						implicitHeight: compactQueues.implicitHeight
+						QueuesSection {
+							id: compactQueues
+							width: parent.width
 						}
 					}
-					// Ouverture du menu : etat des files relu tout de suite (seulement pour un agent).
-					popup.onOpened: {
-						StatusCpp.refresh()
-						if (QueuesCpp.agent) QueuesCpp.refresh()
-					}
+					// Ouverture : etat des files relu tout de suite.
+					popup.onOpened: QueuesCpp.refresh()
 					ToolTip {
-						visible: accountButton.hovered && !accountButton.popup.visible && queuesBadge.visible
+						visible: queuesButton.hovered && !queuesButton.popup.visible
 						delay: 300
-						text: queuesBadge.tooltipText
-						x: parent.width + Utils.getSizeWithScreenRatio(6)
-						y: (parent.height - height) / 2
-					}
-				}
-				// Files d'attente : « casque 1/2 » sous la photo. Centre au pixel sur la bande d'apres l'encre de l'icone et
-				// du texte (pas leurs cadres, aux marges inegales) ; sa hauteur est celle de l'encre, pour des ecarts egaux
-				// avec la photo et avec le premier bouton. Un clic ouvre le menu du statut, comme la photo.
-				Item {
-					id: queuesBadge
-					visible: QueuesCpp.agent && QueuesCpp.queueCount > 0
-					Layout.fillWidth: true
-					Layout.preferredHeight: Math.round(Math.max(iconInkHeight, textInk.height))
-					readonly property string tooltipText: (mainItem.account ? mainItem.account.core.presenceStatus + " · " : "")
-						+ QueuesCpp.connectedCount + (QueuesCpp.connectedCount > 1 ? " files activées" : " file activée")
-						+ " sur " + QueuesCpp.queueCount
-					readonly property real iconSize: Utils.getSizeWithScreenRatio(12)
-					// Encre de headset.svg dans son cadre de 256 : x de 24 a 232, y de 24 a 248.
-					readonly property real iconInkLeft: iconSize * 24 / 256
-					readonly property real iconInkWidth: iconSize * 208 / 256
-					readonly property real iconInkTop: iconSize * 24 / 256
-					readonly property real iconInkHeight: iconSize * 224 / 256
-					readonly property real gap: Utils.getSizeWithScreenRatio(3)
-					readonly property rect textInk: badgeMetrics.tightBoundingRect
-					readonly property real inkLeft: Math.round((width - (iconInkWidth + gap + textInk.width)) / 2)
-					TextMetrics {
-						id: badgeMetrics
-						font: badgeText.font
-						text: badgeText.text
-					}
-					EffectImage {
-						x: Math.round(queuesBadge.inkLeft - queuesBadge.iconInkLeft)
-						y: Math.round((queuesBadge.height - queuesBadge.iconInkHeight) / 2 - queuesBadge.iconInkTop)
-						width: queuesBadge.iconSize
-						height: queuesBadge.iconSize
-						imageSource: AppIcons.headset
-						colorizationColor: DefaultStyle.grey_0
-					}
-					Text {
-						id: badgeText
-						x: Math.round(queuesBadge.inkLeft + queuesBadge.iconInkWidth + queuesBadge.gap - queuesBadge.textInk.x)
-						y: Math.round((queuesBadge.height - queuesBadge.textInk.height) / 2 - baselineOffset - queuesBadge.textInk.y)
-						text: QueuesCpp.connectedCount + "/" + QueuesCpp.queueCount
-						font.pixelSize: Utils.getSizeWithScreenRatio(11)
-						font.weight: Font.DemiBold
-						color: DefaultStyle.grey_0
-					}
-					MouseArea {
-						id: queuesBadgeArea
-						anchors.fill: parent
-						hoverEnabled: true
-						cursorShape: accountButton.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-						onClicked: if (accountButton.enabled) accountButton.open()
-					}
-					ToolTip {
-						visible: queuesBadgeArea.containsMouse && !accountButton.popup.visible
-						delay: 300
-						text: queuesBadge.tooltipText
+						text: (mainItem.account ? mainItem.account.core.presenceStatus + " · " : "")
+							+ QueuesCpp.connectedCount + (QueuesCpp.connectedCount > 1 ? " files activées" : " file activée")
+							+ " sur " + QueuesCpp.queueCount
 						x: parent.width + Utils.getSizeWithScreenRatio(6)
 						y: (parent.height - height) / 2
 					}
@@ -496,7 +455,7 @@ Item {
 								UtilsCpp.getMainWindow().showConfirmationLambdaPopup("", "Quitter " + applicationName + " ?", "",
 									function (confirmed) {
 										if (confirmed) Qt.quit()
-									})
+									}, undefined, undefined, undefined, "danger", AppIcons.power)
 							}
 						}
 					}

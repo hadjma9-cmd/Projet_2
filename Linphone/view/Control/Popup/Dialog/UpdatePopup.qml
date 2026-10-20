@@ -9,37 +9,65 @@ import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 // ferme pas tant qu'il n'est pas installé : ni clic à côté, ni Échap, pas de « plus tard ». Seul un échec (téléchargement
 // impossible, installation refusée) laisse continuer avec la version actuelle, pour que personne ne reste sans
 // téléphone ; la mise à jour est alors redemandée au lancement suivant.
+// Même dessin que les fenêtres de décision (Dialog.qml) : rond et icône en haut, titre et texte centrés, mêmes mesures.
 Popup {
 	id: mainItem
 	// Étape en cours, voir UpdateCore : idle, available, downloading, launching, failed.
 	readonly property string step: UpdateCpp.state
 	readonly property bool compactWindow: AppCpp.compactMode
+	readonly property bool failed: step === "failed"
+	function evenSize(value) {
+		return 2 * Math.round(Utils.getSizeWithScreenRatio(value) / 2)
+	}
 
 	parent: Control.Overlay.overlay
-	anchors.centerIn: parent
 	modal: true
 	closePolicy: Control.Popup.NoAutoClose
 	visible: step !== "idle"
-	width: Utils.getSizeWithScreenRatio(compactWindow ? 320 : 380)
-	padding: Utils.getSizeWithScreenRatio(compactWindow ? 18 : 24)
+	width: Math.min(evenSize(compactWindow ? 330 : 380), 2 * Math.floor(((parent ? parent.width : 380) - evenSize(32)) / 2))
+	x: parent ? Math.round((parent.width - width) / 2) : 0
+	y: parent ? Math.round((parent.height - height) / 2) : 0
+	padding: evenSize(compactWindow ? 20 : 24)
 	underlineColor: "transparent"
-	radius: Utils.getSizeWithScreenRatio(14)
+	radius: Utils.getSizeWithScreenRatio(16)
 	shadowBlur: 0.7
 	shadowOpacity: 0.22
 	shadowVerticalOffset: Utils.getSizeWithScreenRatio(4)
 
 	contentItem: ColumnLayout {
-		spacing: Utils.getSizeWithScreenRatio(14)
+		spacing: 0
 
+		// Bleu pendant la mise à jour, orange si elle a échoué.
+		Rectangle {
+			Layout.alignment: Qt.AlignHCenter
+			Layout.bottomMargin: mainItem.evenSize(mainItem.compactWindow ? 14 : 16)
+			Layout.preferredWidth: mainItem.evenSize(mainItem.compactWindow ? 46 : 52)
+			Layout.preferredHeight: Layout.preferredWidth
+			radius: width / 2
+			color: mainItem.failed ? "#FCEBD8" : DefaultStyle.main1_100
+			EffectImage {
+				readonly property real side: mainItem.evenSize(mainItem.compactWindow ? 22 : 26)
+				x: (parent.width - side) / 2
+				y: (parent.height - side) / 2
+				width: side
+				height: side
+				imageSource: mainItem.failed ? AppIcons.warningCircle : AppIcons.download
+				colorizationColor: mainItem.failed ? "#D97A1E" : DefaultStyle.main1_500_main
+			}
+		}
 		Text {
 			Layout.fillWidth: true
+			Layout.bottomMargin: mainItem.evenSize(8)
 			horizontalAlignment: Text.AlignHCenter
 			wrapMode: Text.Wrap
-			color: DefaultStyle.main2_700
-			font: Typography.h4
+			color: DefaultStyle.main2_800
+			font {
+				pixelSize: Utils.getSizeWithScreenRatio(mainItem.compactWindow ? 16 : 18)
+				weight: Typography.h3.weight
+			}
 			text: mainItem.step === "downloading" ? "Téléchargement en cours"
 				: mainItem.step === "launching" ? "Installation"
-				: mainItem.step === "failed" ? "Mise à jour impossible"
+				: mainItem.failed ? "Mise à jour impossible"
 				: "Nouvelle version disponible"
 		}
 		Text {
@@ -47,10 +75,14 @@ Popup {
 			horizontalAlignment: Text.AlignHCenter
 			wrapMode: Text.Wrap
 			color: DefaultStyle.main2_600
-			font: Typography.p1
+			lineHeight: 1.15
+			font {
+				pixelSize: Utils.getSizeWithScreenRatio(mainItem.compactWindow ? 13 : 14)
+				weight: Typography.p1.weight
+			}
 			text: mainItem.step === "downloading" ? "%1 Mo sur %2 Mo".arg(UpdateCpp.receivedMb).arg(UpdateCpp.totalMb)
 				: mainItem.step === "launching" ? "Gamaphone se ferme, s'installe puis redémarre tout seul."
-				: mainItem.step === "failed" ? UpdateCpp.errorText
+				: mainItem.failed ? UpdateCpp.errorText
 				: "Cette mise à jour est nécessaire pour continuer. Gamaphone se fermera le temps de l'installation, puis redémarrera tout seul."
 		}
 
@@ -58,7 +90,8 @@ Popup {
 		Rectangle {
 			visible: mainItem.step === "downloading"
 			Layout.fillWidth: true
-			Layout.preferredHeight: Utils.getSizeWithScreenRatio(8)
+			Layout.topMargin: mainItem.evenSize(16)
+			Layout.preferredHeight: mainItem.evenSize(8)
 			radius: height / 2
 			color: DefaultStyle.grey_200
 			Rectangle {
@@ -71,35 +104,36 @@ Popup {
 		Text {
 			visible: mainItem.step === "downloading"
 			Layout.fillWidth: true
+			Layout.topMargin: mainItem.evenSize(8)
 			horizontalAlignment: Text.AlignHCenter
 			color: DefaultStyle.main2_500_main
-			font: Typography.p1
+			font {
+				pixelSize: Utils.getSizeWithScreenRatio(mainItem.compactWindow ? 12 : 13)
+				weight: Typography.p1.weight
+			}
 			text: "%1 %".arg(Math.round(UpdateCpp.progress * 100))
 		}
 
 		// Boutons l'un sous l'autre, sur toute la largeur : même disposition en grande fenêtre et en Combiné.
 		ColumnLayout {
 			Layout.fillWidth: true
-			Layout.topMargin: Utils.getSizeWithScreenRatio(4)
-			spacing: Utils.getSizeWithScreenRatio(8)
+			Layout.topMargin: mainItem.evenSize(mainItem.compactWindow ? 20 : 24)
+			spacing: mainItem.evenSize(10)
 			visible: mainItem.step !== "launching"
-			MediumButton {
-				visible: mainItem.step === "available" || mainItem.step === "failed"
-				Layout.fillWidth: true
-				text: mainItem.step === "failed" ? "Réessayer" : "Mettre à jour"
+			DialogButton {
+				visible: mainItem.step === "available" || mainItem.failed
+				text: mainItem.failed ? "Réessayer" : "Mettre à jour"
 				style: ButtonStyle.main
 				onClicked: UpdateCpp.start()
 			}
-			MediumButton {
+			DialogButton {
 				visible: mainItem.step === "downloading"
-				Layout.fillWidth: true
 				text: "Annuler"
 				style: ButtonStyle.secondary
 				onClicked: UpdateCpp.cancel()
 			}
-			MediumButton {
-				visible: mainItem.step === "failed"
-				Layout.fillWidth: true
+			DialogButton {
+				visible: mainItem.failed
 				text: "Continuer sans mettre à jour"
 				style: ButtonStyle.secondary
 				onClicked: UpdateCpp.dismiss()

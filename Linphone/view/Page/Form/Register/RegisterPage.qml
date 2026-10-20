@@ -17,6 +17,8 @@ LoginLayout {
 
 	Dialog {
 		id: phoneNumberNotAvailableDialog
+		kind: "info"
+		iconSource: AppIcons.envelope
 		//: Phone number validation not available
 		title: qsTr("phone_number_validation_not_available_title")
 		//: Phone number validation is not available, please use email account creation process

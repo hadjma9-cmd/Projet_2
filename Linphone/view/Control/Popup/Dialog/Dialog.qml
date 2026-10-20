@@ -8,38 +8,71 @@ import CustomControls 1.0
 import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
+// Fenetre de decision, la meme partout (grande fenetre et Combine) : carte arrondie et centree, icone dans un rond en
+// haut, titre et texte centres, deux boutons de meme largeur cote a cote (Annuler a gauche, l'action a droite).
+// Le genre (kind) donne la couleur du rond, de l'icone et du bouton d'action : « info » (bleu, action normale),
+// « warning » (orange, attention) ou « danger » (rouge, action definitive). Chaque fenetre choisit aussi son icone.
 Popup {
 	id: mainItem
 	modal: true
-	anchors.centerIn: parent
 	closePolicy: Control.Popup.NoAutoClose
-	// Confirmation simple (sans titre, ex. « Souhaitez-vous appeler… ? ») : plus aeree, une ombre douce au lieu
-	// du filet bleu. Un peu plus serree dans la petite fenetre (Combiné), pour ne pas l'encombrer.
-	readonly property bool simple: title.length === 0
 	readonly property bool compactWindow: AppCpp.compactMode
-    leftPadding: Utils.getSizeWithScreenRatio(simple ? (compactWindow ? 16 : 20) : 33)
-    rightPadding: Utils.getSizeWithScreenRatio(simple ? (compactWindow ? 16 : 20) : 33)
-    topPadding: Utils.getSizeWithScreenRatio(simple ? (compactWindow ? 16 : 20) : 37)
-    bottomPadding: Utils.getSizeWithScreenRatio(simple ? (compactWindow ? 14 : 18) : 37)
-	underlineColor: simple ? "transparent" : DefaultStyle.main1_500_main
-    radius: simple ? Utils.getSizeWithScreenRatio(14) : 0
-	shadowBlur: simple ? 0.7 : 0.1
-	shadowOpacity: simple ? 0.22 : 0.1
-	shadowVerticalOffset: simple ? Utils.getSizeWithScreenRatio(4) : 0
+	// Mesures paires et arrondies au pixel : tout se centre exactement (texte net, aucun demi-pixel).
+	function evenSize(value) {
+		return 2 * Math.round(Utils.getSizeWithScreenRatio(value) / 2)
+	}
+	// Jamais plus large que l'endroit ou elle s'ouvre (Combine : 414 de large), marge comprise.
+	width: Math.min(evenSize(compactWindow ? 330 : 380), 2 * Math.floor(((parent ? parent.width : 380) - evenSize(32)) / 2))
+	// Centree au pixel pres (le centrage automatique pouvait tomber sur un demi-pixel).
+	x: parent ? Math.round((parent.width - width) / 2) : 0
+	y: parent ? Math.round((parent.height - height) / 2) : 0
+	// La meme marge sur les quatre cotes.
+	leftPadding: evenSize(compactWindow ? 20 : 24)
+	rightPadding: leftPadding
+	topPadding: leftPadding
+	bottomPadding: leftPadding
+	underlineColor: "transparent"
+	radius: Utils.getSizeWithScreenRatio(16)
+	shadowBlur: 0.7
+	shadowOpacity: 0.22
+	shadowVerticalOffset: Utils.getSizeWithScreenRatio(4)
+
 	property string title
-	property var titleColor: DefaultStyle.main1_500_main
+	property var titleColor: DefaultStyle.main2_800
 	property string text
 	// Texte brut par defaut ; Text.StyledText pour un message avec gras (<b>), dont le texte variable est echappe.
 	property int textFormat: Text.PlainText
 	property string details
-    //: "Confirmer"
-    property string firstButtonText: firstButtonAccept ? qsTr("dialog_confirm")
-                                                         //: "Annuler"
-                                                       : qsTr("dialog_cancel")
-    property string secondButtonText: secondButtonAccept ? qsTr("dialog_confirm")
-                                                         : qsTr("dialog_cancel")
-  	property alias content: contentLayout.data
-  	property alias buttons: buttonsLayout.data
+	property string kind: "info"
+	// Icone du rond ; vide : celle du genre (point d'interrogation, ou point d'exclamation pour attention et danger).
+	property string iconSource: ""
+	property bool showIcon: true
+	readonly property string shownIcon: iconSource !== "" ? iconSource
+		: kind === "info" ? AppIcons.question : AppIcons.warningCircle
+	readonly property color kindColor: kind === "danger" ? DefaultStyle.danger_500_main
+		: kind === "warning" ? "#D97A1E" : DefaultStyle.main1_500_main
+	readonly property color kindLightColor: kind === "danger" ? "#FBE7E7"
+		: kind === "warning" ? "#FCEBD8" : DefaultStyle.main1_100
+	// Bouton d'action : bleu de l'application, rouge de « Raccrocher », ou orange assez fonce pour un texte blanc lisible.
+	readonly property var actionStyle: kind === "danger" ? {
+			"color": { "normal": DefaultStyle.danger_500_main, "hovered": DefaultStyle.danger_700,
+			           "pressed": DefaultStyle.danger_900 },
+			"text": { "normal": DefaultStyle.grey_0, "pressed": DefaultStyle.grey_0 },
+			"image": { "normal": DefaultStyle.grey_0, "pressed": DefaultStyle.grey_0 }
+		} : kind === "warning" ? {
+			"color": { "normal": "#B8650F", "hovered": "#9A540C", "pressed": "#7D4409" },
+			"text": { "normal": DefaultStyle.grey_0, "pressed": DefaultStyle.grey_0 },
+			"image": { "normal": DefaultStyle.grey_0, "pressed": DefaultStyle.grey_0 }
+		} : ButtonStyle.main
+
+	//: "Confirmer"
+	property string firstButtonText: firstButtonAccept ? qsTr("dialog_confirm")
+	                                                   //: "Annuler"
+	                                                   : qsTr("dialog_cancel")
+	property string secondButtonText: secondButtonAccept ? qsTr("dialog_confirm")
+	                                                     : qsTr("dialog_cancel")
+	property alias content: contentLayout.data
+	property alias buttons: buttonsLayout.data
 	property alias firstButton: firstButtonId
 	property alias secondButton: secondButtonId
 	property bool firstButtonAccept: true
@@ -67,7 +100,7 @@ Popup {
 
 	contentItem: FocusScope {
 		Accessible.role: Accessible.Dialog
-		Accessible.name: mainItem.title
+		Accessible.name: mainItem.title.length !== 0 ? mainItem.title : mainItem.text
 		Accessible.description: mainItem.details
 		implicitWidth: child.implicitWidth
 		implicitHeight: child.implicitHeight
@@ -96,68 +129,97 @@ Popup {
 		ColumnLayout {
 			id: child
 			anchors.fill: parent
-            spacing: Utils.getSizeWithScreenRatio(mainItem.simple ? (mainItem.compactWindow ? 14 : 18) : 15)
-			
-			Text{
+			spacing: 0
+
+			// Rond de couleur et son icone, de tailles paires : l'icone tombe exactement au centre.
+			Rectangle {
+				visible: mainItem.showIcon
+				Layout.alignment: Qt.AlignHCenter
+				Layout.bottomMargin: mainItem.evenSize(mainItem.compactWindow ? 14 : 16)
+				Layout.preferredWidth: mainItem.evenSize(mainItem.compactWindow ? 46 : 52)
+				Layout.preferredHeight: Layout.preferredWidth
+				radius: width / 2
+				color: mainItem.kindLightColor
+				EffectImage {
+					readonly property real side: mainItem.evenSize(mainItem.compactWindow ? 22 : 26)
+					x: (parent.width - side) / 2
+					y: (parent.height - side) / 2
+					width: side
+					height: side
+					imageSource: mainItem.shownIcon
+					colorizationColor: mainItem.kindColor
+				}
+			}
+			Text {
 				id: titleText
 				Layout.fillWidth: true
+				// Ecart sous le titre seulement si un texte suit (sinon il s'ajoutait a celui des boutons).
+				Layout.bottomMargin: defaultText.visible ? mainItem.evenSize(8) : 0
 				visible: text.length != 0
 				text: mainItem.title
+				// Un titre peut etre un nom de contact : jamais lu comme du HTML.
+				textFormat: Text.PlainText
 				color: mainItem.titleColor
 				font {
-                    pixelSize: Typography.h3.pixelSize
-                    weight: Typography.h3.weight
+					pixelSize: Utils.getSizeWithScreenRatio(mainItem.compactWindow ? 16 : 18)
+					weight: Typography.h3.weight
 				}
 				wrapMode: Text.Wrap
-				horizontalAlignment: Text.AlignLeft
+				horizontalAlignment: Text.AlignHCenter
 			}
-			Rectangle{
-				Layout.fillWidth: true
-				Layout.preferredHeight: 1
-				color: DefaultStyle.main2_400
-				visible: titleText.visible
-			}
-	
+			// Sans titre, la question elle-meme tient lieu de titre (« Quitter Gamaphone ? »).
 			Text {
 				id: defaultText
 				visible: text.length != 0
 				Layout.fillWidth: true
-				Layout.alignment: Qt.AlignCenter
 				text: mainItem.text
 				textFormat: mainItem.textFormat
+				color: titleText.visible ? DefaultStyle.main2_600 : mainItem.titleColor
 				font {
-                    pixelSize: mainItem.simple && mainItem.compactWindow ? Utils.getSizeWithScreenRatio(13) : Typography.p1.pixelSize
-                    weight: Typography.p1.weight
+					pixelSize: titleText.visible
+						? Utils.getSizeWithScreenRatio(mainItem.compactWindow ? 13 : 14)
+						: Utils.getSizeWithScreenRatio(mainItem.compactWindow ? 15 : 16)
+					weight: titleText.visible ? Typography.p1.weight : Typography.h3.weight
 				}
+				lineHeight: 1.15
 				wrapMode: Text.Wrap
-				horizontalAlignment: titleText.visible ?  Text.AlignLeft : Text.AlignHCenter
+				horizontalAlignment: Text.AlignHCenter
 			}
 			Text {
 				id: detailsText
 				visible: text.length != 0
 				Layout.fillWidth: true
-                //Layout.preferredWidth: Utils.getSizeWithScreenRatio(278)
-				Layout.alignment: Qt.AlignCenter
+				Layout.topMargin: mainItem.evenSize(8)
 				text: mainItem.details
+				color: DefaultStyle.main2_500_main
 				font {
-                    pixelSize: Typography.p1.pixelSize
-                    weight: Typography.p1.weight
-					italic: true
+					pixelSize: Utils.getSizeWithScreenRatio(mainItem.compactWindow ? 12 : 13)
+					weight: Typography.p1.weight
 				}
 				wrapMode: Text.Wrap
 				horizontalAlignment: Text.AlignHCenter
 			}
-	
+
+			// Contenu propre a une fenetre (champ, liste...) : toute la largeur, chaque element choisit son alignement.
 			ColumnLayout {
 				id: contentLayout
-				Layout.alignment: Qt.AlignHCenter
+				Layout.fillWidth: true
+				// Ecart seulement s'il y a quelque chose au-dessus (la fenetre ZRTP n'a ni rond, ni titre, ni texte).
+				Layout.topMargin: children.length > 0 && (mainItem.showIcon || titleText.visible || defaultText.visible
+				                                          || detailsText.visible) ? mainItem.evenSize(16) : 0
 				Layout.fillHeight: false
 			}
-			
+
+			// Annuler a gauche, l'action a droite, de meme largeur. Les boutons par defaut sont dans l'ordre
+			// premier/second ; quand le premier est l'action, la rangee s'inverse pour la garder a droite.
 			RowLayout {
 				id: buttonsLayout
-				Layout.alignment: Qt.AlignBottom | ( titleText.visible ? Qt.AlignRight : Qt.AlignHCenter)
-                spacing: Utils.getSizeWithScreenRatio(titleText.visible ? 20 : 10)
+				Layout.fillWidth: true
+				Layout.topMargin: mainItem.evenSize(mainItem.compactWindow ? 20 : 24)
+				Layout.alignment: Qt.AlignHCenter
+				spacing: mainItem.evenSize(10)
+				layoutDirection: mainItem.buttons.length === 2 && mainItem.firstButtonAccept ? Qt.RightToLeft
+				                                                                             : Qt.LeftToRight
 				onVisibleChanged: if (visible) {
 					if (mainItem.firstButtonAccept) firstButtonId.forceActiveFocus()
 					else secondButtonId.forceActiveFocus()
@@ -165,15 +227,11 @@ Popup {
 
 				// Default buttons only visible if no other children
 				// have been set
-				MediumButton {
+				DialogButton {
 					id:firstButtonId
 					visible: mainItem.buttons.length === 2
-					leftPadding: Utils.getSizeWithScreenRatio(mainItem.simple ? (mainItem.compactWindow ? 14 : 20) : 16)
-					rightPadding: leftPadding
-					topPadding: Utils.getSizeWithScreenRatio(mainItem.simple && mainItem.compactWindow ? 8 : 10)
-					bottomPadding: topPadding
 					text: mainItem.firstButtonText
-					style: mainItem.firstButtonAccept ? ButtonStyle.main : ButtonStyle.secondary
+					style: mainItem.firstButtonAccept ? mainItem.actionStyle : ButtonStyle.secondary
 					focus: !mainItem.firstButtonAccept
 					focusPolicy: Qt.StrongFocus
 					activeFocusOnTab:true
@@ -191,15 +249,11 @@ Popup {
 					KeyNavigation.left: secondButtonId
 					KeyNavigation.right: secondButtonId
 				}
-				MediumButton {
+				DialogButton {
 					id: secondButtonId
 					visible: mainItem.buttons.length === 2
-					leftPadding: firstButtonId.leftPadding
-					rightPadding: firstButtonId.rightPadding
-					topPadding: firstButtonId.topPadding
-					bottomPadding: firstButtonId.bottomPadding
 					text: mainItem.secondButtonText
-					style: mainItem.firstButtonAccept ? ButtonStyle.secondary : ButtonStyle.main
+					style: mainItem.secondButtonAccept ? mainItem.actionStyle : ButtonStyle.secondary
 					focus: !mainItem.secondButtonAccept
 					focusPolicy: Qt.StrongFocus
 					activeFocusOnTab:true

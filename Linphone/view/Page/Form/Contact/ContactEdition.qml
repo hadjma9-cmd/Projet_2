@@ -34,7 +34,9 @@ MainRightPanel {
 	// sur ce PC). Meme formulaire pour les deux : prenom, nom et numero, les trois obligatoires.
 	property bool isNew: false
 	property int storage: 0 // 0 : pas encore choisi, 1 : toute l'equipe, 2 : vous seulement
-	readonly property bool shared: isNew && storage === 1
+	// Seuls les postes du groupe FusionPBX des contacts d'equipe ont le choix ; les autres creent un contact personnel.
+	readonly property bool teamAllowed: SharedContactsCpp.teamContactsAllowed
+	readonly property bool shared: isNew && teamAllowed && storage === 1
 	property bool waitingServer: false
 	// Modification d'un contact existant : entreprise, fonction et adresses SIP ne s'affichent que s'il en a deja
 	// (figes a l'ouverture, pour qu'un champ ne disparaisse pas pendant qu'on l'efface).
@@ -48,6 +50,8 @@ MainRightPanel {
 		if (!contact)
 			return
 		if (isNew) {
+			// Droit relu a l'ouverture : un administrateur a pu ajouter ou retirer le poste du groupe.
+			SharedContactsCpp.refreshRights()
 			// Un numero arrive comme adresse SIP (« Ajouter aux contacts » depuis l'historique des appels) devient un
 			// numero de telephone, seul moyen de joindre que ce formulaire affiche.
 			var addresses = contact.core.addresses
@@ -111,7 +115,7 @@ MainRightPanel {
 				function (confirmed) {
 					if (confirmed)
 						mainItem.saveShared(true)
-				}, "Annuler", "Créer quand même")
+				}, "Annuler", "Créer quand même", undefined, "warning", AppIcons.warningCircle)
 		}
 		function onFailed(message) {
 			mainItem.waitingServer = false
@@ -127,7 +131,8 @@ MainRightPanel {
 			mainItem.contact.core.undo()
 			mainItem.closeEdition('')
 		}
-        width: Utils.getSizeWithScreenRatio(278)
+		kind: "warning"
+		iconSource: AppIcons.warningCircle
         //: "Les changements seront annulés. Souhaitez-vous continuer ?"
         text: qsTr("contact_editor_dialog_cancel_change_message")
 	}
@@ -157,7 +162,7 @@ MainRightPanel {
 						mainItem.contact.core.undo()
 						mainItem.closeEdition('')
 					}
-				})
+				}, undefined, undefined, undefined, "warning", AppIcons.warningCircle)
 			}
 		}
 	}
@@ -179,7 +184,7 @@ MainRightPanel {
 			interval: 200
 			onTriggered: {
 				if (mainItem.isNew) {
-					if (mainItem.storage === 0) {
+					if (mainItem.teamAllowed && mainItem.storage === 0) {
 						storageChoice.errorText = "Choisissez qui peut voir ce contact"
 						editionLayout.contentY = 0
 						return
@@ -321,7 +326,7 @@ MainRightPanel {
 				// tant qu'on n'a pas choisi.
 				ColumnLayout {
 					id: storageChoice
-					visible: mainItem.isNew
+					visible: mainItem.isNew && mainItem.teamAllowed
 					Layout.fillWidth: true
 					spacing: Utils.getSizeWithScreenRatio(8)
 					property string errorText: ""

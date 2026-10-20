@@ -65,6 +65,7 @@ QtObject {
 	property string usersThreeSelected: "image://internal/users-three-fill.svg"
 	property string usersThreeFilled: "image://internal/users-three-filled.svg"
 	property string userPlus: "image://internal/user-plus.svg"
+	property string addressBook: "image://internal/address-book.svg"
 	property string noItemImage: "image://internal/noItemImage.svg"
 	// Conversations sans rien a afficher : illustration sobre aux couleurs du theme bleu_gama.
 	property string noConversationImage: "image://internal/no-conversation.svg"

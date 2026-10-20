@@ -50,128 +50,115 @@ ApplicationWindow {
             details: requestDialog?.details
             firstButtonAccept: title.length === 0
             secondButtonAccept: title.length !== 0
-            Component.onCompleted: if (details.length != 0) radius = 0
             // For C++, requestDialog need to be call directly
             onAccepted: requestDialog ? requestDialog.result(1) : callback(1)
             onRejected: requestDialog ? requestDialog.result(0) : callback(0)
-            // Jamais plus large que la fenetre (petite fenetre / Combine : 414 de large), avec une marge de chaque cote.
-            width: Math.min(Utils.getSizeWithScreenRatio(title.length === 0 ? 278 : 637),
-                            mainWindow.width - Utils.getSizeWithScreenRatio(32))
         }
     }
 
     Component {
         id: addressChooserPopupComp
-        Popup {
+        // Choix du numero (ou de l'adresse) d'un contact qui en a plusieurs : meme fenetre que les autres decisions,
+        // une carte par numero, Annuler dessous. L'icone suit l'action (appel, video, message, transfert).
+        Dialog {
             id: addressChooserPopup
             property FriendGui contact
             signal addressChosen(string address)
-            underlineColor: DefaultStyle.main1_500_main
-            anchors.centerIn: parent
-            width: Utils.getSizeWithScreenRatio(370)
-            modal: true
-            leftPadding: Utils.getSizeWithScreenRatio(15)
-            rightPadding: Utils.getSizeWithScreenRatio(15)
-            topPadding: Utils.getSizeWithScreenRatio(20)
-            bottomPadding: Utils.getSizeWithScreenRatio(25)
-            contentItem: ColumnLayout {
-                spacing: Utils.getSizeWithScreenRatio(16)
-                RowLayout {
-                    spacing: Utils.getSizeWithScreenRatio(5)
-                    width: addressChooserPopup.width
-                    Text {
-                        //: "Choisissez un numéro ou adresse SIP"
-                        text: qsTr("contact_dialog_pick_phone_number_or_sip_address_title")
-                        wrapMode: Text.Wrap
-                        Layout.fillWidth: true
-                        font {
-                            pixelSize: Typography.h4.pixelSize
-                            weight: Typography.h4.weight
-                        }
-                    }
-                    RoundButton {
-                        Layout.alignment: Qt.AlignVCenter
-                        style: ButtonStyle.noBackground
-                        icon.source:AppIcons.closeX
-                        onClicked: addressChooserPopup.close()
+            kind: "info"
+            // Le contact en titre, la question (selon l'action) dessous.
+            title: contact ? contact.core.fullName : ""
+            onOpened: popuplist.forceActiveFocus()
+            onClosed: destroy()
+            content: ListView {
+                id: popuplist
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(contentHeight, addressChooserPopup.evenSize(280))
+                interactive: contentHeight > height
+                clip: true
+                model: VariantList {
+                    model: addressChooserPopup.contact && addressChooserPopup.contact.core.allAddresses || []
+                }
+                spacing: addressChooserPopup.evenSize(8)
+                keyNavigationEnabled: true
+                activeFocusOnTab: true
+                onActiveFocusChanged: {
+                    if (activeFocus) currentIndex = 0
+                    else currentIndex = -1
+                }
+                Keys.onPressed: event => {
+                    if (currentItem && (event.key == Qt.Key_Return || event.key == Qt.Key_Enter || event.key == Qt.Key_Space)) {
+                        addressChooserPopup.addressChosen(currentItem.address)
+                        event.accepted = true
                     }
                 }
-                ListView {
-                    id: popuplist
-                    model: VariantList {
-                        model: addressChooserPopup.contact && addressChooserPopup.contact.core.allAddresses || []
-                    }
-                    spacing: Utils.getSizeWithScreenRatio(10)
-                    keyNavigationEnabled: true
-                    Layout.fillWidth: true
-                    activeFocusOnTab: true
-                    onVisibleChanged: if (visible) forceActiveFocus()
-                    onActiveFocusChanged: {
-                        if (activeFocus) currentIndex = 0
-                        else currentIndex = -1
-                    }
-                    Keys.onPressed: event => {
-                        if (event.key == Qt.Key_Return || event.key == Qt.Key_Enter || event.key == Qt.Key_Space) {
-                            addressChooserPopup.addressChosen(itemAtIndex(popuplist.currentIndex).address)
-                        }
-                    }
-                    Layout.preferredHeight: contentHeight
-                    delegate: FocusScope {
-                        width: popuplist.width
-                        height: Utils.getSizeWithScreenRatio(56)
-                        property string address: modelData.address
-                        ColumnLayout {
-                            width: popuplist.width
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: Utils.getSizeWithScreenRatio(10)
-                            ColumnLayout {
-                                spacing: Utils.getSizeWithScreenRatio(7)
-                                Text {
-                                    Layout.leftMargin: Utils.getSizeWithScreenRatio(5)
-                                    text: modelData.label + " :"
-                                    font {
-                                        pixelSize: Typography.p2.pixelSize
-                                        weight: Typography.p2.weight
-                                    }
-                                }
-                                Text {
-                                    Layout.leftMargin: Utils.getSizeWithScreenRatio(5)
-                                    text: SettingsCpp.hideSipAddresses ? UtilsCpp.getUsername(modelData.address) : modelData.address
-                                    font {
-                                        pixelSize: Typography.p1.pixelSize
-                                        weight: Typography.p1.weight
-                                    }
-                                }
-                            }
-                            Rectangle {
-                                visible: index != popuplist.model.count - 1
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
-                                color: DefaultStyle.main2_200
+                delegate: Rectangle {
+                    id: addressCard
+                    property string address: modelData.address
+                    width: popuplist.width
+                    height: addressChooserPopup.evenSize(addressChooserPopup.compactWindow ? 52 : 56)
+                    radius: addressChooserPopup.evenSize(10)
+                    color: cardMouseArea.containsMouse ? DefaultStyle.main2_100 : DefaultStyle.grey_0
+                    border.width: Utils.getSizeWithScreenRatio(1)
+                    // Bordure bleue : la carte choisie par Entree (clavier).
+                    border.color: index === popuplist.currentIndex ? DefaultStyle.main1_500_main : DefaultStyle.main2_200
+                    Column {
+                        anchors.centerIn: parent
+                        width: parent.width - 2 * addressChooserPopup.evenSize(12)
+                        Text {
+                            // Sans libelle, le numero seul reste centre dans la carte.
+                            visible: text.length > 0
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                            text: modelData.label
+                            color: DefaultStyle.main2_500_main
+                            font {
+                                pixelSize: Utils.getSizeWithScreenRatio(addressChooserPopup.compactWindow ? 12 : 13)
+                                weight: Typography.p1.weight
                             }
                         }
-                        Rectangle {
-                            anchors.fill: parent
-                            opacity: 0.7
-                            z: -1
-                            visible: index === popuplist.currentIndex || delegateMouseArea.containsMouse
-                            color: index === popuplist.currentIndex ? DefaultStyle.main2_200 : DefaultStyle.main2_100
-                            radius: Utils.getSizeWithScreenRatio(8)
-                        }
-                        MouseArea {
-                            id: delegateMouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            focus: true
-                            cursorShape: containsMouse ? Qt.PointingHandCursor : Qt.ArrowCursor
-                            onClicked: {
-                                addressChooserPopup.addressChosen(modelData.address)
+                        Text {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideMiddle
+                            text: SettingsCpp.hideSipAddresses ? UtilsCpp.getUsername(modelData.address) : modelData.address
+                            color: DefaultStyle.main2_800
+                            font {
+                                pixelSize: Utils.getSizeWithScreenRatio(addressChooserPopup.compactWindow ? 14 : 15)
+                                weight: Typography.p2.weight
                             }
                         }
+                    }
+                    MouseArea {
+                        id: cardMouseArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: addressChooserPopup.addressChosen(addressCard.address)
                     }
                 }
             }
+            buttons: DialogButton {
+                //: "Annuler"
+                text: qsTr("cancel")
+                style: ButtonStyle.secondary
+                onClicked: addressChooserPopup.close()
+            }
         }
+    }
+
+    // Ouvre le choix de l'adresse, centre sur toute la fenetre de l'element qui le demande (et non sur cet element, une
+    // ligne de liste par exemple).
+    function chooseContactAddress(contact, parentItem, iconSource, question, onChosen) {
+        var root = parentItem
+        while (root.parent) root = root.parent
+        var addressPopup = addressChooserPopupComp.createObject(root, {"contact": contact, "iconSource": iconSource,
+                                                                       "text": question})
+        addressPopup.addressChosen.connect(function(address) {
+            onChosen(address)
+            addressPopup.close()
+        })
+        addressPopup.open()
     }
 
     // Regle : un bouton telephone appelle directement (confirm = false) ; un clic sur une ligne de liste qui lance
@@ -181,14 +168,11 @@ ApplicationWindow {
         if (contact) {
             console.log("START CALL WITH", contact.core.fullName, "addresses count", contact.core.allAddresses.length)
             if (contact.core.allAddresses.length > 1) {
-                var addressPopup = addressChooserPopupComp.createObject()
-                addressPopup.parent = parentItem
-                addressPopup.contact = contact
-                addressPopup.addressChosen.connect(function(address) {
+                chooseContactAddress(contact, parentItem, videoEnabled ? AppIcons.videoCamera : AppIcons.phone,
+                                     videoEnabled ? "Quel numéro appeler en vidéo ?" : "Quel numéro appeler ?",
+                                     function(address) {
                     UtilsCpp.createCall(address, {'localVideoEnabled': videoEnabled})
-                    addressPopup.close()
                 })
-                addressPopup.open()
 
             } else {
                 var addressToCall = contact.core.defaultAddress.length === 0
@@ -227,7 +211,7 @@ ApplicationWindow {
             if (confirmed) UtilsCpp.createCall(address, {'localVideoEnabled': videoEnabled})
         },
         //: "Appeler"
-        qsTr("dialog_call"))
+        qsTr("dialog_call"), undefined, undefined, "info", (videoEnabled ? AppIcons.videoCamera : AppIcons.phone))
     }
 
     function sendMessageToContact(contact, parentItem) {
@@ -235,14 +219,10 @@ ApplicationWindow {
         if (contact) {
             console.log("SEND MESSAGE TO", contact.core.fullName, "addresses count", contact.core.allAddresses.length)
             if (contact.core.allAddresses.length > 1) {
-                var addressPopup = addressChooserPopupComp.createObject()
-                addressPopup.parent = parentItem
-                addressPopup.contact = contact
-                addressPopup.addressChosen.connect(function(address) {
+                chooseContactAddress(contact, parentItem, AppIcons.chatTeardropText, "À quel numéro écrire ?",
+                                     function(address) {
                     displayChatPage(address)
-                    addressPopup.close()
                 })
-                addressPopup.open()
 
             } else {
                 displayChatPage(contact.core.defaultAddress)
@@ -256,14 +236,10 @@ ApplicationWindow {
         if (contact) {
             console.log("[AbstractWindow] Transfer call to", contact.core.fullName, "addresses count", contact.core.allAddresses.length, call)
             if (contact.core.allAddresses.length > 1) {
-                var addressPopup = addressChooserPopupComp.createObject()
-                addressPopup.parent = parentItem
-                addressPopup.contact = contact
-                addressPopup.addressChosen.connect(function(address) {
+                chooseContactAddress(contact, parentItem, AppIcons.transferCall, "Vers quel numéro transférer ?",
+                                     function(address) {
                     call.core.lTransferCall(address)
-                    addressPopup.close()
                 })
-                addressPopup.open()
 
             } else {
                 var addressToCall = contact.core.defaultAddress.length === 0
@@ -302,13 +278,15 @@ ApplicationWindow {
         popup.closePopup.connect(removeFromPopupLayout)
     }
 
-    function showConfirmationLambdaPopup(title,text, details, callback, firstButtonText, secondButtonText, customContent){
+    // kind : « info » (bleu, defaut), « warning » (orange) ou « danger » (rouge) ; iconSource : icone du rond (AppIcons).
+    function showConfirmationLambdaPopup(title,text, details, callback, firstButtonText, secondButtonText, customContent, kind, iconSource){
         console.log("Showing confirmation lambda popup")
         var popup = confirmPopupComp.createObject(popupLayout, {"title": title, "text": text, "details":details,"callback":callback})
         if (firstButtonText != undefined) popup.firstButtonText = firstButtonText
         if (secondButtonText != undefined) popup.secondButtonText = secondButtonText
         if (customContent != undefined) popup.content = customContent
-        popup.titleColor = DefaultStyle.main1_500_main
+        if (kind != undefined) popup.kind = kind
+        if (iconSource != undefined) popup.iconSource = iconSource
         popup.open()
         popup.closePopup.connect(removeFromPopupLayout)
     }

@@ -369,7 +369,7 @@ ColumnLayout {
 								if (confirmed) {
 									mainItem.chatGui.core.lLeave()
 								}
-							})
+							}, undefined, undefined, undefined, "danger", AppIcons.signOut)
 						}
 					},
 					{
@@ -389,7 +389,7 @@ ColumnLayout {
 									if (confirmed) {
 										mainItem.chatGui.core.lDeleteHistory()
 									}
-								})
+								}, undefined, undefined, undefined, "danger", AppIcons.trashCan)
 						}
 					}
 				]
@@ -420,7 +420,7 @@ ColumnLayout {
 								if (confirmed) {
 									mainItem.chatGui.core.lDeleteHistory()
 								}
-							})
+							}, undefined, undefined, undefined, "danger", AppIcons.trashCan)
 						}
 					}
 				]

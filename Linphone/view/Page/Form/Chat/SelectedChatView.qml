@@ -70,7 +70,7 @@ FocusScope {
                 }
                 UtilsCpp.createGroupCall(mainItem.chat?.core.title, addresses)
             }
-        })
+        }, undefined, undefined, undefined, "info", AppIcons.usersThree)
     }
 
     Keys.onPressed: (event) => {

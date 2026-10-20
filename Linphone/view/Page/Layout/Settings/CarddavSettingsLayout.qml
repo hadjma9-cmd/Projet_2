@@ -97,7 +97,7 @@ AbstractSettingsLayout {
 								mainItem.container.pop()
 							}
 						}
-					)
+					, undefined, undefined, undefined, "danger", AppIcons.trashCan)
 				}
 			}
 		}

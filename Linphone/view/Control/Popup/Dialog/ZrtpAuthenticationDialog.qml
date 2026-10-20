@@ -17,6 +17,8 @@ Dialog {
     bottomPadding: Utils.getSizeWithScreenRatio(24)
 	modal: true
 	closePolicy: Popup.NoAutoClose
+	// Son propre bandeau de couleur en haut (bouclier, « Vérification de sécurité ») : pas de rond d'icone.
+	showIcon: false
 
 	property var call
 	onCallChanged: if(!call) close()

@@ -154,7 +154,7 @@ AbstractMainPage {
                     return
                 mainItem.sharedDeletePending = true
                 SharedContactsCpp.deleteContact(name, phones)
-            }, "Annuler", "Supprimer")
+            }, "Annuler", "Supprimer", undefined, "danger", AppIcons.trashCan)
     }
     Connections {
         target: SharedContactsCpp
@@ -195,99 +195,95 @@ AbstractMainPage {
                                         //: "%1 a été supprimé"
                                         qsTr("contact_deleted_message").arg(name))
                         }
-                    })
+                    }, undefined, undefined, undefined, "danger", AppIcons.trashCan)
     }
 
     Dialog {
         id: verifyDevicePopup
         property string deviceName
         property string deviceAddress
-        padding: Utils.getSizeWithScreenRatio(30)
-        width: Utils.getSizeWithScreenRatio(637)
-        anchors.centerIn: parent
+        kind: "info"
+        iconSource: AppIcons.trusted
         closePolicy: Control.Popup.CloseOnEscape
-        modal: true
         onAboutToHide: neverDisplayAgainCheckbox.checked = false
         //: "Augmenter la confiance"
         title: qsTr("contact_dialog_devices_trust_popup_title")
         //: "Pour augmenter le niveau de confiance vous devez appeler les différents appareils de votre contact et valider un code.
         // Vous êtes sur le point d’appeler “%1” voulez vous continuer ?"
         text: qsTr("contact_dialog_devices_trust_popup_message").arg(verifyDevicePopup.deviceName)
-        buttons: RowLayout {
-            RowLayout {
-                spacing: Utils.getSizeWithScreenRatio(7)
-                CheckBox {
-                    id: neverDisplayAgainCheckbox
-                }
-                Text {
-                    //: Ne plus afficher
-                    text: qsTr("popup_do_not_show_again")
-                    font.pixelSize: Utils.getSizeWithScreenRatio(14)
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: neverDisplayAgainCheckbox.toggle()
-                    }
-                }
+        // « Ne plus afficher » centre sous le texte, puis Annuler / Appeler.
+        content: RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            spacing: Utils.getSizeWithScreenRatio(7)
+            CheckBox {
+                id: neverDisplayAgainCheckbox
             }
-            Item {
-                Layout.fillWidth: true
-            }
-            RowLayout {
-                spacing: Utils.getSizeWithScreenRatio(15)
-                BigButton {
-                    style: ButtonStyle.secondary
-                    text: qsTr("cancel")
-                    onClicked: verifyDevicePopup.close()
-                }
-                BigButton {
-                    style: ButtonStyle.main
-                    //: "Appeler"
-                    text: qsTr("dialog_call")
-                    onClicked: {
-                        SettingsCpp.setDisplayDeviceCheckConfirmation(
-                                    !neverDisplayAgainCheckbox.checked)
-                        UtilsCpp.createCall(verifyDevicePopup.deviceAddress,
-                                            {},
-                                            LinphoneEnums.MediaEncryption.Zrtp)
-                        onClicked: verifyDevicePopup.close()
-                    }
+            Text {
+                //: Ne plus afficher
+                text: qsTr("popup_do_not_show_again")
+                font.pixelSize: Utils.getSizeWithScreenRatio(14)
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: neverDisplayAgainCheckbox.toggle()
                 }
             }
         }
+        buttons: [
+            DialogButton {
+                style: ButtonStyle.secondary
+                text: qsTr("cancel")
+                onClicked: verifyDevicePopup.close()
+            },
+            DialogButton {
+                style: ButtonStyle.main
+                //: "Appeler"
+                text: qsTr("dialog_call")
+                onClicked: {
+                    SettingsCpp.setDisplayDeviceCheckConfirmation(
+                                !neverDisplayAgainCheckbox.checked)
+                    UtilsCpp.createCall(verifyDevicePopup.deviceAddress,
+                                        {},
+                                        LinphoneEnums.MediaEncryption.Zrtp)
+                    verifyDevicePopup.close()
+                }
+            }
+        ]
     }
     Dialog {
         id: trustInfoDialog
-        width: Utils.getSizeWithScreenRatio(637)
+        kind: "info"
+        iconSource: AppIcons.trusted
         //: "Niveau de confiance"
         title: qsTr("contact_dialog_devices_trust_help_title")
         //: "Vérifiez les appareils de votre contact pour confirmer que vos communications seront sécurisées et sans compromission. <br>Quand tous seront vérifiés, vous atteindrez le niveau de confiance maximal."
         text: qsTr("contact_dialog_devices_trust_help_message")
+        // Le message contient un retour a la ligne <br>.
+        textFormat: Text.StyledText
         content: RowLayout {
-            spacing: Utils.getSizeWithScreenRatio(50)
+            Layout.alignment: Qt.AlignHCenter
+            spacing: Utils.getSizeWithScreenRatio(40)
             Avatar {
                 displayNameVal: "A C"
-                Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)
-                Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
+                Layout.preferredWidth: Utils.getSizeWithScreenRatio(44)
+                Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
             }
             EffectImage {
                 imageSource: AppIcons.arrowRight
                 colorizationColor: DefaultStyle.main2_600
-                Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)
-                Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
+                Layout.preferredWidth: Utils.getSizeWithScreenRatio(44)
+                Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
             }
             Avatar {
                 displayNameVal: "A C"
                 secured: true
-                Layout.preferredWidth: Utils.getSizeWithScreenRatio(45)
-                Layout.preferredHeight: Utils.getSizeWithScreenRatio(45)
+                Layout.preferredWidth: Utils.getSizeWithScreenRatio(44)
+                Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
             }
         }
-        buttons: Button {
+        buttons: DialogButton {
             //: "Ok"
             text: qsTr("dialog_ok")
             style: ButtonStyle.main
-            leftPadding: Utils.getSizeWithScreenRatio(30)
-            rightPadding: Utils.getSizeWithScreenRatio(30)
             onClicked: trustInfoDialog.close()
         }
     }
@@ -1150,10 +1146,13 @@ AbstractMainPage {
                                     onClicked: mainItem.editContact(mainItem.selectedContact)
                                 }
                                 ActionSeparator {
+                                    visible: mainItem.contactEditable || SharedContactsCpp.teamContactsAllowed
                                 }
                                 // Meme libelle pour les deux ; pour un contact de l'equipe, la confirmation precise
-                                // qu'il disparait pour toute l'equipe (supprime dans FusionPBX par le service).
+                                // qu'il disparait pour toute l'equipe (supprime dans FusionPBX par le service), et
+                                // seulement pour un poste du groupe des contacts d'equipe.
                                 IconLabelButton {
+                                    visible: mainItem.contactEditable || SharedContactsCpp.teamContactsAllowed
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: Utils.getSizeWithScreenRatio(50)
                                     enabled: mainItem.contactEditable || !SharedContactsCpp.busy

@@ -130,7 +130,8 @@ AbstractMainPage {
 
     Dialog {
         id: deleteChatPopup
-        width: Utils.getSizeWithScreenRatio(637)
+        kind: "danger"
+        iconSource: AppIcons.trashCan
         //: Supprimer la conversation ?
         title: qsTr("chat_dialog_delete_chat_title")
         //: "La conversation et tous ses messages seront supprimés."

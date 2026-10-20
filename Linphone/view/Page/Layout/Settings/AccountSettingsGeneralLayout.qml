@@ -183,7 +183,7 @@ AbstractSettingsLayout {
 									account.core.removeAccount()
 								}
 							}
-						)
+						, undefined, undefined, undefined, "danger", AppIcons.trashCan)
 					}
 				}
 			}
@@ -294,7 +294,7 @@ AbstractSettingsLayout {
 													accountDeviceProxy.deleteDevice(modelData)
 												}
 											}
-										)
+										, undefined, undefined, undefined, "danger", AppIcons.trashCan)
 									}
 								}
 							}

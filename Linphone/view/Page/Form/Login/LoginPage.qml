@@ -123,26 +123,19 @@ LoginLayout {
 	]
 	Dialog{
 		id: fetchConfigDialog
-        height: Utils.getSizeWithScreenRatio(315)
-        width: Utils.getSizeWithScreenRatio(637)
-        leftPadding: Utils.getSizeWithScreenRatio(33)
-        rightPadding: Utils.getSizeWithScreenRatio(33)
-        topPadding: Utils.getSizeWithScreenRatio(41)
-        bottomPadding: Utils.getSizeWithScreenRatio(29)
-		radius: 0
+		kind: "info"
+		iconSource: AppIcons.download
         //: "Télécharger une configuration distante"
         title: qsTr('assistant_login_download_remote_config')
         //: 'Veuillez entrer le lien de configuration qui vous a été fourni :'
         text: qsTr('assistant_login_remote_provisioning_url')
 
-        firstButton.text: qsTr("cancel")
+        firstButtonText: qsTr("cancel")
 		firstButtonAccept: false
-		firstButton.style: ButtonStyle.secondary
 
         //: "Valider"
-        secondButton.text: qsTr("validate")
+        secondButtonText: qsTr("validate")
 		secondButtonAccept: true
-		secondButton.style: ButtonStyle.main
 		onAccepted:{
 			UtilsCpp.useFetchConfig(configUrl.text)
 		}

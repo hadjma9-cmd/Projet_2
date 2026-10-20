@@ -29,6 +29,8 @@ AbstractSettingsLayout {
 
 	Dialog {
 		id: deleteLogs
+		kind: "danger"
+		iconSource: AppIcons.trashCan
         //: "Les traces de débogage seront supprimées. Souhaitez-vous continuer ?"
         text: qsTr("settings_debug_clean_logs_message")
 		onAccepted: SettingsCpp.cleanLogs()
@@ -40,10 +42,13 @@ AbstractSettingsLayout {
 	
 	Dialog {
 		id: shareLogs
+		kind: "info"
+		iconSource: AppIcons.shareNetwork
         //: "Les traces de débogage ont été téléversées. Comment souhaitez-vous partager le lien ? "
         text: qsTr("settings_debug_share_logs_message")
+		// Deux choix de meme poids : deux boutons pleins, de meme largeur.
 		buttons: [
-			BigButton {
+			DialogButton {
                 //: "Presse-papier"
                 text: qsTr("settings_debug_clipboard")
 				style: ButtonStyle.main
@@ -52,7 +57,7 @@ AbstractSettingsLayout {
 					UtilsCpp.copyToClipboard(mainItem.logsUrl)
 				}
 			},
-			BigButton {
+			DialogButton {
                 //: "E-Mail"
                 text: qsTr("settings_debug_email")
 				style: ButtonStyle.main

@@ -371,18 +371,24 @@ ListView {
     
 	Dialog {
         id: messageDeletionDialog
-        width: Utils.getSizeWithScreenRatio(637)
+        kind: "danger"
+        iconSource: AppIcons.trashCan
         //: "Supprimer le message ?"
         title: qsTr("conversation_dialog_delete_chat_message_title")
         property var chatMessage
-        buttons: RowLayout {
+        // Deux choix : Annuler a gauche, Supprimer a droite. Trois (supprimer aussi chez tout le monde) : en colonne,
+        // pleine largeur, Annuler en bas.
+        buttons: GridLayout {
 				id: buttonsLayout
-				Layout.alignment: Qt.AlignBottom | Qt.AlignRight
-                spacing: Utils.getSizeWithScreenRatio(20)
-				MediumButton {
+				Layout.fillWidth: true
+				columns: secondButtonId.visible ? 1 : 2
+				layoutDirection: columns === 2 ? Qt.RightToLeft : Qt.LeftToRight
+				rowSpacing: Utils.getSizeWithScreenRatio(10)
+				columnSpacing: Utils.getSizeWithScreenRatio(10)
+				DialogButton {
 					id: firstButtonId
 					text: qsTr("conversation_dialog_delete_locally_label")
-					style: ButtonStyle.main
+					style: messageDeletionDialog.actionStyle
 					onClicked: {
 						messageDeletionDialog.chatMessage.core.lDelete()
 						messageDeletionDialog.close()
@@ -390,11 +396,11 @@ ListView {
 					KeyNavigation.left: thirdButtonId
 					KeyNavigation.right: secondButtonId
 				}
-				MediumButton {
+				DialogButton {
 					id: secondButtonId
 					visible: !!messageDeletionDialog.chatMessage && messageDeletionDialog.chatMessage.core.isOutgoing && messageDeletionDialog.chatMessage.core.isRetractable && !messageDeletionDialog.chatMessage.core.isRetracted
 					text: qsTr("conversation_dialog_delete_for_everyone_label")
-					style: ButtonStyle.main
+					style: messageDeletionDialog.actionStyle
 					onClicked: {
 						messageDeletionDialog.chatMessage.core.lRetract()
 						messageDeletionDialog.close()
@@ -402,7 +408,7 @@ ListView {
 					KeyNavigation.left: firstButtonId
 					KeyNavigation.right: thirdButtonId
 				}
-				MediumButton {
+				DialogButton {
 					id: thirdButtonId
 					text: qsTr("dialog_cancel")
 					style: ButtonStyle.secondary

@@ -155,7 +155,7 @@ Item {
             }, qsTr("contact_editor_dialog_abort_confirmation_do_not_save"),
             //: "Enregistrer"
             qsTr("contact_editor_dialog_abort_confirmation_save")
-		)
+		, undefined, "warning", AppIcons.warningCircle)
 	    } else {
             mainStackView.pop();
             if (mainItem.contextualMenuOpenedComponent)
@@ -442,12 +442,8 @@ Item {
                             // cercle restait affiche autour de la photo.
                             style: ButtonStyle.noBackground
                             shadowEnabled: false
-                            popup.topPadding: Utils.getSizeWithScreenRatio(23)
-                            popup.bottomPadding: Utils.getSizeWithScreenRatio(23)
-                            popup.leftPadding: Utils.getSizeWithScreenRatio(24)
-                            popup.rightPadding: Utils.getSizeWithScreenRatio(24)
-                            //: "Account list"
-                            popUpTitle: qsTr("account_list_accessible_name")
+                            popup.padding: Utils.getSizeWithScreenRatio(14)
+                            popUpTitle: "Profil"
                             contentItem: Item {
                                 Avatar {
                                     id: avatar
@@ -456,16 +452,47 @@ Item {
                                     account: accountProxy.defaultAccount
                                 }
                             }
-                            popup.contentItem: AccountListView {
-                                id: accounts
-                                popupId: avatarButton
-                                onAddAccountRequest: mainItem.addAccountRequest()
-                                onEditAccount: function (account) {
-                                    avatarButton.popup.close();
-                                    openAccountSettings(account);
-                                }
-                                getPreviousItem: avatarButton.getPreviousItem
-                                getNextItem: avatarButton.getNextItem
+                            // Menu profil : photo, nom et poste, statuts et message de statut (comme la
+                            // pastille), puis Messagerie vocale et Mon compte. Un seul compte par poste (lien de
+                            // configuration) : « Ajouter un compte » seulement avec les menus techniques (Ctrl+Maj+M).
+                            popup.onOpened: StatusCpp.refresh()
+                            popup.contentItem: StatusMenu {
+                                menuWidth: Utils.getSizeWithScreenRatio(290)
+                                showHeader: true
+                                accountGui: accountProxy.defaultAccount
+                                onDone: avatarButton.popup.close()
+                                extra: [
+                                    MenuRow {
+                                        visible: mainItem.voicemailAvailable
+                                        iconSource: AppIcons.voicemail
+                                        text: "Messagerie vocale"
+                                        count: mainItem.voicemailShowMwi ? mainItem.voicemailCount : 0
+                                        onClicked: {
+                                            avatarButton.popup.close()
+                                            mainItem.openVoicemail()
+                                        }
+                                    },
+                                    MenuRow {
+                                        visible: !SettingsCpp.hideAccountSettings && !!accountProxy.defaultAccount
+                                        iconSource: AppIcons.manageProfile
+                                        text: "Mon compte"
+                                        onClicked: {
+                                            avatarButton.popup.close()
+                                            mainItem.openAccountSettings(accountProxy.defaultAccount)
+                                        }
+                                    },
+                                    MenuRow {
+                                        visible: AppCpp.adminMenus
+                                                 && (SettingsCpp.maxAccount == 0 || SettingsCpp.maxAccount > accountProxy.count)
+                                        iconSource: AppIcons.plusCircle
+                                        //: Add an account
+                                        text: qsTr("add_an_account")
+                                        onClicked: {
+                                            avatarButton.popup.close()
+                                            mainItem.addAccountRequest()
+                                        }
+                                    }
+                                ]
                             }
                         }
                         ContactDescription {
@@ -495,13 +522,51 @@ Item {
                             ContactStatusPopup {
                                 id: headerStatusPopup
                                 account: accountProxy.defaultAccount
-                                showQueues: true
                                 barHeight: Utils.getSizeWithScreenRatio(30)
                                 textPixelSize: Utils.getSizeWithScreenRatio(13)
                                 // Graisse normale : en leger, le statut paraissait pale a cote du nom en gras.
                                 textWeight: Font.Normal
                                 statusIconSize: Utils.getSizeWithScreenRatio(13)
                                 arrowSize: Utils.getSizeWithScreenRatio(16)
+                            }
+                        }
+                        // Files d'attente : casque a anneau (un segment par file, bleu = active ; une seule
+                        // file : casque bleu ou gris). Un clic ouvre leurs interrupteurs.
+                        PopupButton {
+                            id: queuesButton
+                            visible: QueuesCpp.agent && QueuesCpp.queueCount > 0 && !!accountProxy.defaultAccount
+                                     && accountProxy.defaultAccount.core.registrationState === LinphoneEnums.RegistrationState.Ok
+                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(36)
+                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(36)
+                            style: ButtonStyle.noBackground
+                            shadowEnabled: false
+                            hoveredColor: DefaultStyle.main2_100
+                            pressedColor: DefaultStyle.main2_200
+                            backgroundColor: checked ? pressedColor : hovered ? hoveredColor : color
+                            popUpTitle: "Files d'attente"
+                            contentItem: QueuesRing {
+                                onColor: DefaultStyle.main1_500_main
+                                offColor: DefaultStyle.main2_300
+                                iconOffColor: DefaultStyle.main2_400
+                            }
+                            popup.padding: Utils.getSizeWithScreenRatio(14)
+                            // Largeur fixe portee par un Item : une mise en page la recalculerait d'apres son
+                            // contenu (menu replie).
+                            popup.contentItem: Item {
+                                implicitWidth: Utils.getSizeWithScreenRatio(270)
+                                implicitHeight: desktopQueues.implicitHeight
+                                QueuesSection {
+                                    id: desktopQueues
+                                    width: parent.width
+                                }
+                            }
+                            // Ouverture : etat des files relu tout de suite.
+                            popup.onOpened: QueuesCpp.refresh()
+                            ToolTip {
+                                visible: queuesButton.hovered && !queuesButton.popup.visible
+                                delay: 300
+                                text: QueuesCpp.connectedCount + (QueuesCpp.connectedCount > 1 ? " files activées" : " file activée")
+                                      + " sur " + QueuesCpp.queueCount
                             }
                         }
                     }
@@ -737,7 +802,7 @@ Item {
                                                     console.info("Exiting App from Top Menu");
                                                     Qt.quit();
                                                 }
-                                            });
+                                            }, undefined, undefined, undefined, "danger", AppIcons.power);
                                         }
                                         KeyNavigation.up: visibleChildren.length != 0 ? settingsMenuButton.getPreviousItem(5) : null
                                         KeyNavigation.down: visibleChildren.length != 0 ? settingsMenuButton.getNextItem(5) : null

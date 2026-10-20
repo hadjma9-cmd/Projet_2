@@ -168,7 +168,8 @@ AbstractMainPage {
 
     Dialog {
         id: deleteHistoryPopup
-        width: Utils.getSizeWithScreenRatio(637)
+        kind: "danger"
+        iconSource: AppIcons.trashCan
         //: Supprimer l\'historique d\'appels ?
         title: qsTr("history_dialog_delete_all_call_logs_title")
         //: "L'ensemble de votre historique d'appels sera définitivement supprimé."
@@ -176,7 +177,8 @@ AbstractMainPage {
     }
     Dialog {
         id: deleteForUserPopup
-        width: Utils.getSizeWithScreenRatio(637)
+        kind: "danger"
+        iconSource: AppIcons.trashCan
         //: Supprimer l'historique d\'appels ?
         title: qsTr("history_dialog_delete_call_logs_title")
         //: "L\'ensemble de votre historique d\'appels avec ce correspondant sera définitivement supprimé."

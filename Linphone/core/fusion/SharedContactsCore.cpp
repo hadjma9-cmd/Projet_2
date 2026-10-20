@@ -18,14 +18,19 @@
 
 #include "SharedContactsCore.hpp"
 #include "core/App.hpp"
+#include "model/core/CoreModel.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 
 DEFINE_ABSTRACT_OBJECT(SharedContactsCore)
 
+static const QString RightsPath = QStringLiteral("/gamaphone/v1/droits");
+static constexpr qint64 RightsRereadDelaySecs = 10 * 60;
+
 QSharedPointer<SharedContactsCore> SharedContactsCore::create(QSharedPointer<FusionClient> client) {
 	auto sharedPointer = QSharedPointer<SharedContactsCore>(new SharedContactsCore(client), &QObject::deleteLater);
+	sharedPointer->setSelf(sharedPointer);
 	sharedPointer->moveToThread(App::getInstance()->thread());
 	return sharedPointer;
 }
@@ -38,8 +43,79 @@ SharedContactsCore::SharedContactsCore(QSharedPointer<FusionClient> client) : QO
 SharedContactsCore::~SharedContactsCore() {
 }
 
+void SharedContactsCore::setSelf(QSharedPointer<SharedContactsCore> me) {
+	mCoreModelConnection = SafeConnection<SharedContactsCore, CoreModel>::create(me, CoreModel::getInstance());
+	// Compte connecté (démarrage, réseau retrouvé) ou changé : première lecture des droits.
+	mCoreModelConnection->makeConnectToModel(
+	    &CoreModel::accountRegistrationStateChanged,
+	    [this](const std::shared_ptr<linphone::Core> &core, const std::shared_ptr<linphone::Account> &account,
+	           linphone::RegistrationState state, const std::string &message) {
+		    if (state != linphone::RegistrationState::Ok || account != core->getDefaultAccount()) return;
+		    mCoreModelConnection->invokeToCore([this]() { readRights(ReadMode::IfNeverRead); });
+	    });
+	mCoreModelConnection->makeConnectToModel(&CoreModel::defaultAccountChanged, [this]() {
+		mCoreModelConnection->invokeToCore([this]() { readRights(ReadMode::IfNeverRead); });
+	});
+	// Retour sur l'application : un administrateur a pu ajouter ou retirer le poste du groupe.
+	connect(App::getInstance(), &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+		if (state == Qt::ApplicationActive) readRights(ReadMode::IfStale);
+	});
+	// Compte peut-être déjà connecté avant la création de cet objet.
+	readRights(ReadMode::IfNeverRead);
+}
+
 bool SharedContactsCore::isBusy() const {
 	return mBusy;
+}
+
+bool SharedContactsCore::isTeamContactsAllowed() const {
+	return mTeamContactsAllowed;
+}
+
+void SharedContactsCore::refreshRights() {
+	readRights(ReadMode::Always);
+}
+
+void SharedContactsCore::setTeamContactsAllowed(bool allowed) {
+	if (allowed == mTeamContactsAllowed) return;
+	mTeamContactsAllowed = allowed;
+	emit teamContactsAllowedChanged();
+}
+
+void SharedContactsCore::readRights(ReadMode mode) {
+	if (mReadingRights) return;
+	mReadingRights = true;
+	mClient->withCredentials([this, mode](const FusionClient::Credentials &credentials) {
+		const QString key = credentials.key();
+		if (key != mRightsAccountKey) { // autre compte (ou déconnecté) : ses droits sont inconnus
+			mRightsAccountKey = key;
+			++mRightsGeneration;
+			mRightsRead = false;
+			mLastRightsAttempt = QDateTime();
+			setTeamContactsAllowed(false);
+		}
+		if (!credentials.isValid() || (mode == ReadMode::IfNeverRead && mRightsRead) ||
+		    (mode == ReadMode::IfStale && mLastRightsAttempt.isValid() &&
+		     mLastRightsAttempt.secsTo(QDateTime::currentDateTimeUtc()) < RightsRereadDelaySecs)) {
+			mReadingRights = false;
+			return;
+		}
+		mLastRightsAttempt = QDateTime::currentDateTimeUtc();
+		const int generation = mRightsGeneration;
+		mClient->send(credentials, "GET", RightsPath, QByteArray(),
+		              [this, generation](const FusionClient::Reply &reply) {
+			              if (generation != mRightsGeneration) return; // compte changé entre-temps
+			              mReadingRights = false;
+			              if (reply.status == 200) {
+				              mRightsRead = true;
+				              setTeamContactsAllowed(reply.answer.value("team_contacts").toBool());
+			              } else if (reply.status == 404) {
+				              // Serveur pas encore mis à jour : il ne connaît pas ce droit, on ne propose rien.
+				              mRightsRead = true;
+				              setTeamContactsAllowed(false);
+			              } // autre échec (réseau) : on garde ce qui était connu
+		              });
+	});
 }
 
 void SharedContactsCore::createContact(const QString &givenName,
@@ -56,7 +132,10 @@ void SharedContactsCore::createContact(const QString &givenName,
 		if (reply.status == 201) emit contactCreated(reply.answer.value("name").toString());
 		else if (reply.status == 409 && reply.error == "duplicate")
 			emit duplicateFound(reply.answer.value("name").toString(), reply.answer.value("number").toString());
-		else emit failed(errorMessage(reply));
+		else {
+			if (reply.error == "forbidden") setTeamContactsAllowed(false); // retiré du groupe entre-temps
+			emit failed(errorMessage(reply));
+		}
 	});
 }
 
@@ -67,7 +146,10 @@ void SharedContactsCore::deleteContact(const QString &name, const QStringList &p
 	        .toJson(QJsonDocument::Compact);
 	post("/gamaphone/v1/contacts/delete", body, [this, name](const FusionClient::Reply &reply) {
 		if (reply.status == 200) emit contactDeleted(reply.answer.value("name").toString(name));
-		else emit failed(errorMessage(reply));
+		else {
+			if (reply.error == "forbidden") setTeamContactsAllowed(false); // retiré du groupe entre-temps
+			emit failed(errorMessage(reply));
+		}
 	});
 }
 
@@ -101,6 +183,8 @@ QString SharedContactsCore::errorMessage(const FusionClient::Reply &reply) {
 		return "Plusieurs contacts ont ce numéro et ce nom : supprimez-le depuis le portail.";
 	if (reply.error == "too_many_contacts") return "Trop de modifications en peu de temps. Réessayez plus tard.";
 	if (reply.error == "contacts_disabled") return "Les contacts partagés ne sont pas activés sur le serveur.";
+	if (reply.error == "forbidden")
+		return "Seuls les membres du groupe des contacts d'équipe peuvent créer ou supprimer un contact d'équipe.";
 	if (reply.status == 401) return "Le serveur a refusé l'identification de ce poste.";
 	return "Le serveur ne répond pas. Réessayez.";
 }

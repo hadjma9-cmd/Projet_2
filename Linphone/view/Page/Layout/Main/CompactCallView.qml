@@ -73,7 +73,7 @@ Rectangle {
 				var members = mainItem.conferenceMembers
 				for (var i = 0; i < members.length; ++i)
 					members[i].core.lTerminate()
-			})
+			}, undefined, undefined, undefined, "danger", AppIcons.endCall)
 	}
 
 	// Rien ne passe a la petite fenetre dessous : ni clic (droit compris), ni survol (bulles, curseur), ni molette.
@@ -657,7 +657,7 @@ Rectangle {
 							window.transferCallToContact(mainItem.call, contact, mainItem)
 							mainItem.closePanel()
 						}
-					})
+					}, undefined, undefined, undefined, "info", AppIcons.transferCall)
 			}
 			onTransferCallToAnotherRequested: dest => {
 				mainItem.call.core.lTransferCallToAnother(dest.core.remoteAddress)

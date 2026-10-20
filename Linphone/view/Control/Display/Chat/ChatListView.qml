@@ -438,7 +438,7 @@ ListView {
                                                 modelData.core.lLeave()
                                                 chatroomPopup.close()
                                             }
-                                        })
+                                        }, undefined, undefined, undefined, "danger", AppIcons.signOut)
                                 }
                                 style: ButtonStyle.hoveredBackground
                             }
@@ -467,7 +467,7 @@ ListView {
                                             modelData.core.lDelete()
                                             chatroomPopup.close()
                                         }
-                                    })
+                                    }, undefined, undefined, undefined, "danger", AppIcons.trashCan)
                             }
                             style: ButtonStyle.hoveredBackgroundRed
                         }
