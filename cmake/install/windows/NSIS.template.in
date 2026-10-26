@@ -296,7 +296,7 @@ Function checkRunning
 	retry:
 	ClearErrors
 	; nsExec : la commande tourne sans fenetre (ExecWait ouvrait une console noire a chaque essai, jusqu'a 30 fois
-	; pendant une mise a jour silencieuse). Code de sortie de « find » : 1 = Gamaphone n'est pas lance.
+	; pendant une mise a jour silencieuse). Code de sortie de find : 1 = Gamaphone n'est pas lance.
 	nsExec::Exec '"cmd" /C ""%SystemRoot%\System32\tasklist" /NH /FI "IMAGENAME eq @CPACK_NSIS_MUI_FINISHPAGE_RUN@" | "%SystemRoot%\System32\find" /I /C "@CPACK_NSIS_MUI_FINISHPAGE_RUN@""'
 	Pop $0
 	IntCmp $0 1 notRunning

@@ -454,7 +454,7 @@ Item {
                             }
                             // Menu profil : photo, nom et poste, statuts et message de statut (comme la
                             // pastille), puis Messagerie vocale et Mon compte. Un seul compte par poste (lien de
-                            // configuration) : « Ajouter un compte » seulement avec les menus techniques (Ctrl+Maj+M).
+                            // configuration, qui remplace le compte) : pas d'ajout de second compte.
                             popup.onOpened: StatusCpp.refresh()
                             popup.contentItem: StatusMenu {
                                 menuWidth: Utils.getSizeWithScreenRatio(290)
@@ -479,16 +479,6 @@ Item {
                                         onClicked: {
                                             avatarButton.popup.close()
                                             mainItem.openAccountSettings(accountProxy.defaultAccount)
-                                        }
-                                    },
-                                    MenuRow {
-                                        visible: AppCpp.adminMenus
-                                                 && (SettingsCpp.maxAccount == 0 || SettingsCpp.maxAccount > accountProxy.count)
-                                        iconSource: AppIcons.plusCircle
-                                        text: "Ajouter un compte"
-                                        onClicked: {
-                                            avatarButton.popup.close()
-                                            mainItem.addAccountRequest()
                                         }
                                     }
                                 ]
@@ -840,25 +830,6 @@ Item {
                                         }
                                         KeyNavigation.up: visibleChildren.length != 0 ? settingsMenuButton.getPreviousItem(5) : null
                                         KeyNavigation.down: visibleChildren.length != 0 ? settingsMenuButton.getNextItem(5) : null
-                                    }
-                                    Rectangle {
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
-                                        visible: addAccountButton.visible
-                                        color: DefaultStyle.main2_400
-                                    }
-                                    IconLabelButton {
-                                        id: addAccountButton
-                                        Layout.fillWidth: true
-                                        visible: SettingsCpp.maxAccount == 0 || SettingsCpp.maxAccount > accountProxy.count
-                                        icon.width: Utils.getSizeWithScreenRatio(32)
-                                        icon.height: Utils.getSizeWithScreenRatio(32)
-                                        //: "Ajouter un compte"
-                                        text: qsTr("drawer_menu_add_account")
-                                        icon.source: AppIcons.plusCircle
-                                        onClicked: mainItem.addAccountRequest()
-                                        KeyNavigation.up: visibleChildren.length != 0 ? settingsMenuButton.getPreviousItem(7) : null
-                                        KeyNavigation.down: visibleChildren.length != 0 ? settingsMenuButton.getNextItem(7) : null
                                     }
                                 }
                             }
