@@ -84,9 +84,39 @@ AbstractMainPage {
 					Layout.topMargin: Utils.getSizeWithScreenRatio(16)
 					style: ButtonStyle.secondary
 					//: Check update
-					text: qsTr("help_check_for_update_button_label")
-					// Reponse affichee par la verification elle-meme (a jour, ou fenetre de mise a jour).
-					onClicked: AppCpp.checkForUpdate(true)
+					text: UpdateCpp.checking ? "Recherche…" : qsTr("help_check_for_update_button_label")
+					enabled: !UpdateCpp.checking
+					onClicked: {
+						updateAnswer.text = ""
+						AppCpp.checkForUpdate(true)
+					}
+				}
+				// Reponse du serveur sous le bouton (une mise a jour trouvee ouvre en plus sa fenetre), effacee apres
+				// quelques secondes.
+				Text {
+					id: updateAnswer
+					property bool ok: true
+					visible: text.length > 0
+					Layout.fillWidth: true
+					Layout.topMargin: Utils.getSizeWithScreenRatio(8)
+					horizontalAlignment: Text.AlignHCenter
+					wrapMode: Text.WordWrap
+					font.pixelSize: Utils.getSizeWithScreenRatio(12)
+					font.weight: Font.DemiBold
+					color: ok ? "#2F7D4F" : "#8A4B0B"
+					Timer {
+						id: updateAnswerTimer
+						interval: 8000
+						onTriggered: updateAnswer.text = ""
+					}
+					Connections {
+						target: UpdateCpp
+						function onCheckFinished(message, ok) {
+							updateAnswer.ok = ok
+							updateAnswer.text = message
+							updateAnswerTimer.restart()
+						}
+					}
 				}
 			}
 		}

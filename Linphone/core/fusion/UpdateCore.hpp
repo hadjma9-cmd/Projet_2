@@ -45,6 +45,8 @@ class UpdateCore : public QObject, public AbstractObject {
 	Q_PROPERTY(qreal progress READ getProgress NOTIFY progressChanged)
 	Q_PROPERTY(int receivedMb READ getReceivedMb NOTIFY progressChanged)
 	Q_PROPERTY(int totalMb READ getTotalMb NOTIFY progressChanged)
+	// Verification demandee par l'utilisateur (page Aide) en cours.
+	Q_PROPERTY(bool checking READ isUserChecking NOTIFY userCheckingChanged)
 
 public:
 	static QSharedPointer<UpdateCore> create(QSharedPointer<FusionClient> client);
@@ -57,6 +59,7 @@ public:
 	qreal getProgress() const;
 	int getReceivedMb() const;
 	int getTotalMb() const;
+	bool isUserChecking() const;
 
 	// Demande au serveur. requestedByUser : dire aussi quand il n'y a rien à installer, ou que la demande a échoué.
 	void check(bool requestedByUser);
@@ -70,9 +73,14 @@ public:
 signals:
 	void stateChanged();
 	void progressChanged();
+	void userCheckingChanged();
+	// Reponse a une verification demandee par l'utilisateur, a afficher sous le bouton (ok : a jour ou mise a jour
+	// trouvee ; sinon echec).
+	void checkFinished(QString message, bool ok);
 
 private:
 	void setState(const QString &state, const QString &errorText = QString());
+	void setUserChecking(bool checking);
 	void fail(const QString &message);
 	void download();
 	void receive();
@@ -93,6 +101,7 @@ private:
 	bool mCancelled = false;
 	bool mStartWhenReady = false; // nouvel essai : télécharger dès que le serveur a répondu
 	bool mChecking = false;       // demande au serveur en cours
+	bool mUserChecking = false;   // dont une demandee par l'utilisateur
 	bool mAnswered = false;       // le serveur a répondu depuis le lancement : plus de demande automatique
 	QFile mFile;
 	QCryptographicHash mHash{QCryptographicHash::Sha256};

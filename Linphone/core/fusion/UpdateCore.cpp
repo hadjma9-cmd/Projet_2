@@ -92,6 +92,16 @@ int UpdateCore::getTotalMb() const {
 	return int(mSize >> 20);
 }
 
+bool UpdateCore::isUserChecking() const {
+	return mUserChecking;
+}
+
+void UpdateCore::setUserChecking(bool checking) {
+	if (checking == mUserChecking) return;
+	mUserChecking = checking;
+	emit userCheckingChanged();
+}
+
 void UpdateCore::setState(const QString &state, const QString &errorText) {
 	if (mState == state && mErrorText == errorText) return;
 	mState = state;
@@ -107,15 +117,18 @@ void UpdateCore::fail(const QString &message) {
 void UpdateCore::check(bool requestedByUser) {
 	mustBeInMainThread(log().arg(Q_FUNC_INFO));
 	if (mState == QLatin1String("downloading") || mState == QLatin1String("launching")) return;
-	if (mChecking && !requestedByUser) return; // la reponse attendue suffit
+	if (mChecking && !requestedByUser) return;    // la reponse attendue suffit
+	if (requestedByUser && mUserChecking) return; // deja en cours
 	mChecking = true;
+	if (requestedByUser) setUserChecking(true);
 	mClient->withCredentials([this, requestedByUser](const FusionClient::Credentials &credentials) {
 		if (!credentials.isValid()) {
 			mChecking = false;
 			mStartWhenReady = false;
-			if (requestedByUser)
-				Utils::showInformationPopup(QStringLiteral("Mise à jour"),
-				                            QStringLiteral("Compte non connecté : réessayez dans un instant."), false);
+			if (requestedByUser) {
+				setUserChecking(false);
+				emit checkFinished(QStringLiteral("Poste non connecté : réessayez dans un instant."), false);
+			}
 			return;
 		}
 		const QByteArray body = QJsonDocument(QJsonObject{{"version", QCoreApplication::applicationVersion()}})
@@ -124,6 +137,7 @@ void UpdateCore::check(bool requestedByUser) {
 		mClient->send(
 		    credentials, "POST", VersionPath, body, [this, requestedByUser, domain](const FusionClient::Reply &reply) {
 			    mChecking = false;
+			    if (requestedByUser) setUserChecking(false);
 			    if (reply.status == 200) mAnswered = true;
 			    const bool startNow = mStartWhenReady;
 			    mStartWhenReady = false;
@@ -137,22 +151,20 @@ void UpdateCore::check(bool requestedByUser) {
 				    mSha256 = sum;
 				    mSize = size;
 				    setState(QStringLiteral("available"));
+				    if (requestedByUser) emit checkFinished(QStringLiteral("Une mise à jour est disponible."), true);
 				    if (startNow) download();
 				    return;
 			    }
 			    if (reply.status == 200) {
 				    // À jour (ou l'installeur a été retiré du serveur entre-temps).
 				    setState(QStringLiteral("idle"));
-				    if (requestedByUser)
-					    Utils::showInformationPopup(QStringLiteral("Mise à jour"),
-					                                QStringLiteral("Gamaphone est à jour."));
+				    if (requestedByUser) emit checkFinished(QStringLiteral("Gamaphone est à jour."), true);
 				    return;
 			    }
 			    // Le serveur n'a pas répondu : un échec déjà affiché reste affiché.
 			    if (requestedByUser)
-				    Utils::showInformationPopup(
-				        QStringLiteral("Mise à jour"),
-				        QStringLiteral("Vérification impossible pour le moment. Réessayez plus tard."), false);
+				    emit checkFinished(QStringLiteral("Vérification impossible pour le moment. Réessayez plus tard."),
+				                       false);
 		    });
 	});
 }
