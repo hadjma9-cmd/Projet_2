@@ -65,12 +65,13 @@ public:
 	// Identifiants du compte par défaut, lus dans le fil du SDK, puis `ready` dans le fil de l'interface.
 	void withCredentials(std::function<void(const Credentials &)> ready);
 	// Demande signée ; `done` est appelé dans le fil de l'interface. Horloge du PC décalée : recalage sur celle du
-	// serveur et un nouvel essai, sans que l'appelant s'en occupe.
+	// serveur et un nouvel essai, sans que l'appelant s'en occupe. `timeoutMs` : silence maximal du serveur (0 = 10 s).
 	void send(const Credentials &credentials,
 	          const QByteArray &method,
 	          const QString &path,
 	          const QByteArray &body,
-	          Callback done);
+	          Callback done,
+	          int timeoutMs = 0);
 	// Connexion signée qui reste ouverte (tableau de supervision en direct) ; à libérer par l'appelant.
 	QNetworkReply *openStream(const Credentials &credentials, const QString &path);
 	// Heure du serveur moins heure du PC, en secondes (recalée à la première demande refusée pour l'horloge).
@@ -87,7 +88,8 @@ private:
 	              const QString &path,
 	              const QByteArray &body,
 	              Callback done,
-	              bool clockRetried);
+	              bool clockRetried,
+	              int timeoutMs);
 
 	QSharedPointer<SafeConnection<FusionClient, CoreModel>> mCoreModelConnection;
 	QNetworkAccessManager *mNetwork = nullptr;

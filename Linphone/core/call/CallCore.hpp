@@ -157,6 +157,10 @@ public:
 	QString getLocalAddress() const;
 
 	QString getCallId() const;
+	// Appel pris depuis le tableau des files : jeton de l'en-tete X-Gama-Prendre (vide sinon).
+	QString getPickupToken() const {
+		return mPickupToken;
+	}
 
 	LinphoneEnums::CallStatus getStatus() const;
 	void setStatus(LinphoneEnums::CallStatus status);
@@ -371,6 +375,7 @@ private:
 	bool mRecordable = false;
 	bool mIsConference = false;
 	bool mInternalCall = false;
+	QString mPickupToken;
 	QString mLocalToken;
 	QStringList mRemoteTokens;
 	float mMicrophoneVolume;

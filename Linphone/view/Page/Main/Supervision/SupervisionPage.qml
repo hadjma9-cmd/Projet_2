@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Controls.Basic as Control
 import Linphone
 import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
+import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 
 // Tableau des files (grande fenetre, page 5 de la bande), ouvert a tous les postes du domaine. De haut en bas :
 // bandeau d'etat (des appels attendent / tout est calme), appels a prendre (toutes files confondues, les plus anciens
@@ -36,6 +37,22 @@ Item {
 		return list
 	}
 	readonly property int waitingCount: pending.filter(function (p) { return p.call.state === "waiting" }).length
+	// Deja en communication (ou un appel sonne ici) : « Prendre » attend la fin de cet appel.
+	readonly property bool inCall: !!AppCpp.calls && AppCpp.calls.count > 0
+	// « Prendre » n'a pas abouti : message affiche quelques secondes sous le bandeau.
+	property string takeNotice: ""
+	Connections {
+		target: SupervisionCpp
+		function onTakeFailed(message) {
+			mainItem.takeNotice = message
+			noticeTimer.restart()
+		}
+	}
+	Timer {
+		id: noticeTimer
+		interval: 6000
+		onTriggered: mainItem.takeNotice = ""
+	}
 
 	// Lecture en direct seulement tant que la fenetre du tableau est ouverte (un element reste « visible » dans une
 	// fenetre cachee : la fenetre donne cet etat).
@@ -260,13 +277,49 @@ Item {
 				}
 			}
 
+			// Echec de « Prendre ».
+			Rectangle {
+				visible: mainItem.takeNotice.length > 0
+				Layout.fillWidth: true
+				Layout.topMargin: Utils.getSizeWithScreenRatio(10)
+				Layout.preferredHeight: noticeText.implicitHeight + 2 * Utils.getSizeWithScreenRatio(10)
+				radius: Utils.getSizeWithScreenRatio(10)
+				color: "#FDF1E4"
+				border.width: Utils.getSizeWithScreenRatio(1)
+				border.color: "#F0C9A0"
+				Text {
+					id: noticeText
+					anchors.verticalCenter: parent.verticalCenter
+					x: Utils.getSizeWithScreenRatio(16)
+					width: parent.width - 2 * x
+					text: mainItem.takeNotice
+					font.pixelSize: Utils.getSizeWithScreenRatio(13)
+					font.weight: Font.DemiBold
+					color: "#8A4B0B"
+					wrapMode: Text.WordWrap
+				}
+			}
+
 			// Appels a prendre.
-			Text {
+			RowLayout {
 				visible: mainItem.pending.length > 0
+				Layout.fillWidth: true
 				Layout.topMargin: Utils.getSizeWithScreenRatio(22)
-				text: "À prendre"
-				font.pixelSize: Utils.getSizeWithScreenRatio(13)
-				color: DefaultStyle.main2_500_main
+				spacing: Utils.getSizeWithScreenRatio(10)
+				Text {
+					text: "À prendre"
+					font.pixelSize: Utils.getSizeWithScreenRatio(13)
+					color: DefaultStyle.main2_500_main
+				}
+				Item {
+					Layout.fillWidth: true
+				}
+				Text {
+					visible: mainItem.inCall
+					text: "Terminez votre appel en cours pour en prendre un"
+					font.pixelSize: Utils.getSizeWithScreenRatio(12)
+					color: DefaultStyle.main2_400
+				}
 			}
 			Repeater {
 				model: mainItem.pending
@@ -341,6 +394,20 @@ Item {
 									radius: height / 2
 									color: callRow.ringing ? "#F0CF7A" : callRow.late ? "#E9A35B" : "#9CC1D4"
 								}
+							}
+						}
+						// Le serveur fait sonner ce poste, qui decroche tout seul ; l'appelant le rejoint ensuite.
+						SmallButton {
+							readonly property bool taking: SupervisionCpp.takingCall === callRow.call.id
+							Layout.alignment: Qt.AlignVCenter
+							Layout.preferredWidth: Utils.getSizeWithScreenRatio(104)
+							text: taking ? "Prise…" : "Prendre"
+							style: ButtonStyle.main
+							icon.source: AppIcons.phone
+							enabled: SupervisionCpp.takingCall.length === 0 && !mainItem.inCall
+							onClicked: {
+								mainItem.takeNotice = ""
+								SupervisionCpp.take(callRow.call.id)
 							}
 						}
 					}

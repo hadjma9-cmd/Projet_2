@@ -97,8 +97,9 @@ void FusionClient::send(const Credentials &credentials,
                         const QByteArray &method,
                         const QString &path,
                         const QByteArray &body,
-                        Callback done) {
-	sendOnce(credentials, method, path, body, done, false);
+                        Callback done,
+                        int timeoutMs) {
+	sendOnce(credentials, method, path, body, done, false, timeoutMs > 0 ? timeoutMs : RequestTimeoutMs);
 }
 
 // Demande signée : HMAC-SHA256, clé = HA1, message = méthode, chemin, heure et empreinte du corps (voir le service).
@@ -142,9 +143,10 @@ void FusionClient::sendOnce(const Credentials &credentials,
                             const QString &path,
                             const QByteArray &body,
                             Callback done,
-                            bool clockRetried) {
+                            bool clockRetried,
+                            int timeoutMs) {
 	QNetworkRequest request = signedRequest(credentials, method, path, body);
-	request.setTransferTimeout(RequestTimeoutMs);
+	request.setTransferTimeout(timeoutMs);
 
 	QNetworkReply *reply;
 	if (method == "GET") reply = mNetwork->get(request);
@@ -154,7 +156,7 @@ void FusionClient::sendOnce(const Credentials &credentials,
 	}
 
 	connect(reply, &QNetworkReply::finished, this,
-	        [this, reply, credentials, method, path, body, done, clockRetried]() {
+	        [this, reply, credentials, method, path, body, done, clockRetried, timeoutMs]() {
 		        reply->deleteLater();
 		        Reply result;
 		        result.status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
@@ -165,7 +167,7 @@ void FusionClient::sendOnce(const Credentials &credentials,
 		        if (result.status == 401 && result.error == "clock" && !clockRetried) {
 			        mClockOffset = result.answer.value("server_time").toInteger() - QDateTime::currentSecsSinceEpoch();
 			        lInfo() << log().arg("Clock offset with the Gamaphone service:") << mClockOffset << "s";
-			        sendOnce(credentials, method, path, body, done, true);
+			        sendOnce(credentials, method, path, body, done, true, timeoutMs);
 			        return;
 		        }
 		        if (result.status < 200 || result.status >= 300)

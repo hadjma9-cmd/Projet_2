@@ -24,10 +24,14 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
+#include <QRandomGenerator>
 
 DEFINE_ABSTRACT_OBJECT(SupervisionCore)
 
 static const QString LivePath = QStringLiteral("/gamaphone/v1/supervision/direct");
+static const QString TakePath = QStringLiteral("/gamaphone/v1/supervision/prendre");
+// Le serveur fait sonner le poste jusqu'a 12 s avant de repondre.
+static constexpr int TakeTimeoutMs = 25000;
 static constexpr int FirstRetryMs = 2000;
 static constexpr int MaxRetryMs = 30000;
 // Le serveur envoie un signal de vie toutes les 10 s : 60 s sans rien, la connexion est morte (coupure silencieuse).
@@ -70,6 +74,60 @@ bool SupervisionCore::isLive() const {
 
 bool SupervisionCore::isLoaded() const {
 	return mLoaded;
+}
+
+QString SupervisionCore::getTakingCall() const {
+	return mTakingCall;
+}
+
+void SupervisionCore::setTakingCall(const QString &callId) {
+	if (callId == mTakingCall) return;
+	mTakingCall = callId;
+	emit takingCallChanged();
+}
+
+void SupervisionCore::take(const QString &callId) {
+	if (callId.isEmpty() || !mTakingCall.isEmpty()) return; // une prise a la fois
+	setTakingCall(callId);
+	QByteArray token(16, Qt::Uninitialized);
+	QRandomGenerator::system()->fillRange(reinterpret_cast<quint32 *>(token.data()), token.size() / 4);
+	mPickupToken = QString::fromLatin1(token.toHex());
+	mPickupTokenExpiry = QDateTime::currentMSecsSinceEpoch() + TakeTimeoutMs;
+	const QByteArray body =
+	    QJsonDocument(QJsonObject{{"call", callId}, {"token", mPickupToken}}).toJson(QJsonDocument::Compact);
+	mClient->withCredentials([this, body](const FusionClient::Credentials &credentials) {
+		if (!credentials.isValid()) {
+			setTakingCall(QString());
+			emit takeFailed(QStringLiteral("Votre poste n'est pas connecté."));
+			return;
+		}
+		mClient->send(
+		    credentials, "POST", TakePath, body,
+		    [this](const FusionClient::Reply &reply) {
+			    setTakingCall(QString());
+			    if (reply.status == 200) return; // l'appel est deja sur ce poste
+			    mPickupToken.clear();
+			    QString message;
+			    if (reply.error == "taken") {
+				    const QString by = reply.answer.value("by").toString();
+				    message = by.isEmpty() ? QStringLiteral("Cet appel a déjà été pris.")
+				                           : QStringLiteral("Déjà pris par %1.").arg(by);
+			    } else if (reply.error == "gone") message = QStringLiteral("L'appelant a raccroché.");
+			    else if (reply.error == "no_answer") message = QStringLiteral("Votre poste n'a pas décroché.");
+			    else if (reply.error == "unreachable") message = QStringLiteral("Votre poste n'est pas joignable.");
+			    else message = QStringLiteral("L'appel n'a pas pu être pris. Réessayez dans un instant.");
+			    emit takeFailed(message);
+		    },
+		    TakeTimeoutMs);
+	});
+}
+
+bool SupervisionCore::consumePickupToken(const QString &token) {
+	if (token.isEmpty() || mPickupToken.isEmpty() || token != mPickupToken ||
+	    QDateTime::currentMSecsSinceEpoch() > mPickupTokenExpiry)
+		return false;
+	mPickupToken.clear();
+	return true;
 }
 
 void SupervisionCore::setLive(bool live) {

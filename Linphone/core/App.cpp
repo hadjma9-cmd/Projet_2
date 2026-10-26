@@ -828,11 +828,20 @@ void App::initCore() {
 							    // sans prendre le clavier de la fenetre en cours d'utilisation. Rien en « Ne pas
 							    // deranger ». La notification Windows reste affichee en plus.
 							    mCoreModelConnection->invokeToCore([this, callCore] {
-								    if (mSettings && mSettings->dndEnabled()) return;
 								    const auto state = callCore->getState();
 								    if (state != LinphoneEnums::CallState::IncomingReceived &&
 								        state != LinphoneEnums::CallState::IncomingEarlyMedia)
 									    return; // Deja decroche, refuse ou termine.
+								    // Appel demande par « Prendre » au tableau des files (il porte le jeton envoye
+								    // au serveur) : decroche tout de suite, comme un appel que l'on passe.
+								    if (mSupervision && mSupervision->consumePickupToken(callCore->getPickupToken())) {
+									    if (mCompactMode) {
+										    if (mMainWindow) Utils::smartShowWindow(mMainWindow);
+									    } else Utils::openCallsWindow(new CallGui(callCore));
+									    callCore->lAccept(false);
+									    return;
+								    }
+								    if (mSettings && mSettings->dndEnabled()) return;
 								    // Petite fenetre : l'appel s'y affiche ; elle passe devant, sans prendre le
 								    // clavier.
 								    if (mCompactMode) {

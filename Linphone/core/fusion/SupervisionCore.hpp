@@ -45,6 +45,8 @@ class SupervisionCore : public QObject, public AbstractObject {
 	Q_PROPERTY(bool live READ isLive NOTIFY liveChanged)
 	// Un état a déjà été reçu (sinon : chargement).
 	Q_PROPERTY(bool loaded READ isLoaded NOTIFY queuesChanged)
+	// Appel en train d'etre pris par ce poste (« Prendre »), vide sinon.
+	Q_PROPERTY(QString takingCall READ getTakingCall NOTIFY takingCallChanged)
 
 public:
 	static QSharedPointer<SupervisionCore> create(QSharedPointer<FusionClient> client);
@@ -55,14 +57,23 @@ public:
 	qint64 getClockOffset() const;
 	bool isLive() const;
 	bool isLoaded() const;
+	QString getTakingCall() const;
 
 	// Page du tableau affichée / quittée.
 	Q_INVOKABLE void start();
 	Q_INVOKABLE void stop();
+	// « Prendre » : le serveur fait sonner ce poste, qui decroche tout seul (appel portant le jeton envoye), puis
+	// l'appelant quitte la file et le rejoint.
+	Q_INVOKABLE void take(const QString &callId);
+	// Appel entrant portant ce jeton : c'est l'appel demande par « Prendre », a decrocher sans attendre. Une seule fois.
+	bool consumePickupToken(const QString &token);
 
 signals:
 	void queuesChanged();
 	void liveChanged();
+	void takingCallChanged();
+	// « Prendre » n'a pas abouti : message a afficher.
+	void takeFailed(QString message);
 
 private:
 	void connectStream();
@@ -70,6 +81,7 @@ private:
 	void readStream();
 	void applyEvent(const QByteArray &data);
 	void setLive(bool live);
+	void setTakingCall(const QString &callId);
 
 	QSharedPointer<FusionClient> mClient;
 	QPointer<QNetworkReply> mReply;
@@ -82,6 +94,9 @@ private:
 	bool mWanted = false;
 	bool mLive = false;
 	bool mLoaded = false;
+	QString mTakingCall;
+	QString mPickupToken;
+	qint64 mPickupTokenExpiry = 0; // ms depuis 1970
 
 	DECLARE_ABSTRACT_OBJECT
 };
