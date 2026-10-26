@@ -25,6 +25,7 @@
 #include <QPlatformSurfaceEvent>
 #include <QScreen>
 #include <QTimer>
+#include <functional>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -270,18 +271,20 @@ void WindowFrame::setClientTopShift(int shift) {
 
 // Element cliquable sous le curseur dans la barre de titre (bouton) : il garde ses clics, la barre ne deplace la
 // fenetre que depuis ses zones vides.
+// Tous les elements sous le curseur comptent, pas seulement celui du dessus : au centre d'un bouton, l'icone dessinee
+// par-dessus sa zone de clic (MouseArea) faisait prendre ce point pour la barre (pas de survol, pas de clic).
 bool WindowFrame::isInteractiveAt(const QPointF &scenePos) const {
 #ifdef Q_OS_WIN
-	QQuickItem *item = mTitleBar;
-	if (!item) return false;
-	QPointF pos = item->mapFromScene(scenePos);
-	while (item) {
-		QQuickItem *child = item->childAt(pos.x(), pos.y());
-		if (!child) break;
-		pos = item->mapToItem(child, pos);
-		if (acceptsPointer(child)) return true;
-		item = child;
-	}
+	std::function<bool(QQuickItem *)> interactiveIn = [&](QQuickItem *item) {
+		const auto children = item->childItems();
+		for (auto it = children.crbegin(); it != children.crend(); ++it) {
+			QQuickItem *child = *it;
+			if (!child->isVisible() || !child->contains(child->mapFromScene(scenePos))) continue;
+			if (acceptsPointer(child) || interactiveIn(child)) return true;
+		}
+		return false;
+	};
+	return mTitleBar && interactiveIn(mTitleBar);
 #else
 	Q_UNUSED(scenePos)
 #endif

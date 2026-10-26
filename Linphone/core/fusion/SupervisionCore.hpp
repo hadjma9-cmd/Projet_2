@@ -74,6 +74,7 @@ private:
 	QSharedPointer<FusionClient> mClient;
 	QPointer<QNetworkReply> mReply;
 	QTimer mReconnect;
+	QTimer mWatchdog; // rien recu depuis 60 s (ni etat, ni signal de vie) : connexion consideree morte
 	QByteArray mBuffer;
 	QVariantList mQueues;
 	qint64 mClockOffset = 0;

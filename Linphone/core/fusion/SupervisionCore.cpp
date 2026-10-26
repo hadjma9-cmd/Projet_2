@@ -30,6 +30,8 @@ DEFINE_ABSTRACT_OBJECT(SupervisionCore)
 static const QString LivePath = QStringLiteral("/gamaphone/v1/supervision/direct");
 static constexpr int FirstRetryMs = 2000;
 static constexpr int MaxRetryMs = 30000;
+// Le serveur envoie un signal de vie toutes les 10 s : 60 s sans rien, la connexion est morte (coupure silencieuse).
+static constexpr int SilenceLimitMs = 60000;
 
 QSharedPointer<SupervisionCore> SupervisionCore::create(QSharedPointer<FusionClient> client) {
 	auto sharedPointer = QSharedPointer<SupervisionCore>(new SupervisionCore(client), &QObject::deleteLater);
@@ -42,6 +44,12 @@ SupervisionCore::SupervisionCore(QSharedPointer<FusionClient> client) : QObject(
 	App::getInstance()->mEngine->setObjectOwnership(this, QQmlEngine::CppOwnership);
 	mReconnect.setSingleShot(true);
 	connect(&mReconnect, &QTimer::timeout, this, &SupervisionCore::connectStream);
+	mWatchdog.setSingleShot(true);
+	mWatchdog.setInterval(SilenceLimitMs);
+	connect(&mWatchdog, &QTimer::timeout, this, [this]() {
+		lWarning() << log().arg("Supervision stream silent for too long: reconnecting");
+		if (mReply) mReply->abort(); // « finished » relance la connexion
+	});
 }
 
 SupervisionCore::~SupervisionCore() {
@@ -80,8 +88,14 @@ void SupervisionCore::start() {
 void SupervisionCore::stop() {
 	mWanted = false;
 	mReconnect.stop();
+	mWatchdog.stop();
 	if (mReply) mReply->abort();
 	setLive(false);
+	// Fenetre fermee : l'etat garde deviendrait faux (appels finis, durees qui continuent). A la prochaine ouverture,
+	// « Chargement » jusqu'a l'etat frais du serveur.
+	mQueues.clear();
+	mLoaded = false;
+	emit queuesChanged();
 }
 
 void SupervisionCore::connectStream() {
@@ -95,6 +109,7 @@ void SupervisionCore::connectStream() {
 		mBuffer.clear();
 		QNetworkReply *reply = mClient->openStream(credentials, LivePath);
 		mReply = reply;
+		mWatchdog.start();
 		connect(reply, &QNetworkReply::readyRead, this, &SupervisionCore::readStream);
 		connect(reply, &QNetworkReply::finished, this, [this, reply]() {
 			const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
@@ -102,6 +117,7 @@ void SupervisionCore::connectStream() {
 				lWarning() << log().arg("Supervision stream closed:") << status << reply->errorString();
 			reply->deleteLater();
 			if (mReply == reply) mReply = nullptr;
+			mWatchdog.stop();
 			setLive(false);
 			scheduleReconnect();
 		});
@@ -117,6 +133,7 @@ void SupervisionCore::scheduleReconnect() {
 // Messages « text/event-stream » : lignes « data: <json> », séparés par une ligne vide ; « : ... » = signal de vie.
 void SupervisionCore::readStream() {
 	if (!mReply) return;
+	mWatchdog.start(); // donnees ou signal de vie : la connexion vit
 	mBuffer += mReply->readAll();
 	mBuffer.replace("\r\n", "\n");
 	int end;
