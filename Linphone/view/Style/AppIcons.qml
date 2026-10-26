@@ -13,6 +13,8 @@ QtObject {
 	property string modeCompact: "image://internal/mode-compact.svg"
 	property string modeDesktop: "image://internal/mode-desktop.svg"
 	property string logo: "image://internal/logo.svg"
+	// Logo de l'entreprise (GAMA, en degrade), page Aide.
+	property string companyLogo: "image://internal/logo-gama.png"
 	property string welcomeLock: "image://internal/secured.svg"
 	property string lock: "image://internal/lock.svg"
 	property string lockSimple: "image://internal/lock-simple.svg"
@@ -46,6 +48,8 @@ QtObject {
 	property string chiffrement: "image://internal/chiffrement.svg"
 	property string interoperable: "image://internal/interoperable.svg"
 	property string phone: "image://internal/phone.svg"
+	// Combiné qui sonne (tableau des files).
+	property string phoneCall: "image://internal/phone-call.svg"
 	property string phoneSelected: "image://internal/phone-fill.svg"
 	// Historique des appels (onglet Appels) : horloge et fleche, comme 3CX.
 	property string callHistory: "image://internal/clock-counter-clockwise.svg"

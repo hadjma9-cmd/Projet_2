@@ -46,6 +46,8 @@ list(APPEND _LINPHONEAPP_SOURCES
 	core/fusion/FusionClient.cpp
 	core/fusion/SharedContactsCore.cpp
 	core/fusion/StatusCore.cpp
+	core/fusion/SupervisionCore.cpp
+	core/fusion/SupportCore.cpp
 	core/fusion/UpdateCore.cpp
 	core/friend/FriendGui.cpp
 	core/logger/QtLogger.cpp

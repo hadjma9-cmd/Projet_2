@@ -32,6 +32,8 @@
 #include "core/event-filter/LockEventFilter.hpp"
 #include "core/fusion/SharedContactsCore.hpp"
 #include "core/fusion/StatusCore.hpp"
+#include "core/fusion/SupervisionCore.hpp"
+#include "core/fusion/SupportCore.hpp"
 #include "core/fusion/UpdateCore.hpp"
 #include "core/queue/QueueCore.hpp"
 #include "core/setting/SettingsCore.hpp"
@@ -328,6 +330,8 @@ private:
 	QSharedPointer<SharedContactsCore> mSharedContacts;
 	// Mise a jour obligatoire depuis le serveur du compte (UpdateCpp en QML).
 	QSharedPointer<UpdateCore> mUpdate;
+	QSharedPointer<SupportCore> mSupport;
+	QSharedPointer<SupervisionCore> mSupervision;
 	// Statut du poste, le même sur tous ses appareils (StatusCpp en QML).
 	QSharedPointer<StatusCore> mStatus;
 	QSharedPointer<ConferenceInfoList> mConferenceInfoList;

@@ -36,13 +36,11 @@ Item {
 		colorizationColor: mainItem.active > 0 ? mainItem.iconOnColor : mainItem.iconOffColor
 	}
 
-	// Anneau : un seul calque lisse pour tous les segments (memes reglages que RoundProgressBar).
+	// Anneau trace par le moteur de courbes de Qt : net a toute taille et a toute echelle d'ecran (un calque lisse,
+	// rendu trop petit sur un ecran agrandi, le rendait flou et crenele).
 	Item {
 		anchors.fill: parent
 		visible: mainItem.ringShown
-		layer.enabled: visible
-		layer.samples: 8
-		layer.smooth: true
 
 		// Un segment par file.
 		Repeater {
@@ -50,6 +48,7 @@ Item {
 			delegate: Shape {
 				required property int index
 				anchors.fill: parent
+				preferredRendererType: Shape.CurveRenderer
 				ShapePath {
 					strokeColor: index < mainItem.active ? mainItem.onColor : mainItem.offColor
 					strokeWidth: mainItem.strokeWidth
@@ -70,6 +69,7 @@ Item {
 		Shape {
 			anchors.fill: parent
 			visible: !mainItem.segmented
+			preferredRendererType: Shape.CurveRenderer
 			ShapePath {
 				strokeColor: mainItem.offColor
 				strokeWidth: mainItem.strokeWidth

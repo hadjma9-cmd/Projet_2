@@ -82,7 +82,6 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Control/Display/Contact/Contact.qml
 	view/Control/Display/Contact/ContactStatusPopup.qml
 	view/Control/Display/Contact/Presence.qml
-	view/Control/Display/Contact/PresenceStatusItem.qml
 	view/Control/Display/Contact/QueuesSection.qml
 	view/Control/Display/Contact/QueuesRing.qml
 	view/Control/Display/Contact/MenuRow.qml
@@ -186,7 +185,6 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	
 
 	view/Page/Main/AbstractMainPage.qml
-	view/Page/Main/Account/AccountListView.qml
 	view/Page/Main/Call/CallPage.qml
 	view/Page/Main/Call/CallSettingsPanel.qml
 	view/Page/Main/Call/WaitingRoom.qml
@@ -194,12 +192,14 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Page/Main/Contact/ContactPage.qml
 	view/Page/Main/Help/HelpPage.qml
 	view/Page/Main/Meeting/MeetingPage.qml
+	view/Page/Main/Supervision/SupervisionPage.qml
 	view/Page/Main/Record/RecordPage.qml
 	view/Page/Main/Start/WelcomePage.qml
 
 	view/Page/Window/AbstractWindow.qml
 	view/Page/Window/Call/CallsWindow.qml
 	view/Page/Window/Main/MainWindow.qml
+	view/Page/Window/Supervision/SupervisionWindow.qml
 
 	view/Test/ItemsTest.qml
 	view/Test/RectangleTest.qml

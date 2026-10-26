@@ -23,11 +23,13 @@
 #include "tool/thread/SafeConnection.hpp"
 
 #include <QJsonObject>
+#include <QNetworkRequest>
 #include <QObject>
 #include <QSharedPointer>
 #include <functional>
 
 class QNetworkAccessManager;
+class QNetworkReply;
 
 // Demandes au service fusion-files du serveur FusionPBX (https://<domaine>/gamaphone/...), signées avec le HA1 du
 // compte SIP par défaut : le mot de passe ne circule jamais, et le serveur en déduit le poste et son domaine. Partagé
@@ -69,8 +71,16 @@ public:
 	          const QString &path,
 	          const QByteArray &body,
 	          Callback done);
+	// Connexion signée qui reste ouverte (tableau de supervision en direct) ; à libérer par l'appelant.
+	QNetworkReply *openStream(const Credentials &credentials, const QString &path);
+	// Heure du serveur moins heure du PC, en secondes (recalée à la première demande refusée pour l'horloge).
+	qint64 clockOffset() const;
 
 private:
+	QNetworkRequest signedRequest(const Credentials &credentials,
+	                              const QByteArray &method,
+	                              const QString &path,
+	                              const QByteArray &body) const;
 	static Credentials readCredentials();
 	void sendOnce(const Credentials &credentials,
 	              const QByteArray &method,

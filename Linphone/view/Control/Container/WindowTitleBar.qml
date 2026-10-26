@@ -14,10 +14,13 @@ Rectangle {
 	property bool maximizable: true
 	property bool pinnable: false
 	property bool pinned: false
+	// Combine : icone du tableau des files, a cote de l'epingle.
+	property bool boardVisible: false
 	property alias frame: windowFrame
 	default property alias content: contentRow.data
 
 	signal pinClicked()
+	signal boardClicked()
 
 	readonly property color glyphColor: mainItem.dark ? DefaultStyle.main2_300 : DefaultStyle.main2_700
 	readonly property bool maximized: mainItem.window && mainItem.window.visibility === Window.Maximized
@@ -94,6 +97,23 @@ Rectangle {
 		anchors.top: parent.top
 		anchors.bottom: parent.bottom
 
+		CaptionButton {
+			id: boardButton
+			visible: mainItem.boardVisible
+			onClicked: mainItem.boardClicked()
+			EffectImage {
+				anchors.centerIn: parent
+				width: 16
+				height: 16
+				imageSource: AppIcons.squaresFour
+				colorizationColor: boardButton.currentGlyphColor
+			}
+			ToolTip {
+				visible: boardButton.isHovered
+				delay: 300
+				text: "Tableau des files"
+			}
+		}
 		CaptionButton {
 			id: pinButton
 			visible: mainItem.pinnable

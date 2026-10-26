@@ -49,7 +49,9 @@ PopupButton {
                 id: registrationImage
                 sourceSize.width: presenceAndRegistrationItem.statusIconSize
                 sourceSize.height: presenceAndRegistrationItem.statusIconSize
-                smooth: false
+                // Lissee : sans lissage, la pastille agrandie a l'echelle de l'ecran sortait pixelisee.
+                smooth: true
+                mipmap: true
                 Layout.preferredWidth: presenceAndRegistrationItem.statusIconSize
                 Layout.preferredHeight: presenceAndRegistrationItem.statusIconSize
                 source: presenceBar.isRegistered 

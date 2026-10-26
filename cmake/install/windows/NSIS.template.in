@@ -295,7 +295,10 @@ Function checkRunning
 	StrCpy $1 0
 	retry:
 	ClearErrors
-	ExecWait '"cmd" /C ""%SystemRoot%\System32\tasklist" /NH /FI "IMAGENAME eq @CPACK_NSIS_MUI_FINISHPAGE_RUN@" | "%SystemRoot%\System32\find" /I /C "@CPACK_NSIS_MUI_FINISHPAGE_RUN@""' $0
+	; nsExec : la commande tourne sans fenetre (ExecWait ouvrait une console noire a chaque essai, jusqu'a 30 fois
+	; pendant une mise a jour silencieuse). Code de sortie de « find » : 1 = Gamaphone n'est pas lance.
+	nsExec::Exec '"cmd" /C ""%SystemRoot%\System32\tasklist" /NH /FI "IMAGENAME eq @CPACK_NSIS_MUI_FINISHPAGE_RUN@" | "%SystemRoot%\System32\find" /I /C "@CPACK_NSIS_MUI_FINISHPAGE_RUN@""'
+	Pop $0
 	IntCmp $0 1 notRunning
 	; Mise a jour silencieuse, lancee par Gamaphone : il se ferme juste apres l'avoir lancee. On attend sa fermeture
 	; (30 secondes au plus) au lieu d'abandonner.
@@ -314,7 +317,9 @@ FunctionEnd
 Function un.checkRunning
 	retry:
 	ClearErrors
-	ExecWait '"cmd" /C ""%SystemRoot%\System32\tasklist" /NH /FI "IMAGENAME eq @CPACK_NSIS_MUI_FINISHPAGE_RUN@" | "%SystemRoot%\System32\find" /I /C "@CPACK_NSIS_MUI_FINISHPAGE_RUN@""' $0
+	; Sans fenetre, comme checkRunning.
+	nsExec::Exec '"cmd" /C ""%SystemRoot%\System32\tasklist" /NH /FI "IMAGENAME eq @CPACK_NSIS_MUI_FINISHPAGE_RUN@" | "%SystemRoot%\System32\find" /I /C "@CPACK_NSIS_MUI_FINISHPAGE_RUN@""'
+	Pop $0
 	IntCmp $0 1 notRunning
 	MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "@CPACK_NSIS_MUI_FINISHPAGE_RUN@ is running. Please close it first from the application menu and restart the installation." /SD IDCANCEL IDRETRY retry
 	Abort

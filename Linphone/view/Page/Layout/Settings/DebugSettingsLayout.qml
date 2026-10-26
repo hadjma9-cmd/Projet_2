@@ -13,7 +13,6 @@ AbstractSettingsLayout {
 	Layout.fillWidth: true
 	Layout.fillHeight: true
 	id: mainItem
-	property string logsUrl
 	contentModel: [
 		{
 			title: "",
@@ -38,43 +37,6 @@ AbstractSettingsLayout {
 	
 	onSave: {
 		SettingsCpp.save()
-	}
-	
-	Dialog {
-		id: shareLogs
-		kind: "info"
-		iconSource: AppIcons.shareNetwork
-        //: "Les traces de débogage ont été téléversées. Comment souhaitez-vous partager le lien ? "
-        text: qsTr("settings_debug_share_logs_message")
-		// Deux choix de meme poids : deux boutons pleins, de meme largeur.
-		buttons: [
-			DialogButton {
-                //: "Presse-papier"
-                text: qsTr("settings_debug_clipboard")
-				style: ButtonStyle.main
-				onClicked: {
-					shareLogs.close()
-					UtilsCpp.copyToClipboard(mainItem.logsUrl)
-				}
-			},
-			DialogButton {
-                //: "E-Mail"
-                text: qsTr("settings_debug_email")
-				style: ButtonStyle.main
-				onClicked: {
-					shareLogs.close()
-                    //: "Traces %1"
-                    if(!Qt.openUrlExternally("mailto:%1%2%3%4%5".arg(encodeURIComponent(SettingsCpp.logsEmail))
-                        .arg('?subject=').arg(encodeURIComponent(qsTr("debug_settings_trace").arg(applicationName)))
-                        .arg('&body=').arg(encodeURIComponent(mainItem.logsUrl))
-					))
-                    //: Une erreur est survenue.
-                    UtilsCpp.showInformationPopup(qsTr("information_popup_error_title"),
-                    //: "Le partage par mail a échoué. Veuillez envoyer le lien %1 directement à l'adresse %2."
-                    qsTr("information_popup_email_sharing_failed").arg(mainItem.logsUrl).arg(SettingsCpp.logsEmail), false)
-				}
-			}
-		]
 	}
 	
 	Component {
@@ -104,15 +66,15 @@ AbstractSettingsLayout {
 						deleteLogs.open()
 					}
 				}
+				// Envoi au support : les journaux partent vers le serveur du compte, qui previent le support par
+				// e-mail (plus rien vers les serveurs de Linphone).
 				MediumButton {
 					style: ButtonStyle.tertiary
-                    //: "Partager les traces"
-                    text: qsTr("settings_debug_share_logs_title")
-					enabled: SettingsCpp.logsEnabled || SettingsCpp.fullLogsEnabled
+					text: "Envoyer au support"
+					enabled: (SettingsCpp.logsEnabled || SettingsCpp.fullLogsEnabled) && !SupportCpp.sending
 					onClicked: {
-                        //: "Téléversement des traces en cours …"
-                        UtilsCpp.getMainWindow().showLoadingPopup(qsTr("settings_debug_share_logs_loading_message"))
-						SettingsCpp.sendLogs()
+						UtilsCpp.getMainWindow().showLoadingPopup("Envoi des journaux au support…")
+						SupportCpp.sendLogs()
 					}
 				}
 			}
@@ -199,17 +161,18 @@ AbstractSettingsLayout {
 	}
 	
 	Connections {
-		target: SettingsCpp
-		function onLogsUploadTerminated(status, url) {
+		target: SupportCpp
+		function onLogsSent(reference, emailed) {
 			UtilsCpp.getMainWindow().closeLoadingPopup()
-			if (status) {
-				mainItem.logsUrl = url
-				shareLogs.open()
-			} else {
-                UtilsCpp.showInformationPopup(qsTr("information_popup_error_title"),
-                //: "Le téléversement des traces a échoué. Vous pouvez partager les fichiers de trace directement depuis le répertoire suivant : %1"
-                qsTr("settings_debug_share_logs_error").arg(SettingsCpp.logsFolder), false)
-			}
+			UtilsCpp.showInformationPopup("Journaux envoyés",
+				emailed ? "Vos journaux ont été envoyés au support (référence " + reference + ")."
+				        : "Vos journaux sont enregistrés sur le serveur (référence " + reference + "). Donnez cette référence au support.",
+				true)
+		}
+		function onLogsFailed(message) {
+			UtilsCpp.getMainWindow().closeLoadingPopup()
+			UtilsCpp.showInformationPopup("Envoi impossible",
+				message + " Les journaux se trouvent aussi dans le dossier : " + SettingsCpp.logsFolder, false)
 		}
 	}
 }

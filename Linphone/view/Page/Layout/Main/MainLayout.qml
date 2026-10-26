@@ -485,8 +485,7 @@ Item {
                                         visible: AppCpp.adminMenus
                                                  && (SettingsCpp.maxAccount == 0 || SettingsCpp.maxAccount > accountProxy.count)
                                         iconSource: AppIcons.plusCircle
-                                        //: Add an account
-                                        text: qsTr("add_an_account")
+                                        text: "Ajouter un compte"
                                         onClicked: {
                                             avatarButton.popup.close()
                                             mainItem.addAccountRequest()
@@ -554,10 +553,29 @@ Item {
                             // contenu (menu replie).
                             popup.contentItem: Item {
                                 implicitWidth: Utils.getSizeWithScreenRatio(270)
-                                implicitHeight: desktopQueues.implicitHeight
-                                QueuesSection {
-                                    id: desktopQueues
+                                implicitHeight: queuesMenuColumn.implicitHeight
+                                ColumnLayout {
+                                    id: queuesMenuColumn
                                     width: parent.width
+                                    spacing: 0
+                                    QueuesSection {
+                                        Layout.fillWidth: true
+                                    }
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.topMargin: Utils.getSizeWithScreenRatio(10)
+                                        Layout.bottomMargin: Utils.getSizeWithScreenRatio(6)
+                                        Layout.preferredHeight: Utils.getSizeWithScreenRatio(1)
+                                        color: DefaultStyle.main2_200
+                                    }
+                                    MenuRow {
+                                        iconSource: AppIcons.squaresFour
+                                        text: "Tableau des files"
+                                        onClicked: {
+                                            queuesButton.popup.close()
+                                            UtilsCpp.getMainWindow().openSupervisionWindow()
+                                        }
+                                    }
                                 }
                             }
                             // Ouverture : etat des files relu tout de suite.
@@ -568,6 +586,22 @@ Item {
                                 text: QueuesCpp.connectedCount + (QueuesCpp.connectedCount > 1 ? " files activées" : " file activée")
                                       + " sur " + QueuesCpp.queueCount
                             }
+                        }
+                        // Poste agent d'aucune file : a la place du casque, l'acces direct au tableau des files.
+                        Button {
+                            id: boardButton
+                            visible: !queuesButton.visible && !!accountProxy.defaultAccount
+                                     && accountProxy.defaultAccount.core.registrationState === LinphoneEnums.RegistrationState.Ok
+                            Layout.preferredWidth: Utils.getSizeWithScreenRatio(36)
+                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(36)
+                            style: ButtonStyle.noBackground
+                            shadowEnabled: false
+                            icon.source: AppIcons.squaresFour
+                            icon.width: Utils.getSizeWithScreenRatio(20)
+                            icon.height: Utils.getSizeWithScreenRatio(20)
+                            Accessible.name: "Tableau des files"
+                            ToolTip.text: "Tableau des files"
+                            onClicked: UtilsCpp.getMainWindow().openSupervisionWindow()
                         }
                     }
                     // Appel en cours : bulle a droite du statut, un clic ramene la fenetre d'appel.
@@ -870,19 +904,39 @@ Item {
                             }
                         }
                         on_CurrentIndexChanged: applyTab()
+                        // Fondu court a chaque changement de page (comme Teams et 3CX) : la page arrive en 150 ms
+                        // au lieu d'apparaitre d'un coup.
+                        onCurrentIndexChanged: {
+                            var page = currentIndex >= 0 ? children[currentIndex] : null
+                            if (!page)
+                                return
+                            pageFade.stop()
+                            pageFade.target = page
+                            pageFade.start()
+                        }
+                        NumberAnimation {
+                            id: pageFade
+                            property: "opacity"
+                            from: 0
+                            to: 1
+                            duration: 150
+                            easing.type: Easing.OutCubic
+                            // Interrompu (autre page choisie entre-temps) : la page quittee reste opaque.
+                            onStopped: if (target) target.opacity = 1
+                        }
                         // L'onglet a pu etre choisi avant la creation de la pile : sans changement ensuite, la
                         // page ne s'afficherait pas.
                         Component.onCompleted: if (mainItem.pageOfTab(_currentIndex) !== -1)
                             applyTab()
                         // Prechargement des onglets une fois l'application au calme (3 s apres l'ouverture) : Equipe,
-                        // Contacts et Messages s'ouvrent ensuite instantanement des le premier clic. Un onglet a la fois,
+                        // Contacts, Messages et Appels s'ouvrent ensuite instantanement des le premier clic. Un onglet a la fois,
                         // construit par petits morceaux (asynchrone) pour ne rien figer.
                         Timer {
                             interval: 3000
                             repeat: true
                             running: true
                             onTriggered: {
-                                var next = [teamPageLoader, contactsPageLoader, chatPageLoader].find(function (loader) {
+                                var next = [teamPageLoader, contactsPageLoader, chatPageLoader, callPageLoader].find(function (loader) {
                                     return !loader.active
                                 })
                                 if (!next) {
@@ -900,6 +954,7 @@ Item {
                             // historique, recherche dans l'annuaire, avatars -- d'ou le temps de
                             // chargement a chaque clic. StackLayout n'affiche de toute facon que
                             // l'onglet courant : les autres restent invisibles.
+                            id: callPageLoader
                             property bool keptAlive: false
                             active: keptAlive || mainStackLayout.currentIndex === 0
                             sourceComponent: CallPage {

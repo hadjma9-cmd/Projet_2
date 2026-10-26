@@ -41,7 +41,33 @@ AbstractWindow {
 		pinnable: mainWindow.compact
 		pinned: AppCpp.compactPinned
 		onPinClicked: AppCpp.compactPinned = !AppCpp.compactPinned
+		boardVisible: mainWindow.compact
+		onBoardClicked: mainWindow.openSupervisionWindow()
 		dark: mainWindow.compact && !!compactLoader.item && compactLoader.item.callVisible
+	}
+
+	// Tableau des files dans sa propre fenetre, creee au premier clic puis gardee (fermee, elle est seulement cachee).
+	// Sans parent : une fenetre independante, avec son bouton dans la barre des taches, que l'on garde a cote.
+	property var supervisionWindow: null
+	Component {
+		id: supervisionWindowComponent
+		SupervisionWindow {}
+	}
+	function openSupervisionWindow() {
+		if (!supervisionWindow) {
+			supervisionWindow = supervisionWindowComponent.createObject(null)
+			if (!supervisionWindow)
+				return
+			// Premiere ouverture : centree sur l'ecran de la fenetre principale.
+			supervisionWindow.x = mainWindow.screen.virtualX + Math.round((mainWindow.screen.width - supervisionWindow.width) / 2)
+			supervisionWindow.y = mainWindow.screen.virtualY + Math.round((mainWindow.screen.height - supervisionWindow.height) / 2)
+		}
+		if (supervisionWindow.visibility === Window.Minimized)
+			supervisionWindow.showNormal()
+		else
+			supervisionWindow.show()
+		supervisionWindow.raise()
+		supervisionWindow.requestActivate()
 	}
 
 	// ------------------------------------------------------------------------------------------------------------

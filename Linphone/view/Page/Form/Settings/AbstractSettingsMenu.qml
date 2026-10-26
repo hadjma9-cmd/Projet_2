@@ -63,6 +63,10 @@ AbstractMainPage {
 		
 		ListView {
 			id: familiesList
+			// Un seul onglet visible (Mon compte sans les menus techniques) : pas de liste, la page s'affiche directement.
+			visible: mainItem.families.filter(function (family) {
+				return family.visible === undefined || family.visible
+			}).length > 1
 			Layout.fillWidth: true
 			Layout.fillHeight: true
 			model: mainItem.families

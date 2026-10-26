@@ -139,8 +139,7 @@ ApplicationWindow {
                 }
             }
             buttons: DialogButton {
-                //: "Annuler"
-                text: qsTr("cancel")
+                text: "Annuler"
                 style: ButtonStyle.secondary
                 onClicked: addressChooserPopup.close()
             }

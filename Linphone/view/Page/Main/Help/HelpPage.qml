@@ -4,8 +4,6 @@ import QtQuick.Layouts
 import QtQuick.Controls.Basic as Control
 import Linphone
 import UtilsCpp
-import ConstantsCpp
-import SettingsCpp
 import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 import "qrc:/qt/qml/Linphone/view/Control/Tool/Helper/utils.js" as Utils
 
@@ -48,111 +46,149 @@ AbstractMainPage {
 				Layout.fillWidth: true
 			}
 		}
-		Image {
-			id: aboutImage
-			Layout.fillWidth: true
-			Layout.preferredHeight: Utils.getSizeWithScreenRatio(100)
-			Layout.leftMargin: leftPanel.leftMargin
-			Layout.rightMargin: leftPanel.rightMargin
-			Layout.topMargin: Utils.getSizeWithScreenRatio(41)
-			fillMode: Image.PreserveAspectFit
-			source: SettingsCpp.themeAboutPictureUrl
-			visible: source !== "" && status === Image.Ready
-			onStatusChanged: {
-				if (status === Image.Error) {
-					visible = false
-				}
-			}
-		}
-		Text {
-			Layout.leftMargin: leftPanel.leftMargin
-			Layout.rightMargin: leftPanel.rightMargin
-            Layout.topMargin: Utils.getSizeWithScreenRatio(aboutImage.visible ? 41 : 24)
-			Layout.fillWidth: true
-            //: "À propos de %1"
-            text: qsTr("help_about_title").arg(applicationName)
-			color: DefaultStyle.main2_600
-			font: Typography.h4
-		}
-		ColumnLayout {
+		// Logo de l'entreprise, version et mise a jour.
+		Rectangle {
 			Layout.fillWidth: true
 			Layout.leftMargin: leftPanel.leftMargin
 			Layout.rightMargin: leftPanel.rightMargin
-            Layout.topMargin: Utils.getSizeWithScreenRatio(24)
-            spacing: Utils.getSizeWithScreenRatio(32)
-			HelpIconLabelButton {
-				Layout.fillWidth: true
-				iconSource: AppIcons.detective
-                //: "Règles de confidentialité"
-                title: qsTr("help_about_privacy_policy_title")
-                //: Quelles informations %1 collecte et utilise
-                subTitle: qsTr("help_about_privacy_policy_subtitle").arg(applicationName)
-				onClicked: {
-					rightPanelStackView.clear()
-					Qt.openUrlExternally(ConstantsCpp.PrivatePolicyUrl)
+			Layout.topMargin: Utils.getSizeWithScreenRatio(24)
+			Layout.preferredHeight: aboutColumn.implicitHeight + 2 * aboutColumn.y
+			radius: Utils.getSizeWithScreenRatio(14)
+			color: DefaultStyle.main2_100
+			ColumnLayout {
+				id: aboutColumn
+				x: Utils.getSizeWithScreenRatio(18)
+				y: Utils.getSizeWithScreenRatio(20)
+				width: parent.width - 2 * x
+				spacing: 0
+				Image {
+					Layout.alignment: Qt.AlignHCenter
+					Layout.preferredWidth: Utils.getSizeWithScreenRatio(170)
+					Layout.preferredHeight: Utils.getSizeWithScreenRatio(43)
+					source: AppIcons.companyLogo
+					fillMode: Image.PreserveAspectFit
+					smooth: true
+					mipmap: true
 				}
-			}
-			RowLayout {
-				HelpIconLabelButton {
-					Layout.preferredWidth: width
-					Layout.minimumWidth: width
-					iconSource: AppIcons.info
-					//: "Version"
-					title: qsTr("help_about_version_title")
-					subTitle: AppCpp.shortApplicationVersion
+				Text {
+					Layout.alignment: Qt.AlignHCenter
+					Layout.topMargin: Utils.getSizeWithScreenRatio(12)
+					// « 6.2.1-pre.21+44eb08bf5 » : la version, et le numero de build (commits depuis l'etiquette).
+					readonly property var build: Qt.application.version.match(/pre\.(\d+)/)
+					text: "Version " + AppCpp.shortApplicationVersion + (build ? " · build " + build[1] : "")
+					font.pixelSize: Utils.getSizeWithScreenRatio(13)
+					color: DefaultStyle.main2_500_main
 				}
-				Item{Layout.fillWidth: true}
 				MediumButton {
-					style: ButtonStyle.tertiary
 					Layout.fillWidth: true
+					Layout.topMargin: Utils.getSizeWithScreenRatio(16)
+					style: ButtonStyle.secondary
 					//: Check update
 					text: qsTr("help_check_for_update_button_label")
+					// Reponse affichee par la verification elle-meme (a jour, ou fenetre de mise a jour).
 					onClicked: AppCpp.checkForUpdate(true)
 				}
 			}
-			HelpIconLabelButton {
-				Layout.fillWidth: true
-				iconSource: AppIcons.license
-                //: "Licences GPLv3"
-                title: qsTr("help_about_gpl_licence_title")
-				subTitle: (copyrightRangeDate || applicationVendor ? '\u00A9 ': '') + (copyrightRangeDate ? copyrightRangeDate : '')+ (applicationVendor ? ' ' + applicationVendor : '')
-				onClicked: {
-					rightPanelStackView.clear()
-					Qt.openUrlExternally(applicationLicenceUrl)
+		}
+
+		// Poste, domaine et etat de la connexion : ce qu'on demande en premier au telephone pour un depannage.
+		Text {
+			Layout.leftMargin: leftPanel.leftMargin
+			Layout.topMargin: Utils.getSizeWithScreenRatio(24)
+			text: "Mon poste"
+			font.pixelSize: Utils.getSizeWithScreenRatio(13)
+			color: DefaultStyle.main2_500_main
+		}
+		Rectangle {
+			id: posteCard
+			readonly property var account: accountProxy.defaultAccount
+			readonly property string identity: account ? account.core.identityAddress : ""
+			readonly property bool connected: !!account && account.core.registrationState === LinphoneEnums.RegistrationState.Ok
+			Layout.fillWidth: true
+			Layout.leftMargin: leftPanel.leftMargin
+			Layout.rightMargin: leftPanel.rightMargin
+			Layout.topMargin: Utils.getSizeWithScreenRatio(8)
+			Layout.preferredHeight: posteGrid.implicitHeight + 2 * posteGrid.y
+			radius: Utils.getSizeWithScreenRatio(14)
+			color: DefaultStyle.main2_100
+			GridLayout {
+				id: posteGrid
+				x: Utils.getSizeWithScreenRatio(18)
+				y: Utils.getSizeWithScreenRatio(16)
+				width: parent.width - 2 * x
+				columns: 2
+				columnSpacing: Utils.getSizeWithScreenRatio(16)
+				rowSpacing: Utils.getSizeWithScreenRatio(8)
+				component InfoLabel: Text {
+					font.pixelSize: Utils.getSizeWithScreenRatio(12)
+					color: DefaultStyle.main2_500_main
 				}
-			}
-			HelpIconLabelButton {
-				Layout.fillWidth: true
-				iconSource: AppIcons.world
-				titleLineCount: 2
-                //: "Contribuer à la traduction de %1"
-                title: qsTr("help_about_contribute_translations_title").arg(applicationName)
-				onClicked: {
-					rightPanelStackView.clear()
-					Qt.openUrlExternally(ConstantsCpp.TranslationUrl)
+				component InfoValue: Text {
+					Layout.fillWidth: true
+					font.pixelSize: Utils.getSizeWithScreenRatio(13)
+					font.weight: Font.DemiBold
+					color: DefaultStyle.main2_800
+					elide: Text.ElideRight
+				}
+				InfoLabel {
+					text: "Poste"
+				}
+				InfoValue {
+					readonly property string poste: UtilsCpp.getUsername(posteCard.identity)
+					readonly property string name: posteCard.account ? posteCard.account.core.displayName : ""
+					text: name.length > 0 && name !== poste ? poste + " · " + name : poste
+				}
+				InfoLabel {
+					text: "Domaine"
+				}
+				InfoValue {
+					// « sip:1000@domaine;transport=tcp » : la partie apres @, sans les parametres.
+					text: posteCard.identity.indexOf("@") >= 0
+						? posteCard.identity.split("@")[1].split(";")[0].replace(">", "")
+						: ""
+				}
+				InfoLabel {
+					text: "Connexion"
+				}
+				RowLayout {
+					Layout.fillWidth: true
+					spacing: Utils.getSizeWithScreenRatio(6)
+					Rectangle {
+						Layout.preferredWidth: Utils.getSizeWithScreenRatio(8)
+						Layout.preferredHeight: Utils.getSizeWithScreenRatio(8)
+						radius: width / 2
+						color: posteCard.account ? posteCard.account.core.registrationColor : DefaultStyle.main2_400
+					}
+					InfoValue {
+						color: posteCard.account ? posteCard.account.core.registrationColor : DefaultStyle.main2_500_main
+						text: !posteCard.account ? "Aucun compte"
+							: posteCard.connected
+								? "Connecté" + (posteCard.account.core.transport.length > 0
+									? " (" + posteCard.account.core.transport.toUpperCase() + ")" : "")
+								: posteCard.account.core.humaneReadableRegistrationState
+					}
 				}
 			}
 		}
+
 		Text {
 			Layout.leftMargin: leftPanel.leftMargin
-			Layout.rightMargin: leftPanel.rightMargin
-            Layout.topMargin: Utils.getSizeWithScreenRatio(32)
-			Layout.fillWidth: true
-            //: "À propos de %1"
-            text: qsTr("help_about_title").arg(applicationName)
-			color: DefaultStyle.main2_600
-			font: Typography.h4
+			Layout.topMargin: Utils.getSizeWithScreenRatio(24)
+			text: "Assistance"
+			font.pixelSize: Utils.getSizeWithScreenRatio(13)
+			color: DefaultStyle.main2_500_main
 		}
 		HelpIconLabelButton {
 			id: troubleShooting
 			Layout.fillWidth: true
 			Layout.leftMargin: leftPanel.leftMargin
 			Layout.rightMargin: leftPanel.rightMargin
-            Layout.topMargin: Utils.getSizeWithScreenRatio(24)
+			Layout.topMargin: Utils.getSizeWithScreenRatio(12)
 			iconSource: AppIcons.debug
 			arrowImageVisible: true
-            //: "Dépannage"
-            title: qsTr("help_troubleshooting_title")
+			//: "Dépannage"
+			title: qsTr("help_troubleshooting_title")
+			subTitle: "Journaux, envoi au support"
 			onClicked: {
 				rightPanelStackView.clear()
 				rightPanelStackView.push("qrc:/qt/qml/Linphone/view/Page/Layout/Settings/DebugSettingsLayout.qml", { titleText: troubleShooting.title, container: rightPanelStackView })
@@ -161,5 +197,33 @@ AbstractMainPage {
 		Item {
 			Layout.fillHeight: true
 		}
+		// Mention obligatoire de la licence de Linphone, discrete, en bas.
+		Text {
+			Layout.fillWidth: true
+			Layout.leftMargin: leftPanel.leftMargin
+			Layout.rightMargin: leftPanel.rightMargin
+			Layout.bottomMargin: Utils.getSizeWithScreenRatio(16)
+			horizontalAlignment: Text.AlignHCenter
+			wrapMode: Text.Wrap
+			textFormat: Text.StyledText
+			text: "Basé sur Linphone · licence <a href=\"" + applicationLicenceUrl + "\">GPLv3</a><br>"
+				+ (copyrightRangeDate || applicationVendor ? "© " : "") + (copyrightRangeDate ? copyrightRangeDate : "")
+				+ (applicationVendor ? " " + applicationVendor : "")
+			linkColor: DefaultStyle.main1_500_main
+			font.pixelSize: Utils.getSizeWithScreenRatio(11)
+			lineHeight: 1.3
+			color: DefaultStyle.main2_400
+			onLinkActivated: link => Qt.openUrlExternally(link)
+			MouseArea {
+				anchors.fill: parent
+				acceptedButtons: Qt.NoButton
+				cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor
+			}
+		}
+	}
+
+	// Compte du poste (carte « Mon poste »).
+	AccountProxy {
+		id: accountProxy
 	}
 }

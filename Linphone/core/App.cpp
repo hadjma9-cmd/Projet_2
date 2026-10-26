@@ -319,7 +319,17 @@ App::App(int &argc, char *argv[])
 
 	// If not OpenGL, createRender is never call.
 	QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
-	setWindowIcon(QIcon(Constants::WindowIconPath));
+	// Icone des fenetres preparee a chaque taille : le « G » pour les petites (moins de 32 : vignette, titre), le logo
+	// GAMA a partir de 32, la taille du bouton dans la barre des taches, comme l'icone du programme. Avec le seul « G
+	// », la barre des taches montrait tantot le G (icone de la fenetre), tantot GAMA (icone du programme).
+	{
+		const QIcon smallIcon(Constants::WindowIconPath);
+		const QIcon largeIcon(QStringLiteral(":/data/image/logo.svg"));
+		QIcon windowIcon;
+		for (int side : {16, 20, 24, 30, 32, 40, 48, 64, 96, 128, 256})
+			windowIcon.addPixmap((side < 32 ? smallIcon : largeIcon).pixmap(QSize(side, side)));
+		setWindowIcon(windowIcon);
+	}
 	initFonts();
 	//-------------------
 	mOIDCRefreshTimer.setInterval(1000);
@@ -1064,6 +1074,8 @@ void App::initCppInterfaces() {
 	if (!mStatus) mStatus = StatusCore::create(mFusionClient);
 	if (!mSharedContacts) mSharedContacts = SharedContactsCore::create(mFusionClient);
 	if (!mUpdate) mUpdate = UpdateCore::create(mFusionClient);
+	if (!mSupport) mSupport = SupportCore::create(mFusionClient);
+	if (!mSupervision) mSupervision = SupervisionCore::create(mFusionClient);
 	qmlRegisterSingletonType<QueueCore>(Constants::MainQmlUri, 1, 0, "QueuesCpp",
 	                                    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mQueues.get(); });
 	qmlRegisterSingletonType<SharedContactsCore>(
@@ -1075,6 +1087,12 @@ void App::initCppInterfaces() {
 	qmlRegisterSingletonType<StatusCore>(
 	    Constants::MainQmlUri, 1, 0, "StatusCpp",
 	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mStatus.get(); });
+	qmlRegisterSingletonType<SupportCore>(
+	    Constants::MainQmlUri, 1, 0, "SupportCpp",
+	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mSupport.get(); });
+	qmlRegisterSingletonType<SupervisionCore>(
+	    Constants::MainQmlUri, 1, 0, "SupervisionCpp",
+	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mSupervision.get(); });
 
 	qmlRegisterSingletonType<AccessibilityHelper>(
 	    "AccessibilityHelperCpp", 1, 0, "AccessibilityHelperCpp",
@@ -1218,6 +1236,8 @@ void App::clean() {
 	mStatus = nullptr;
 	mSharedContacts = nullptr;
 	mUpdate = nullptr;
+	mSupport = nullptr;
+	mSupervision = nullptr;
 	mFusionClient = nullptr;
 	// Wait 500ms to let time for log te be stored.
 	// mNotifier destroyed in mEngine deletion as it is its parent

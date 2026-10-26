@@ -21,6 +21,7 @@
 #include "model/core/CoreModel.hpp"
 #include "tool/Utils.hpp"
 
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QJsonDocument>
@@ -100,29 +101,50 @@ void FusionClient::send(const Credentials &credentials,
 	sendOnce(credentials, method, path, body, done, false);
 }
 
+// Demande signée : HMAC-SHA256, clé = HA1, message = méthode, chemin, heure et empreinte du corps (voir le service).
+QNetworkRequest FusionClient::signedRequest(const Credentials &credentials,
+                                            const QByteArray &method,
+                                            const QString &path,
+                                            const QByteArray &body) const {
+	QUrl url;
+	url.setScheme("https");
+	url.setHost(credentials.domain);
+	url.setPath(path);
+	QNetworkRequest request(url);
+	request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+	const QByteArray time = QByteArray::number(QDateTime::currentSecsSinceEpoch() + mClockOffset);
+	const QByteArray bodyHash = QCryptographicHash::hash(body, QCryptographicHash::Sha256).toHex();
+	const QByteArray message = method + '\n' + path.toUtf8() + '\n' + time + '\n' + bodyHash;
+	request.setRawHeader("X-Gama-User", credentials.key().toUtf8());
+	request.setRawHeader("X-Gama-Time", time);
+	// Version de Gamaphone, pour les journaux du serveur et l'e-mail des journaux envoyés au support (non signée).
+	request.setRawHeader("X-Gama-Version", QCoreApplication::applicationVersion().toUtf8());
+	request.setRawHeader(
+	    "X-Gama-Signature",
+	    QMessageAuthenticationCode::hash(message, credentials.ha1, QCryptographicHash::Sha256).toHex());
+	return request;
+}
+
+// Connexion en direct (GET signé, réponse « text/event-stream ») : pas de délai maximal, le serveur envoie un signal
+// de vie régulier. L'appelant lit la réponse au fil de l'eau et la libère.
+QNetworkReply *FusionClient::openStream(const Credentials &credentials, const QString &path) {
+	QNetworkRequest request = signedRequest(credentials, "GET", path, QByteArray());
+	request.setRawHeader("Accept", "text/event-stream");
+	return mNetwork->get(request);
+}
+
+qint64 FusionClient::clockOffset() const {
+	return mClockOffset;
+}
+
 void FusionClient::sendOnce(const Credentials &credentials,
                             const QByteArray &method,
                             const QString &path,
                             const QByteArray &body,
                             Callback done,
                             bool clockRetried) {
-	QUrl url;
-	url.setScheme("https");
-	url.setHost(credentials.domain);
-	url.setPath(path);
-	QNetworkRequest request(url);
+	QNetworkRequest request = signedRequest(credentials, method, path, body);
 	request.setTransferTimeout(RequestTimeoutMs);
-	request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
-
-	// Signature : HMAC-SHA256, clé = HA1, message = méthode, chemin, heure et empreinte du corps (voir le service).
-	const QByteArray time = QByteArray::number(QDateTime::currentSecsSinceEpoch() + mClockOffset);
-	const QByteArray bodyHash = QCryptographicHash::hash(body, QCryptographicHash::Sha256).toHex();
-	const QByteArray message = method + '\n' + path.toUtf8() + '\n' + time + '\n' + bodyHash;
-	request.setRawHeader("X-Gama-User", credentials.key().toUtf8());
-	request.setRawHeader("X-Gama-Time", time);
-	request.setRawHeader(
-	    "X-Gama-Signature",
-	    QMessageAuthenticationCode::hash(message, credentials.ha1, QCryptographicHash::Sha256).toHex());
 
 	QNetworkReply *reply;
 	if (method == "GET") reply = mNetwork->get(request);
