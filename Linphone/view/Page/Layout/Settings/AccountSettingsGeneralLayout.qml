@@ -16,9 +16,10 @@ AbstractSettingsLayout {
 	width: parent?.width
 	contentModel: [
 		{
-			// Sans titre de section : la page tient en trois cartes (identite, connexion, retrait du poste).
+			// Sans titre de section : la page tient en trois cartes (identite, connexion, retrait du poste), centrees.
 			title: "",
 			subTitle: "",
+			centered: true,
 			contentComponent: accountParametersComponent
 		},
 		{

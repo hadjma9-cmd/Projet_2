@@ -94,6 +94,11 @@ AbstractMainPage {
 				}
 			}
 		}
+		// Sans liste : le titre reste en haut (sinon la colonne le centre verticalement).
+		Item {
+			visible: !familiesList.visible
+			Layout.fillHeight: true
+		}
 		Component.onCompleted: {
 			let initialEntry = mainItem.families[familiesList.selectedIndex]
 			rightPanelStackView.push(layoutUrl(initialEntry.layout), { titleText: initialEntry.title, model: initialEntry.model, container: rightPanelStackView})

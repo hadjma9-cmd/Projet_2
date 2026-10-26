@@ -148,12 +148,14 @@ Rectangle {
 				}
 				GridLayout {
 					rows: 1
-					columns: mainItem.useVerticalLayout ? 1 : 2
+					// « centered » : pas de colonne de titre, le contenu est centre dans la page.
+					columns: mainItem.useVerticalLayout || modelData.centered ? 1 : 2
 					Layout.fillWidth: true
 					// Layout.preferredWidth: parent.width
 					rowSpacing: modelData.title.length > 0 || modelData.subTitle.length > 0 ? Utils.getSizeWithScreenRatio(20) : 0
 					columnSpacing: Utils.getSizeWithScreenRatio(47)
 					ColumnLayout {
+						visible: !modelData.centered
 						Layout.preferredWidth: Utils.getSizeWithScreenRatio(341)
 						Layout.maximumWidth: Utils.getSizeWithScreenRatio(341)
 						spacing: Utils.getSizeWithScreenRatio(3)
@@ -180,15 +182,17 @@ Rectangle {
 					RowLayout {
 						Layout.topMargin: modelData.hideTopMargin ? 0 : Utils.getSizeWithScreenRatio(mainItem.useVerticalLayout ? 10 : 21)
 						Layout.bottomMargin: Utils.getSizeWithScreenRatio(21)
-						Layout.leftMargin: mainItem.useVerticalLayout ? 0 : Utils.getSizeWithScreenRatio(17)
+						Layout.leftMargin: mainItem.useVerticalLayout || modelData.centered ? 0 : Utils.getSizeWithScreenRatio(17)
 						Layout.preferredWidth: Utils.getSizeWithScreenRatio(modelData.width > 0 ? modelData.width : 545)
-						Layout.alignment: Qt.AlignRight
+						Layout.maximumWidth: modelData.centered ? contentListView.width : Number.POSITIVE_INFINITY
+						Layout.alignment: modelData.centered ? Qt.AlignHCenter : Qt.AlignRight
 						Loader {
 							id: contentLoader
 							Layout.fillWidth: true
 							sourceComponent: modelData.contentComponent
 						}
 						Item {
+							visible: !modelData.centered
 							Layout.preferredWidth: Utils.getSizeWithScreenRatio(modelData.customRightMargin > 0 ? modelData.customRightMargin : 17)
 						}
 					}
