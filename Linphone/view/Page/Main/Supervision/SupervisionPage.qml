@@ -42,6 +42,9 @@ Item {
 	readonly property int waitingCount: pending.filter(function (p) { return p.call.state === "waiting" }).length
 	// Deja en communication (ou un appel sonne ici) : « Prendre » attend la fin de cet appel.
 	readonly property bool inCall: !!AppCpp.calls && AppCpp.calls.count > 0
+	// Seul appel en cours : un appel qui sonne sur ce poste (souvent celui de la file) : y repondre directement.
+	readonly property bool ringingHere: inCall && AppCpp.calls.count === 1 && !!AppCpp.calls.currentCall
+		&& AppCpp.calls.currentCall.core.state === LinphoneEnums.CallState.IncomingReceived
 	readonly property bool canTakeSome: pending.some(function (p) { return p.mine })
 	// « Prendre » n'a pas abouti : message affiche quelques secondes sous le bandeau.
 	property string takeNotice: ""
@@ -127,7 +130,7 @@ Item {
 					height: width
 					imageSource: agentLabel.agentState === "free" ? AppIcons.check
 						: agentLabel.agentState === "ringing" ? AppIcons.phoneCall
-						: agentLabel.agentState === "incall" ? AppIcons.phone
+						: agentLabel.agentState === "incall" || agentLabel.agentState === "busy" ? AppIcons.phone
 						: agentLabel.agentState === "pause" ? AppIcons.pause : AppIcons.signOut
 					colorizationColor: DefaultStyle.grey_0
 					// Le combine vibre tant que ca sonne.
@@ -147,6 +150,7 @@ Item {
 				Layout.fillWidth: true
 				spacing: 0
 				RowLayout {
+					Layout.fillWidth: true
 					spacing: Utils.getSizeWithScreenRatio(8)
 					Text {
 						text: agentLabel.agent ? agentLabel.agent.name : ""
@@ -160,10 +164,14 @@ Item {
 						text: agentLabel.agentState === "free" ? "Libre"
 							: agentLabel.agentState === "ringing" ? "Sonne"
 							: agentLabel.agentState === "incall" ? "En appel"
+							: agentLabel.agentState === "busy" ? "Occupé"
 							: agentLabel.agentState === "pause" ? "En pause" : "Déconnecté"
 						font.pixelSize: Utils.getSizeWithScreenRatio(12)
 						font.weight: Font.DemiBold
 						color: agentLabel.textColor
+					}
+					Item {
+						Layout.fillWidth: true
 					}
 				}
 				Text {
@@ -387,7 +395,8 @@ Item {
 					}
 					Text {
 						visible: mainItem.inCall && mainItem.canTakeSome
-						text: "Terminez votre appel en cours pour en prendre un"
+						text: mainItem.ringingHere ? "Un appel sonne sur votre poste : répondez-y directement"
+						: "Terminez votre appel en cours pour en prendre un"
 						font.pixelSize: Utils.getSizeWithScreenRatio(12)
 						color: DefaultStyle.main2_400
 					}
