@@ -102,6 +102,8 @@ QtObject {
 	property string avatar: "image://internal/randomAvatar.png"
     property string layout: "image://internal/layout.svg"
 	property string pause: "image://internal/pause.svg"
+	// Barre de « Ne pas deranger », comme la pastille de statut.
+	property string minus: "image://internal/minus.svg"
 	property string pauseFill: "image://internal/pause-fill.svg"
     property string play: "image://internal/play.svg"
     property string playFill: "image://internal/play-fill.svg"

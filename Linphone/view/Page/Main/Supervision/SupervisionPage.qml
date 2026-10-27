@@ -8,8 +8,8 @@ import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 // Tableau des files (grande fenetre, page 5 de la bande), ouvert a tous les postes du domaine. De haut en bas :
 // bandeau d'etat (des appels attendent / tout est calme), appels a prendre (toutes files confondues, les plus anciens
 // d'abord), puis une carte par file avec ses agents. Donnees en direct (SupervisionCpp) tant que la page est affichee ;
-// les durees avancent ici, a partir des heures recues. Couleurs des agents : vert libre, jaune sonne, bleu en appel,
-// rouge en pause.
+// les durees avancent ici, a partir des heures recues. Couleurs des agents : vert libre, jaune sonne ou absent, bleu
+// en appel, rouge en pause, occupe ou ne pas deranger, gris sonne ailleurs ou hors ligne.
 Item {
 	id: mainItem
 
@@ -100,14 +100,33 @@ Item {
 		id: agentLabel
 		property var agent
 		readonly property string agentState: agent ? agent.state : ""
-		readonly property color stateColor: agentState === "free" ? mainItem.freeColor
-			: agentState === "ringing" ? mainItem.ringColor
-			: agentState === "incall" ? mainItem.callColor
-			: agentState === "pause" ? mainItem.pauseColor : DefaultStyle.main2_400
-		readonly property color textColor: agentState === "free" ? "#2F7D4F"
-			: agentState === "ringing" ? "#9A6B00"
-			: agentState === "incall" ? DefaultStyle.main1_500_main
-			: agentState === "pause" ? "#B23B3B" : DefaultStyle.main2_500_main
+		// Ce qui s'affiche : le statut choisi dans Gamaphone quand c'est lui qui retient l'agent (Occupe, Absent, Ne pas
+		// deranger, Hors ligne), sinon son etat. « En pause » seul : mis en pause par l'administrateur.
+		readonly property var look: {
+			switch (agent && agent.status ? "status-" + agent.status : agentState) {
+			case "free":
+				return {color: mainItem.freeColor, text: "#2F7D4F", icon: AppIcons.check, label: "Libre"}
+			case "ringing":
+				return {color: mainItem.ringColor, text: "#9A6B00", icon: AppIcons.phoneCall, label: "Sonne"}
+			case "busy":
+				return {color: DefaultStyle.main2_400, text: DefaultStyle.main2_500_main, icon: AppIcons.phoneCall,
+					label: "Sonne ailleurs"}
+			case "incall":
+				return {color: mainItem.callColor, text: DefaultStyle.main1_500_main, icon: AppIcons.phone,
+					label: "En appel"}
+			case "pause":
+				return {color: mainItem.pauseColor, text: "#B23B3B", icon: AppIcons.pause, label: "En pause"}
+			case "status-busy":
+				return {color: mainItem.pauseColor, text: "#B23B3B", icon: AppIcons.endCall, label: "Occupé"}
+			case "status-away":
+				return {color: mainItem.ringColor, text: "#9A6B00", icon: AppIcons.clock, label: "Absent"}
+			case "status-dnd":
+				return {color: mainItem.pauseColor, text: "#B23B3B", icon: AppIcons.minus, label: "Ne pas déranger"}
+			default:
+				return {color: DefaultStyle.main2_400, text: DefaultStyle.main2_500_main, icon: AppIcons.signOut,
+					label: "Hors ligne"}
+			}
+		}
 		Layout.fillWidth: true
 		Layout.preferredHeight: labelRow.implicitHeight + 2 * Utils.getSizeWithScreenRatio(8)
 		radius: Utils.getSizeWithScreenRatio(10)
@@ -122,16 +141,13 @@ Item {
 				Layout.preferredWidth: Utils.getSizeWithScreenRatio(26)
 				Layout.preferredHeight: Utils.getSizeWithScreenRatio(26)
 				radius: width / 2
-				color: agentLabel.stateColor
+				color: agentLabel.look.color
 				EffectImage {
 					id: stateIcon
 					anchors.centerIn: parent
 					width: Utils.getSizeWithScreenRatio(14)
 					height: width
-					imageSource: agentLabel.agentState === "free" ? AppIcons.check
-						: agentLabel.agentState === "ringing" ? AppIcons.phoneCall
-						: agentLabel.agentState === "incall" || agentLabel.agentState === "busy" ? AppIcons.phone
-						: agentLabel.agentState === "pause" ? AppIcons.pause : AppIcons.signOut
+					imageSource: agentLabel.look.icon
 					colorizationColor: DefaultStyle.grey_0
 					// Le combine vibre tant que ca sonne.
 					SequentialAnimation on rotation {
@@ -161,14 +177,10 @@ Item {
 						Layout.maximumWidth: Utils.getSizeWithScreenRatio(130)
 					}
 					Text {
-						text: agentLabel.agentState === "free" ? "Libre"
-							: agentLabel.agentState === "ringing" ? "Sonne"
-							: agentLabel.agentState === "incall" ? "En appel"
-							: agentLabel.agentState === "busy" ? "Occupé"
-							: agentLabel.agentState === "pause" ? "En pause" : "Hors ligne"
+						text: agentLabel.look.label
 						font.pixelSize: Utils.getSizeWithScreenRatio(12)
 						font.weight: Font.DemiBold
-						color: agentLabel.textColor
+						color: agentLabel.look.text
 					}
 					Item {
 						Layout.fillWidth: true
