@@ -80,6 +80,10 @@ QString SupervisionCore::getTakingCall() const {
 	return mTakingCall;
 }
 
+QString SupervisionCore::getMyExtension() const {
+	return mMyExtension;
+}
+
 void SupervisionCore::setTakingCall(const QString &callId) {
 	if (callId == mTakingCall) return;
 	mTakingCall = callId;
@@ -115,6 +119,8 @@ void SupervisionCore::take(const QString &callId) {
 			    } else if (reply.error == "gone") message = QStringLiteral("L'appelant a raccroché.");
 			    else if (reply.error == "no_answer") message = QStringLiteral("Votre poste n'a pas décroché.");
 			    else if (reply.error == "unreachable") message = QStringLiteral("Votre poste n'est pas joignable.");
+			    else if (reply.error == "not_agent")
+				    message = QStringLiteral("Seuls les agents de cette file peuvent prendre ses appels.");
 			    else message = QStringLiteral("L'appel n'a pas pu être pris. Réessayez dans un instant.");
 			    emit takeFailed(message);
 		    },
@@ -163,6 +169,10 @@ void SupervisionCore::connectStream() {
 		if (!credentials.isValid()) { // compte pas encore connecté
 			scheduleReconnect();
 			return;
+		}
+		if (credentials.user != mMyExtension) {
+			mMyExtension = credentials.user;
+			emit myExtensionChanged();
 		}
 		mBuffer.clear();
 		QNetworkReply *reply = mClient->openStream(credentials, LivePath);

@@ -24,14 +24,17 @@ Item {
 	readonly property color warnColor: "#B8650F"
 	readonly property real margin: Utils.getSizeWithScreenRatio(32)
 
-	// Appels qui attendent ou qui sonnent, toutes files confondues, les plus anciens d'abord.
+	// Appels qui attendent ou qui sonnent, toutes files confondues, les plus anciens d'abord. « mine » : ce poste est
+	// agent de la file, il peut prendre l'appel.
 	readonly property var pending: {
 		var list = []
+		var me = SupervisionCpp.myExtension
 		for (var i = 0; i < queues.length; ++i) {
 			var calls = queues[i].calls || []
+			var mine = me.length > 0 && (queues[i].agents || []).some(function (a) { return a.extension === me })
 			for (var j = 0; j < calls.length; ++j)
 				if (calls[j].state !== "answered")
-					list.push({"call": calls[j], "queue": queues[i].name})
+					list.push({"call": calls[j], "queue": queues[i].name, "mine": mine})
 		}
 		list.sort(function (a, b) { return a.call.since - b.call.since })
 		return list
@@ -39,6 +42,7 @@ Item {
 	readonly property int waitingCount: pending.filter(function (p) { return p.call.state === "waiting" }).length
 	// Deja en communication (ou un appel sonne ici) : « Prendre » attend la fin de cet appel.
 	readonly property bool inCall: !!AppCpp.calls && AppCpp.calls.count > 0
+	readonly property bool canTakeSome: pending.some(function (p) { return p.mine })
 	// « Prendre » n'a pas abouti : message affiche quelques secondes sous le bandeau.
 	property string takeNotice: ""
 	Connections {
@@ -315,7 +319,7 @@ Item {
 					Layout.fillWidth: true
 				}
 				Text {
-					visible: mainItem.inCall
+					visible: mainItem.inCall && mainItem.canTakeSome
 					text: "Terminez votre appel en cours pour en prendre un"
 					font.pixelSize: Utils.getSizeWithScreenRatio(12)
 					color: DefaultStyle.main2_400
@@ -397,7 +401,9 @@ Item {
 							}
 						}
 						// Le serveur fait sonner ce poste, qui decroche tout seul ; l'appelant le rejoint ensuite.
+						// Seulement pour les agents de la file de l'appel.
 						SmallButton {
+							visible: callRow.modelData.mine
 							readonly property bool taking: SupervisionCpp.takingCall === callRow.call.id
 							Layout.alignment: Qt.AlignVCenter
 							Layout.preferredWidth: Utils.getSizeWithScreenRatio(104)
