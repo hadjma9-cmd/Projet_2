@@ -197,6 +197,30 @@ AbstractMainPage {
             clip: true
             initialItem: historyListItem
             focus: true
+            // Historique <-> Nouvel appel (bouton Clavier) : meme fondu court que les changements de page de la
+            // barre, au lieu du glissement de 0,4 s qui se superposait a ce fondu et donnait un a-coup. La page
+            // quittee disparait aussitot (pas deux pages l'une sur l'autre).
+            property Transition fadeIn: Transition {
+                OpacityAnimator {
+                    from: 0
+                    to: 1
+                    duration: 150
+                    easing.type: Easing.OutCubic
+                }
+            }
+            property Transition hideNow: Transition {
+                OpacityAnimator {
+                    from: 1
+                    to: 0
+                    duration: 0
+                }
+            }
+            pushEnter: fadeIn
+            pushExit: hideNow
+            popEnter: fadeIn
+            popExit: hideNow
+            replaceEnter: fadeIn
+            replaceExit: hideNow
             onActiveFocusChanged: if (activeFocus) {
                 currentItem.forceActiveFocus()
             }

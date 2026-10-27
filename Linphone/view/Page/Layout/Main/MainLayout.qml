@@ -885,9 +885,10 @@ Item {
                             pageFade.target = page
                             pageFade.start()
                         }
-                        NumberAnimation {
+                        // OpacityAnimator : joue par le fil d'affichage, il reste fluide meme si la page met un
+                        // instant a se mettre en place (un NumberAnimation s'arretait avec elle : effet de gel).
+                        OpacityAnimator {
                             id: pageFade
-                            property: "opacity"
                             from: 0
                             to: 1
                             duration: 150
