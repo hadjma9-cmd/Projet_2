@@ -61,6 +61,8 @@ Item {
 	// Lecture en direct seulement tant que la fenetre du tableau est ouverte (un element reste « visible » dans une
 	// fenetre cachee : la fenetre donne cet etat).
 	property bool active: visible
+	// Onglet affiche : 0 en direct, 1 statistiques.
+	property int tab: 0
 	onActiveChanged: active ? SupervisionCpp.start() : SupervisionCpp.stop()
 	Component.onCompleted: if (active) SupervisionCpp.start()
 	Component.onDestruction: SupervisionCpp.stop()
@@ -214,286 +216,359 @@ Item {
 				}
 			}
 
-			Text {
-				visible: !SupervisionCpp.loaded
-				Layout.topMargin: Utils.getSizeWithScreenRatio(24)
-				text: "Chargement du tableau…"
-				font.pixelSize: Utils.getSizeWithScreenRatio(14)
-				color: DefaultStyle.main2_500_main
-			}
-			Text {
-				visible: SupervisionCpp.loaded && mainItem.queues.length === 0
-				Layout.topMargin: Utils.getSizeWithScreenRatio(24)
-				text: "Aucune file d'attente dans votre domaine."
-				font.pixelSize: Utils.getSizeWithScreenRatio(14)
-				color: DefaultStyle.main2_500_main
-			}
-
-			// Bandeau d'etat.
-			Rectangle {
-				id: statusBand
-				visible: SupervisionCpp.loaded && mainItem.queues.length > 0
-				readonly property bool calm: mainItem.pending.length === 0
-				Layout.fillWidth: true
-				Layout.topMargin: Utils.getSizeWithScreenRatio(18)
-				Layout.preferredHeight: Utils.getSizeWithScreenRatio(74)
-				radius: Utils.getSizeWithScreenRatio(14)
-				color: calm ? "#E8F4EC" : "#FDF1E4"
-				RowLayout {
-					anchors.fill: parent
-					anchors.leftMargin: Utils.getSizeWithScreenRatio(18)
-					anchors.rightMargin: Utils.getSizeWithScreenRatio(18)
-					spacing: Utils.getSizeWithScreenRatio(14)
-					Rectangle {
-						Layout.preferredWidth: Utils.getSizeWithScreenRatio(44)
-						Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
-						radius: width / 2
-						color: statusBand.calm ? "#CBE7D4" : "#FAD9B6"
-						EffectImage {
-							anchors.centerIn: parent
-							width: Utils.getSizeWithScreenRatio(22)
-							height: width
-							imageSource: statusBand.calm ? AppIcons.check : AppIcons.hourglass
-							colorizationColor: statusBand.calm ? "#2F7D4F" : "#8A4B0B"
-						}
-					}
-					ColumnLayout {
-						Layout.fillWidth: true
-						spacing: Utils.getSizeWithScreenRatio(2)
-						Text {
-							text: mainItem.pending.length === 0 ? "Tout est calme"
-								: mainItem.waitingCount > 1 ? mainItem.waitingCount + " appels attendent"
-								: mainItem.waitingCount === 1 ? "1 appel attend"
-								: mainItem.pending.length > 1 ? mainItem.pending.length + " appels sonnent" : "1 appel sonne"
-							font.pixelSize: Utils.getSizeWithScreenRatio(16)
-							font.weight: Font.DemiBold
-							color: DefaultStyle.main2_800
-						}
-						Text {
-							Layout.fillWidth: true
-							text: mainItem.pending.length === 0 ? "Aucun appel à prendre"
-								: "Le plus ancien depuis " + mainItem.duration(mainItem.pending[0].call.since) + " · " + mainItem.pending[0].queue
-							font.pixelSize: Utils.getSizeWithScreenRatio(13)
-							color: mainItem.pending.length === 0 ? "#2F7D4F" : "#8A4B0B"
-							elide: Text.ElideRight
-						}
-					}
-				}
-			}
-
-			// Echec de « Prendre ».
-			Rectangle {
-				visible: mainItem.takeNotice.length > 0
-				Layout.fillWidth: true
-				Layout.topMargin: Utils.getSizeWithScreenRatio(10)
-				Layout.preferredHeight: noticeText.implicitHeight + 2 * Utils.getSizeWithScreenRatio(10)
-				radius: Utils.getSizeWithScreenRatio(10)
-				color: "#FDF1E4"
-				border.width: Utils.getSizeWithScreenRatio(1)
-				border.color: "#F0C9A0"
-				Text {
-					id: noticeText
-					anchors.verticalCenter: parent.verticalCenter
-					x: Utils.getSizeWithScreenRatio(16)
-					width: parent.width - 2 * x
-					text: mainItem.takeNotice
-					font.pixelSize: Utils.getSizeWithScreenRatio(13)
-					font.weight: Font.DemiBold
-					color: "#8A4B0B"
-					wrapMode: Text.WordWrap
-				}
-			}
-
-			// Appels a prendre.
+			// Onglets : le tableau en direct, et les statistiques.
 			RowLayout {
-				visible: mainItem.pending.length > 0
 				Layout.fillWidth: true
-				Layout.topMargin: Utils.getSizeWithScreenRatio(22)
-				spacing: Utils.getSizeWithScreenRatio(10)
-				Text {
-					text: "À prendre"
-					font.pixelSize: Utils.getSizeWithScreenRatio(13)
-					color: DefaultStyle.main2_500_main
+				Layout.topMargin: Utils.getSizeWithScreenRatio(14)
+				spacing: Utils.getSizeWithScreenRatio(4)
+				Repeater {
+					model: [{"label": "En direct", "icon": AppIcons.phoneCall}, {"label": "Statistiques", "icon": AppIcons.chartBar}]
+					delegate: Item {
+						id: tabItem
+						required property var modelData
+						required property int index
+						readonly property bool selected: mainItem.tab === index
+						Layout.preferredWidth: tabRow.implicitWidth + 2 * Utils.getSizeWithScreenRatio(12)
+						Layout.preferredHeight: tabRow.implicitHeight + Utils.getSizeWithScreenRatio(16)
+						RowLayout {
+							id: tabRow
+							anchors.centerIn: parent
+							anchors.verticalCenterOffset: -Utils.getSizeWithScreenRatio(1)
+							spacing: Utils.getSizeWithScreenRatio(6)
+							EffectImage {
+								Layout.preferredWidth: Utils.getSizeWithScreenRatio(16)
+								Layout.preferredHeight: Utils.getSizeWithScreenRatio(16)
+								imageSource: tabItem.modelData.icon
+								colorizationColor: tabItem.selected ? DefaultStyle.main1_500_main : DefaultStyle.main2_500_main
+							}
+							Text {
+								text: tabItem.modelData.label
+								font.pixelSize: Utils.getSizeWithScreenRatio(14)
+								font.weight: tabItem.selected ? Font.DemiBold : Font.Normal
+								color: tabItem.selected ? DefaultStyle.main1_500_main : tabArea.containsMouse ? DefaultStyle.main2_800 : DefaultStyle.main2_500_main
+							}
+						}
+						Rectangle {
+							visible: tabItem.selected
+							anchors.bottom: parent.bottom
+							width: parent.width
+							height: Utils.getSizeWithScreenRatio(2)
+							radius: height / 2
+							color: DefaultStyle.main1_500_main
+						}
+						MouseArea {
+							id: tabArea
+							anchors.fill: parent
+							hoverEnabled: true
+							cursorShape: Qt.PointingHandCursor
+							onClicked: mainItem.tab = tabItem.index
+						}
+					}
 				}
 				Item {
 					Layout.fillWidth: true
 				}
-				Text {
-					visible: mainItem.inCall && mainItem.canTakeSome
-					text: "Terminez votre appel en cours pour en prendre un"
-					font.pixelSize: Utils.getSizeWithScreenRatio(12)
-					color: DefaultStyle.main2_400
-				}
 			}
-			Repeater {
-				model: mainItem.pending
-				delegate: Rectangle {
-					id: callRow
-					required property var modelData
-					readonly property var call: modelData.call
-					readonly property bool ringing: call.state === "ringing"
-					readonly property real waited: Math.max(0, mainItem.now - call.since)
-					readonly property bool late: !ringing && waited >= 60
+			Rectangle {
+				Layout.fillWidth: true
+				Layout.preferredHeight: 1
+				color: DefaultStyle.main2_200
+			}
+
+			// Onglet « En direct ».
+			ColumnLayout {
+				visible: mainItem.tab === 0
+				Layout.fillWidth: true
+				spacing: 0
+
+				Text {
+					visible: !SupervisionCpp.loaded
+					Layout.topMargin: Utils.getSizeWithScreenRatio(24)
+					text: "Chargement du tableau…"
+					font.pixelSize: Utils.getSizeWithScreenRatio(14)
+					color: DefaultStyle.main2_500_main
+				}
+				Text {
+					visible: SupervisionCpp.loaded && mainItem.queues.length === 0
+					Layout.topMargin: Utils.getSizeWithScreenRatio(24)
+					text: "Aucune file d'attente dans votre domaine."
+					font.pixelSize: Utils.getSizeWithScreenRatio(14)
+					color: DefaultStyle.main2_500_main
+				}
+
+				// Bandeau d'etat.
+				Rectangle {
+					id: statusBand
+					visible: SupervisionCpp.loaded && mainItem.queues.length > 0
+					readonly property bool calm: mainItem.pending.length === 0
 					Layout.fillWidth: true
-					Layout.topMargin: Utils.getSizeWithScreenRatio(8)
-					Layout.preferredHeight: callColumn.implicitHeight + 2 * Utils.getSizeWithScreenRatio(12)
-					radius: Utils.getSizeWithScreenRatio(12)
-					color: DefaultStyle.grey_0
+					Layout.topMargin: Utils.getSizeWithScreenRatio(18)
+					Layout.preferredHeight: Utils.getSizeWithScreenRatio(74)
+					radius: Utils.getSizeWithScreenRatio(14)
+					color: calm ? "#E8F4EC" : "#FDF1E4"
 					RowLayout {
 						anchors.fill: parent
-						anchors.leftMargin: Utils.getSizeWithScreenRatio(16)
-						anchors.rightMargin: Utils.getSizeWithScreenRatio(16)
+						anchors.leftMargin: Utils.getSizeWithScreenRatio(18)
+						anchors.rightMargin: Utils.getSizeWithScreenRatio(18)
 						spacing: Utils.getSizeWithScreenRatio(14)
-						EffectImage {
-							Layout.preferredWidth: Utils.getSizeWithScreenRatio(20)
-							Layout.preferredHeight: Utils.getSizeWithScreenRatio(20)
-							imageSource: callRow.ringing ? AppIcons.phoneCall : AppIcons.hourglass
-							colorizationColor: callRow.ringing ? "#C79400" : callRow.late ? mainItem.warnColor : DefaultStyle.main2_400
+						Rectangle {
+							Layout.preferredWidth: Utils.getSizeWithScreenRatio(44)
+							Layout.preferredHeight: Utils.getSizeWithScreenRatio(44)
+							radius: width / 2
+							color: statusBand.calm ? "#CBE7D4" : "#FAD9B6"
+							EffectImage {
+								anchors.centerIn: parent
+								width: Utils.getSizeWithScreenRatio(22)
+								height: width
+								imageSource: statusBand.calm ? AppIcons.check : AppIcons.hourglass
+								colorizationColor: statusBand.calm ? "#2F7D4F" : "#8A4B0B"
+							}
 						}
 						ColumnLayout {
-							id: callColumn
 							Layout.fillWidth: true
 							spacing: Utils.getSizeWithScreenRatio(2)
-							RowLayout {
-								spacing: Utils.getSizeWithScreenRatio(8)
-								Text {
-									text: mainItem.callerLabel(callRow.call)
-									font.pixelSize: Utils.getSizeWithScreenRatio(14)
-									font.weight: Font.DemiBold
-									color: DefaultStyle.main2_800
-								}
-								Rectangle {
-									Layout.preferredHeight: queueTag.implicitHeight + Utils.getSizeWithScreenRatio(4)
-									Layout.preferredWidth: queueTag.implicitWidth + Utils.getSizeWithScreenRatio(14)
-									radius: Utils.getSizeWithScreenRatio(8)
-									color: DefaultStyle.main1_100
-									Text {
-										id: queueTag
-										anchors.centerIn: parent
-										text: callRow.modelData.queue
-										font.pixelSize: Utils.getSizeWithScreenRatio(11)
-										color: DefaultStyle.main1_500_main
-									}
-								}
+							Text {
+								text: mainItem.pending.length === 0 ? "Tout est calme"
+									: mainItem.waitingCount > 1 ? mainItem.waitingCount + " appels attendent"
+									: mainItem.waitingCount === 1 ? "1 appel attend"
+									: mainItem.pending.length > 1 ? mainItem.pending.length + " appels sonnent" : "1 appel sonne"
+								font.pixelSize: Utils.getSizeWithScreenRatio(16)
+								font.weight: Font.DemiBold
+								color: DefaultStyle.main2_800
 							}
 							Text {
 								Layout.fillWidth: true
-								text: (callRow.ringing && callRow.call.agents.length > 0
-									? "sonne chez " + callRow.call.agents.join(", ") + " depuis "
-									: "attend depuis ") + mainItem.duration(callRow.call.since)
-								font.pixelSize: Utils.getSizeWithScreenRatio(12)
-								color: callRow.late ? mainItem.warnColor : DefaultStyle.main2_500_main
+								text: mainItem.pending.length === 0 ? "Aucun appel à prendre"
+									: "Le plus ancien depuis " + mainItem.duration(mainItem.pending[0].call.since) + " · " + mainItem.pending[0].queue
+								font.pixelSize: Utils.getSizeWithScreenRatio(13)
+								color: mainItem.pending.length === 0 ? "#2F7D4F" : "#8A4B0B"
 								elide: Text.ElideRight
 							}
-							// Attente : la barre se remplit en 3 minutes, orange au-dela d'une minute.
-							Rectangle {
+						}
+					}
+				}
+
+				// Echec de « Prendre ».
+				Rectangle {
+					visible: mainItem.takeNotice.length > 0
+					Layout.fillWidth: true
+					Layout.topMargin: Utils.getSizeWithScreenRatio(10)
+					Layout.preferredHeight: noticeText.implicitHeight + 2 * Utils.getSizeWithScreenRatio(10)
+					radius: Utils.getSizeWithScreenRatio(10)
+					color: "#FDF1E4"
+					border.width: Utils.getSizeWithScreenRatio(1)
+					border.color: "#F0C9A0"
+					Text {
+						id: noticeText
+						anchors.verticalCenter: parent.verticalCenter
+						x: Utils.getSizeWithScreenRatio(16)
+						width: parent.width - 2 * x
+						text: mainItem.takeNotice
+						font.pixelSize: Utils.getSizeWithScreenRatio(13)
+						font.weight: Font.DemiBold
+						color: "#8A4B0B"
+						wrapMode: Text.WordWrap
+					}
+				}
+
+				// Appels a prendre.
+				RowLayout {
+					visible: mainItem.pending.length > 0
+					Layout.fillWidth: true
+					Layout.topMargin: Utils.getSizeWithScreenRatio(22)
+					spacing: Utils.getSizeWithScreenRatio(10)
+					Text {
+						text: "À prendre"
+						font.pixelSize: Utils.getSizeWithScreenRatio(13)
+						color: DefaultStyle.main2_500_main
+					}
+					Item {
+						Layout.fillWidth: true
+					}
+					Text {
+						visible: mainItem.inCall && mainItem.canTakeSome
+						text: "Terminez votre appel en cours pour en prendre un"
+						font.pixelSize: Utils.getSizeWithScreenRatio(12)
+						color: DefaultStyle.main2_400
+					}
+				}
+				Repeater {
+					model: mainItem.pending
+					delegate: Rectangle {
+						id: callRow
+						required property var modelData
+						readonly property var call: modelData.call
+						readonly property bool ringing: call.state === "ringing"
+						readonly property real waited: Math.max(0, mainItem.now - call.since)
+						readonly property bool late: !ringing && waited >= 60
+						Layout.fillWidth: true
+						Layout.topMargin: Utils.getSizeWithScreenRatio(8)
+						Layout.preferredHeight: callColumn.implicitHeight + 2 * Utils.getSizeWithScreenRatio(12)
+						radius: Utils.getSizeWithScreenRatio(12)
+						color: DefaultStyle.grey_0
+						RowLayout {
+							anchors.fill: parent
+							anchors.leftMargin: Utils.getSizeWithScreenRatio(16)
+							anchors.rightMargin: Utils.getSizeWithScreenRatio(16)
+							spacing: Utils.getSizeWithScreenRatio(14)
+							EffectImage {
+								Layout.preferredWidth: Utils.getSizeWithScreenRatio(20)
+								Layout.preferredHeight: Utils.getSizeWithScreenRatio(20)
+								imageSource: callRow.ringing ? AppIcons.phoneCall : AppIcons.hourglass
+								colorizationColor: callRow.ringing ? "#C79400" : callRow.late ? mainItem.warnColor : DefaultStyle.main2_400
+							}
+							ColumnLayout {
+								id: callColumn
 								Layout.fillWidth: true
-								Layout.topMargin: Utils.getSizeWithScreenRatio(4)
-								Layout.preferredHeight: Utils.getSizeWithScreenRatio(4)
-								radius: height / 2
-								color: DefaultStyle.main2_100
+								spacing: Utils.getSizeWithScreenRatio(2)
+								RowLayout {
+									spacing: Utils.getSizeWithScreenRatio(8)
+									Text {
+										text: mainItem.callerLabel(callRow.call)
+										font.pixelSize: Utils.getSizeWithScreenRatio(14)
+										font.weight: Font.DemiBold
+										color: DefaultStyle.main2_800
+									}
+									Rectangle {
+										Layout.preferredHeight: queueTag.implicitHeight + Utils.getSizeWithScreenRatio(4)
+										Layout.preferredWidth: queueTag.implicitWidth + Utils.getSizeWithScreenRatio(14)
+										radius: Utils.getSizeWithScreenRatio(8)
+										color: DefaultStyle.main1_100
+										Text {
+											id: queueTag
+											anchors.centerIn: parent
+											text: callRow.modelData.queue
+											font.pixelSize: Utils.getSizeWithScreenRatio(11)
+											color: DefaultStyle.main1_500_main
+										}
+									}
+								}
+								Text {
+									Layout.fillWidth: true
+									text: (callRow.ringing && callRow.call.agents.length > 0
+										? "sonne chez " + callRow.call.agents.join(", ") + " depuis "
+										: "attend depuis ") + mainItem.duration(callRow.call.since)
+									font.pixelSize: Utils.getSizeWithScreenRatio(12)
+									color: callRow.late ? mainItem.warnColor : DefaultStyle.main2_500_main
+									elide: Text.ElideRight
+								}
+								// Attente : la barre se remplit en 3 minutes, orange au-dela d'une minute.
 								Rectangle {
-									width: parent.width * Math.min(1, callRow.waited / 180)
-									height: parent.height
+									Layout.fillWidth: true
+									Layout.topMargin: Utils.getSizeWithScreenRatio(4)
+									Layout.preferredHeight: Utils.getSizeWithScreenRatio(4)
 									radius: height / 2
-									color: callRow.ringing ? "#F0CF7A" : callRow.late ? "#E9A35B" : "#9CC1D4"
+									color: DefaultStyle.main2_100
+									Rectangle {
+										width: parent.width * Math.min(1, callRow.waited / 180)
+										height: parent.height
+										radius: height / 2
+										color: callRow.ringing ? "#F0CF7A" : callRow.late ? "#E9A35B" : "#9CC1D4"
+									}
+								}
+							}
+							// Le serveur fait sonner ce poste, qui decroche tout seul ; l'appelant le rejoint ensuite.
+							// Seulement pour les agents de la file de l'appel.
+							SmallButton {
+								visible: callRow.modelData.mine
+								readonly property bool taking: SupervisionCpp.takingCall === callRow.call.id
+								Layout.alignment: Qt.AlignVCenter
+								Layout.preferredWidth: Utils.getSizeWithScreenRatio(104)
+								text: taking ? "Prise…" : "Prendre"
+								style: ButtonStyle.main
+								icon.source: AppIcons.phone
+								enabled: SupervisionCpp.takingCall.length === 0 && !mainItem.inCall
+								onClicked: {
+									mainItem.takeNotice = ""
+									SupervisionCpp.take(callRow.call.id)
 								}
 							}
 						}
-						// Le serveur fait sonner ce poste, qui decroche tout seul ; l'appelant le rejoint ensuite.
-						// Seulement pour les agents de la file de l'appel.
-						SmallButton {
-							visible: callRow.modelData.mine
-							readonly property bool taking: SupervisionCpp.takingCall === callRow.call.id
-							Layout.alignment: Qt.AlignVCenter
-							Layout.preferredWidth: Utils.getSizeWithScreenRatio(104)
-							text: taking ? "Prise…" : "Prendre"
-							style: ButtonStyle.main
-							icon.source: AppIcons.phone
-							enabled: SupervisionCpp.takingCall.length === 0 && !mainItem.inCall
-							onClicked: {
-								mainItem.takeNotice = ""
-								SupervisionCpp.take(callRow.call.id)
+					}
+				}
+
+				// Files et leurs agents.
+				Text {
+					visible: SupervisionCpp.loaded && mainItem.queues.length > 0
+					Layout.topMargin: Utils.getSizeWithScreenRatio(26)
+					text: "Files"
+					font.pixelSize: Utils.getSizeWithScreenRatio(13)
+					color: DefaultStyle.main2_500_main
+				}
+				Repeater {
+					model: mainItem.queues
+					delegate: Rectangle {
+						id: queueCard
+						required property var modelData
+						readonly property int waiting: (modelData.calls || []).filter(function (c) {
+							return c.state !== "answered"
+						}).length
+						Layout.fillWidth: true
+						Layout.topMargin: Utils.getSizeWithScreenRatio(10)
+						Layout.preferredHeight: cardColumn.implicitHeight + 2 * Utils.getSizeWithScreenRatio(14)
+						radius: Utils.getSizeWithScreenRatio(14)
+						color: DefaultStyle.grey_0
+						border.width: waiting > 0 ? Utils.getSizeWithScreenRatio(1.5) : 0
+						border.color: "#F0C9A0"
+						ColumnLayout {
+							id: cardColumn
+							x: Utils.getSizeWithScreenRatio(16)
+							y: Utils.getSizeWithScreenRatio(14)
+							width: parent.width - 2 * x
+							spacing: Utils.getSizeWithScreenRatio(10)
+							RowLayout {
+								Layout.fillWidth: true
+								spacing: Utils.getSizeWithScreenRatio(8)
+								Text {
+									text: queueCard.modelData.name
+									font.pixelSize: Utils.getSizeWithScreenRatio(15)
+									font.weight: Font.Bold
+									color: DefaultStyle.main2_800
+								}
+								Text {
+									text: queueCard.modelData.number
+									font.pixelSize: Utils.getSizeWithScreenRatio(12)
+									color: DefaultStyle.main2_400
+								}
+								Item {
+									Layout.fillWidth: true
+								}
+								Text {
+									text: queueCard.waiting > 0 ? queueCard.waiting + " en attente" : "calme"
+									font.pixelSize: Utils.getSizeWithScreenRatio(13)
+									font.weight: queueCard.waiting > 0 ? Font.DemiBold : Font.Normal
+									color: queueCard.waiting > 0 ? "#8A4B0B" : "#2F7D4F"
+								}
+							}
+							Text {
+								visible: (queueCard.modelData.agents || []).length === 0
+								text: "Aucun agent dans cette file"
+								font.pixelSize: Utils.getSizeWithScreenRatio(12)
+								color: DefaultStyle.main2_500_main
+							}
+							GridLayout {
+								Layout.fillWidth: true
+								columns: Math.max(1, Math.floor(width / Utils.getSizeWithScreenRatio(280)))
+								columnSpacing: Utils.getSizeWithScreenRatio(8)
+								rowSpacing: Utils.getSizeWithScreenRatio(8)
+								Repeater {
+									model: queueCard.modelData.agents || []
+									delegate: AgentLabel {
+										required property var modelData
+										agent: modelData
+									}
+								}
 							}
 						}
 					}
 				}
 			}
 
-			// Files et leurs agents.
-			Text {
-				visible: SupervisionCpp.loaded && mainItem.queues.length > 0
-				Layout.topMargin: Utils.getSizeWithScreenRatio(26)
-				text: "Files"
-				font.pixelSize: Utils.getSizeWithScreenRatio(13)
-				color: DefaultStyle.main2_500_main
-			}
-			Repeater {
-				model: mainItem.queues
-				delegate: Rectangle {
-					id: queueCard
-					required property var modelData
-					readonly property int waiting: (modelData.calls || []).filter(function (c) {
-						return c.state !== "answered"
-					}).length
-					Layout.fillWidth: true
-					Layout.topMargin: Utils.getSizeWithScreenRatio(10)
-					Layout.preferredHeight: cardColumn.implicitHeight + 2 * Utils.getSizeWithScreenRatio(14)
-					radius: Utils.getSizeWithScreenRatio(14)
-					color: DefaultStyle.grey_0
-					border.width: waiting > 0 ? Utils.getSizeWithScreenRatio(1.5) : 0
-					border.color: "#F0C9A0"
-					ColumnLayout {
-						id: cardColumn
-						x: Utils.getSizeWithScreenRatio(16)
-						y: Utils.getSizeWithScreenRatio(14)
-						width: parent.width - 2 * x
-						spacing: Utils.getSizeWithScreenRatio(10)
-						RowLayout {
-							Layout.fillWidth: true
-							spacing: Utils.getSizeWithScreenRatio(8)
-							Text {
-								text: queueCard.modelData.name
-								font.pixelSize: Utils.getSizeWithScreenRatio(15)
-								font.weight: Font.Bold
-								color: DefaultStyle.main2_800
-							}
-							Text {
-								text: queueCard.modelData.number
-								font.pixelSize: Utils.getSizeWithScreenRatio(12)
-								color: DefaultStyle.main2_400
-							}
-							Item {
-								Layout.fillWidth: true
-							}
-							Text {
-								text: queueCard.waiting > 0 ? queueCard.waiting + " en attente" : "calme"
-								font.pixelSize: Utils.getSizeWithScreenRatio(13)
-								font.weight: queueCard.waiting > 0 ? Font.DemiBold : Font.Normal
-								color: queueCard.waiting > 0 ? "#8A4B0B" : "#2F7D4F"
-							}
-						}
-						Text {
-							visible: (queueCard.modelData.agents || []).length === 0
-							text: "Aucun agent dans cette file"
-							font.pixelSize: Utils.getSizeWithScreenRatio(12)
-							color: DefaultStyle.main2_500_main
-						}
-						GridLayout {
-							Layout.fillWidth: true
-							columns: Math.max(1, Math.floor(width / Utils.getSizeWithScreenRatio(280)))
-							columnSpacing: Utils.getSizeWithScreenRatio(8)
-							rowSpacing: Utils.getSizeWithScreenRatio(8)
-							Repeater {
-								model: queueCard.modelData.agents || []
-								delegate: AgentLabel {
-									required property var modelData
-									agent: modelData
-								}
-							}
-						}
-					}
-				}
+			// Onglet « Statistiques ».
+			SupervisionStats {
+				visible: mainItem.tab === 1
+				Layout.fillWidth: true
+				active: mainItem.active && mainItem.tab === 1
 			}
 			Item {
 				Layout.preferredHeight: Utils.getSizeWithScreenRatio(32)

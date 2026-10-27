@@ -27,6 +27,7 @@
 #include <QSharedPointer>
 #include <QTimer>
 #include <QVariantList>
+#include <QVariantMap>
 
 class QNetworkReply;
 
@@ -49,6 +50,11 @@ class SupervisionCore : public QObject, public AbstractObject {
 	Q_PROPERTY(QString takingCall READ getTakingCall NOTIFY takingCallChanged)
 	// Poste de ce Gamaphone : seuls les appels des files dont il est agent peuvent etre pris.
 	Q_PROPERTY(QString myExtension READ getMyExtension NOTIFY myExtensionChanged)
+	// Onglet Statistiques : derniere reponse du serveur (period, since, totals, queues, agents ; durees en secondes),
+	// lecture en cours, et message d'echec.
+	Q_PROPERTY(QVariantMap stats READ getStats NOTIFY statsChanged)
+	Q_PROPERTY(bool statsLoading READ isStatsLoading NOTIFY statsChanged)
+	Q_PROPERTY(QString statsError READ getStatsError NOTIFY statsChanged)
 
 public:
 	static QSharedPointer<SupervisionCore> create(QSharedPointer<FusionClient> client);
@@ -61,6 +67,9 @@ public:
 	bool isLoaded() const;
 	QString getTakingCall() const;
 	QString getMyExtension() const;
+	QVariantMap getStats() const;
+	bool isStatsLoading() const;
+	QString getStatsError() const;
 
 	// Page du tableau affichée / quittée.
 	Q_INVOKABLE void start();
@@ -71,12 +80,15 @@ public:
 	// Appel entrant portant ce jeton : c'est l'appel demande par « Prendre », a decrocher sans attendre. Une seule
 	// fois.
 	bool consumePickupToken(const QString &token);
+	// Statistiques de la periode : « day » (depuis minuit), « week » (7 jours), « month » (30 jours).
+	Q_INVOKABLE void loadStats(const QString &period);
 
 signals:
 	void queuesChanged();
 	void liveChanged();
 	void takingCallChanged();
 	void myExtensionChanged();
+	void statsChanged();
 	// « Prendre » n'a pas abouti : message a afficher.
 	void takeFailed(QString message);
 
@@ -101,6 +113,10 @@ private:
 	bool mLoaded = false;
 	QString mTakingCall;
 	QString mMyExtension;
+	QVariantMap mStats;
+	QString mStatsError;
+	QString mStatsPeriod; // periode demandee en dernier : une reponse plus ancienne est ignoree
+	bool mStatsLoading = false;
 	QString mPickupToken;
 	qint64 mPickupTokenExpiry = 0; // ms depuis 1970
 

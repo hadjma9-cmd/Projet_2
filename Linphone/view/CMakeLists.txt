@@ -193,6 +193,7 @@ list(APPEND _LINPHONEAPP_QML_FILES
 	view/Page/Main/Help/HelpPage.qml
 	view/Page/Main/Meeting/MeetingPage.qml
 	view/Page/Main/Supervision/SupervisionPage.qml
+	view/Page/Main/Supervision/SupervisionStats.qml
 	view/Page/Main/Record/RecordPage.qml
 	view/Page/Main/Start/WelcomePage.qml
 

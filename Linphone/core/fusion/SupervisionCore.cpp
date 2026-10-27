@@ -30,6 +30,7 @@ DEFINE_ABSTRACT_OBJECT(SupervisionCore)
 
 static const QString LivePath = QStringLiteral("/gamaphone/v1/supervision/direct");
 static const QString TakePath = QStringLiteral("/gamaphone/v1/supervision/prendre");
+static const QString StatsPath = QStringLiteral("/gamaphone/v1/supervision/stats");
 // Le serveur fait sonner le poste jusqu'a 12 s avant de repondre.
 static constexpr int TakeTimeoutMs = 25000;
 static constexpr int FirstRetryMs = 2000;
@@ -82,6 +83,42 @@ QString SupervisionCore::getTakingCall() const {
 
 QString SupervisionCore::getMyExtension() const {
 	return mMyExtension;
+}
+
+QVariantMap SupervisionCore::getStats() const {
+	return mStats;
+}
+
+bool SupervisionCore::isStatsLoading() const {
+	return mStatsLoading;
+}
+
+QString SupervisionCore::getStatsError() const {
+	return mStatsError;
+}
+
+void SupervisionCore::loadStats(const QString &period) {
+	mStatsPeriod = period;
+	mStatsLoading = true;
+	mStatsError.clear();
+	emit statsChanged();
+	const QByteArray body = QJsonDocument(QJsonObject{{"period", period}}).toJson(QJsonDocument::Compact);
+	mClient->withCredentials([this, body, period](const FusionClient::Credentials &credentials) {
+		if (period != mStatsPeriod) return;
+		if (!credentials.isValid()) {
+			mStatsLoading = false;
+			mStatsError = QStringLiteral("Votre poste n'est pas connecté.");
+			emit statsChanged();
+			return;
+		}
+		mClient->send(credentials, "POST", StatsPath, body, [this, period](const FusionClient::Reply &reply) {
+			if (period != mStatsPeriod) return; // une autre periode a ete choisie entre-temps
+			mStatsLoading = false;
+			if (reply.status == 200) mStats = reply.answer.toVariantMap();
+			else mStatsError = QStringLiteral("Statistiques indisponibles pour le moment. Réessayez dans un instant.");
+			emit statsChanged();
+		});
+	});
 }
 
 void SupervisionCore::setTakingCall(const QString &callId) {
