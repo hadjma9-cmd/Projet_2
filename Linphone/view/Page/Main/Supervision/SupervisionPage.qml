@@ -165,7 +165,7 @@ Item {
 							: agentLabel.agentState === "ringing" ? "Sonne"
 							: agentLabel.agentState === "incall" ? "En appel"
 							: agentLabel.agentState === "busy" ? "Occupé"
-							: agentLabel.agentState === "pause" ? "En pause" : "Déconnecté"
+							: agentLabel.agentState === "pause" ? "En pause" : "Hors ligne"
 						font.pixelSize: Utils.getSizeWithScreenRatio(12)
 						font.weight: Font.DemiBold
 						color: agentLabel.textColor
