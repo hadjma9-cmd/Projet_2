@@ -51,6 +51,9 @@ public:
 	~CoreModel();
 	static std::shared_ptr<CoreModel> create(const QString &configPath, QThread *parent);
 	static std::shared_ptr<CoreModel> getInstance();
+	// Statut « Occupe » ou « Absent » choisi pour le compte par defaut : les appels arrivent sans sonnerie ni
+	// notification (fil du moteur).
+	static bool quietStatus(const std::shared_ptr<linphone::Core> &core);
 
 	std::shared_ptr<linphone::Core> getCore();
 	std::shared_ptr<LoggerModel> getLogger();

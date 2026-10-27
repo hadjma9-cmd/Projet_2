@@ -599,10 +599,13 @@ Item {
                         id: currentCallNotif
                         property var currentCall: callsModel.currentCall ? callsModel.currentCall : null
                         property string remoteName: currentCall ? currentCall.core.remoteName : ""
-                        visible: !!currentCall && currentCall.core.state != LinphoneEnums.CallState.Idle && currentCall.core.state != LinphoneEnums.CallState.IncomingReceived && currentCall.core.state != LinphoneEnums.CallState.PushIncomingReceived
+                        // Appel qui sonne : « Appel entrant » (en Occupe ou Absent, il arrive sans sonnerie ni fenetre :
+                        // c'est la seule trace a l'ecran ; un clic ouvre la fenetre pour repondre).
+                        readonly property bool ringing: !!currentCall && currentCall.core.state === LinphoneEnums.CallState.IncomingReceived
+                        visible: !!currentCall && currentCall.core.state != LinphoneEnums.CallState.Idle && currentCall.core.state != LinphoneEnums.CallState.PushIncomingReceived
                         Layout.leftMargin: Utils.getSizeWithScreenRatio(20)
                         style: ButtonStyle.toast
-                        text: currentCall ? currentCall.core.conference ? ("Réunion en cours : ") + currentCall.core.conference.core.subject : (("Appel en cours : ") + remoteName) : "appel en cours"
+                        text: currentCall ? currentCall.core.conference ? ("Réunion en cours : ") + currentCall.core.conference.core.subject : ((ringing ? "Appel entrant : " : "Appel en cours : ") + remoteName) : "appel en cours"
                         onClicked: {
                             var callsWindow = UtilsCpp.getOrCreateCallsWindow(currentCall);
                             UtilsCpp.smartShowWindow(callsWindow);

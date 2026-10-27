@@ -842,6 +842,15 @@ void App::initCore() {
 									    return;
 								    }
 								    if (mSettings && mSettings->dndEnabled()) return;
+								    // Occupe ou Absent : l'appel arrive sans sonnerie ni notification (CoreModel) ;
+								    // sa fenetre ne passe pas devant, il reste visible dans Gamaphone.
+								    if (mAccountList) {
+									    auto account = mAccountList->getDefaultAccountCore();
+									    if (account &&
+									        (account->getExplicitPresence() == LinphoneEnums::Presence::Busy ||
+									         account->getExplicitPresence() == LinphoneEnums::Presence::Away))
+										    return;
+								    }
 								    // Petite fenetre : l'appel s'y affiche ; elle passe devant, sans prendre le
 								    // clavier.
 								    if (mCompactMode) {

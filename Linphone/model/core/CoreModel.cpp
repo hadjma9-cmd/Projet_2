@@ -516,11 +516,21 @@ void CoreModel::onCallEncryptionChanged(const std::shared_ptr<linphone::Core> &c
                                         const std::string &authenticationToken) {
 	emit callEncryptionChanged(core, call, on, authenticationToken);
 }
+bool CoreModel::quietStatus(const std::shared_ptr<linphone::Core> &core) {
+	auto account = core ? core->getDefaultAccount() : nullptr;
+	if (!account) return false;
+	const auto presence = LinphoneEnums::fromString(Utils::coreStringToAppString(
+	    core->getConfig()->getString(ToolModel::configAccountSection(account), "explicit_presence", "")));
+	return presence == LinphoneEnums::Presence::Busy || presence == LinphoneEnums::Presence::Away;
+}
+
 void CoreModel::onCallLogUpdated(const std::shared_ptr<linphone::Core> &core,
                                  const std::shared_ptr<linphone::CallLog> &callLog) {
 	if (callLog && callLog->getStatus() == linphone::Call::Status::Missed) {
 		emit unreadNotificationsChanged();
-		if (auto notifier = App::getInstance()->getNotifier()) notifier->notifyMissedCall(callLog);
+		// Occupe ou Absent : l'appel manque reste dans l'historique et le compteur, sans notification.
+		if (!quietStatus(core))
+			if (auto notifier = App::getInstance()->getNotifier()) notifier->notifyMissedCall(callLog);
 	}
 	emit callLogUpdated(core, callLog);
 }
@@ -529,12 +539,22 @@ void CoreModel::onCallStateChanged(const std::shared_ptr<linphone::Core> &core,
                                    linphone::Call::State state,
                                    const std::string &message) {
 	lInfo() << log().arg("Call state changed") << call.get() << (int)state;
+	// Occupe ou Absent : l'appel arrive sans sonnerie ni notification Windows. Il s'affiche dans Gamaphone (liste
+	// des appels) sans fenetre qui passe devant (App.cpp). Sonnerie arretee juste apres son lancement par le moteur.
+	const bool quiet = state == linphone::Call::State::IncomingReceived && quietStatus(core) &&
+	                   call->getRemoteParams() && call->getRemoteParams()->getCustomHeader("X-Gama-Prendre").empty();
+	if (quiet) {
+		lInfo() << log().arg("Incoming call while busy or away: no ringtone, no notification");
+		QTimer::singleShot(0, this, [core]() { core->stopRinging(); });
+	}
 	if (state == linphone::Call::State::IncomingReceived) {
-		if (App::getInstance()->getNotifier()) {
-			lInfo() << log().arg("Incoming received, display call notification");
-			App::getInstance()->getNotifier()->notifyReceivedCall(call);
-		} else {
-			lWarning() << log().arg("App notifier is null ! Cannot display call notification");
+		if (!quiet) {
+			if (App::getInstance()->getNotifier()) {
+				lInfo() << log().arg("Incoming received, display call notification");
+				App::getInstance()->getNotifier()->notifyReceivedCall(call);
+			} else {
+				lWarning() << log().arg("App notifier is null ! Cannot display call notification");
+			}
 		}
 		if (!core->getConfig()->getBool(SettingsModel::UiSection, "disable_command_line", false) &&
 		    !core->getConfig()->getString(SettingsModel::UiSection, "command_line", "").empty()) {
