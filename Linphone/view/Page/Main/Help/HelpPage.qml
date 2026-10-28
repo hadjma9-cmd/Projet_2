@@ -80,7 +80,8 @@ AbstractMainPage {
 					Layout.topMargin: Utils.getSizeWithScreenRatio(12)
 					// « 6.2.1-pre.21+44eb08bf5 » : la version, et le numero de build (commits depuis l'etiquette).
 					readonly property var build: Qt.application.version.match(/pre\.(\d+)/)
-					text: "Version " + AppCpp.shortApplicationVersion + (build ? " · build " + build[1] : "")
+					// « bêta » : version de test, à retirer pour la version définitive.
+					text: "Version " + AppCpp.shortApplicationVersion + (build ? " · build " + build[1] : "") + " · bêta"
 					font.pixelSize: Utils.getSizeWithScreenRatio(13)
 					color: DefaultStyle.main2_500_main
 				}
