@@ -12,6 +12,10 @@ AbstractMainPage {
 
 	id: mainItem
 	showDefaultItem: false
+	leftPanelWidth: Utils.getSizeWithScreenRatio(340)
+	// A droite, le depannage (versions, journaux, assistance) : la page n'a rien d'autre a ouvrir.
+	Component.onCompleted: rightPanelStackView.push("qrc:/qt/qml/Linphone/view/Page/Layout/Settings/DebugSettingsLayout.qml",
+		{ titleText: qsTr("help_troubleshooting_title"), container: rightPanelStackView })
 	
 	signal goBack()
 	
@@ -19,11 +23,12 @@ AbstractMainPage {
 		id: leftPanel
 		Layout.fillWidth: true
 		Layout.fillHeight: true
-        property real leftMargin: Utils.getSizeWithScreenRatio(45)
-        property real rightMargin: Utils.getSizeWithScreenRatio(29)
+        property real leftMargin: Utils.getSizeWithScreenRatio(24)
+        property real rightMargin: Utils.getSizeWithScreenRatio(24)
         spacing: Utils.getSizeWithScreenRatio(5)
 		RowLayout {
 			Layout.fillWidth: true
+			Layout.topMargin: Utils.getSizeWithScreenRatio(14)
 			Layout.leftMargin: leftPanel.leftMargin
 			Layout.rightMargin: leftPanel.rightMargin
             spacing: Utils.getSizeWithScreenRatio(8)
@@ -127,7 +132,8 @@ AbstractMainPage {
 			Layout.topMargin: Utils.getSizeWithScreenRatio(24)
 			text: "Mon poste"
 			font.pixelSize: Utils.getSizeWithScreenRatio(13)
-			color: DefaultStyle.main2_500_main
+			font.weight: Font.DemiBold
+			color: DefaultStyle.main2_600
 		}
 		Rectangle {
 			id: posteCard
@@ -146,21 +152,24 @@ AbstractMainPage {
 				x: Utils.getSizeWithScreenRatio(18)
 				y: Utils.getSizeWithScreenRatio(16)
 				width: parent.width - 2 * x
-				columns: 2
-				columnSpacing: Utils.getSizeWithScreenRatio(16)
-				rowSpacing: Utils.getSizeWithScreenRatio(8)
+				// Libelle au-dessus de la valeur : la valeur (un domaine long) a toute la largeur et passe a la ligne au
+				// besoin, sans sortir de la carte.
+				columns: 1
+				rowSpacing: Utils.getSizeWithScreenRatio(2)
 				component InfoLabel: Text {
+					Layout.topMargin: Utils.getSizeWithScreenRatio(10)
 					font.pixelSize: Utils.getSizeWithScreenRatio(12)
 					color: DefaultStyle.main2_500_main
 				}
 				component InfoValue: Text {
 					Layout.fillWidth: true
-					font.pixelSize: Utils.getSizeWithScreenRatio(13)
+					font.pixelSize: Utils.getSizeWithScreenRatio(14)
 					font.weight: Font.DemiBold
 					color: DefaultStyle.main2_800
-					elide: Text.ElideRight
+					wrapMode: Text.Wrap
 				}
 				InfoLabel {
+					Layout.topMargin: 0
 					text: "Poste"
 				}
 				InfoValue {
@@ -201,29 +210,6 @@ AbstractMainPage {
 			}
 		}
 
-		Text {
-			Layout.leftMargin: leftPanel.leftMargin
-			Layout.topMargin: Utils.getSizeWithScreenRatio(24)
-			text: "Assistance"
-			font.pixelSize: Utils.getSizeWithScreenRatio(13)
-			color: DefaultStyle.main2_500_main
-		}
-		HelpIconLabelButton {
-			id: troubleShooting
-			Layout.fillWidth: true
-			Layout.leftMargin: leftPanel.leftMargin
-			Layout.rightMargin: leftPanel.rightMargin
-			Layout.topMargin: Utils.getSizeWithScreenRatio(12)
-			iconSource: AppIcons.debug
-			arrowImageVisible: true
-			//: "Dépannage"
-			title: qsTr("help_troubleshooting_title")
-			subTitle: "Journaux, envoi au support"
-			onClicked: {
-				rightPanelStackView.clear()
-				rightPanelStackView.push("qrc:/qt/qml/Linphone/view/Page/Layout/Settings/DebugSettingsLayout.qml", { titleText: troubleShooting.title, container: rightPanelStackView })
-			}
-		}
 		Item {
 			Layout.fillHeight: true
 		}

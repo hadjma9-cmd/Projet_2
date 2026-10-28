@@ -11,31 +11,40 @@ AbstractMainPage {
 
 	id: mainItem
 	showDefaultItem: false
-	
+
 	property var layoutsPath
 	property var titleText
 
 	signal goBack()
 	signal goBackRequested()
-	
+
 	function layoutUrl(name) {
 		return layoutsPath+"/"+name+".qml"
 	}
-	
+
 	property var families
 	property var defaultIndex: -1
-	
+	// Sous le titre, avant la liste : contenu propre a la page (la carte d'identite de Mon compte).
+	property Component leftHeaderComponent
+	leftPanelWidth: Utils.getSizeWithScreenRatio(340)
+
+	function openFamily(family) {
+		rightPanelStackView.clear()
+		rightPanelStackView.push(layoutUrl(family.layout), { titleText: family.title, model: family.model, container: rightPanelStackView})
+	}
+
 	leftPanelContent: ColumnLayout {
 		id: leftPanel
 		Layout.fillWidth: true
 		Layout.fillHeight: true
-        property real sideMargin: Utils.getSizeWithScreenRatio(45)
+        property real sideMargin: Utils.getSizeWithScreenRatio(24)
         spacing: Utils.getSizeWithScreenRatio(5)
 		RowLayout {
 			Layout.fillWidth: true
+			Layout.topMargin: Utils.getSizeWithScreenRatio(14)
 			Layout.leftMargin: leftPanel.sideMargin
 			Layout.rightMargin: leftPanel.sideMargin
-            spacing: Utils.getSizeWithScreenRatio(5)
+            spacing: Utils.getSizeWithScreenRatio(6)
 			Button {
 				id: backButton
 				icon.width: Utils.getSizeWithScreenRatio(24)
@@ -52,36 +61,46 @@ AbstractMainPage {
 				Accessible.name: qsTr("back_previous_menu_accessible_name")
 			}
 			Text {
+				Layout.fillWidth: true
 				text: titleText
 				color: DefaultStyle.main2_700
-				font: Typography.h3
-			}
-			Item {
-				Layout.fillWidth: true
+				font: Typography.h2
+				elide: Text.ElideRight
 			}
 		}
-		
+
+		Loader {
+			Layout.fillWidth: true
+			Layout.topMargin: Utils.getSizeWithScreenRatio(20)
+			Layout.leftMargin: leftPanel.sideMargin
+			Layout.rightMargin: leftPanel.sideMargin
+			active: !!mainItem.leftHeaderComponent
+			visible: active
+			sourceComponent: mainItem.leftHeaderComponent
+		}
 		ListView {
 			id: familiesList
-			// Un seul onglet visible (Mon compte sans les menus techniques) : pas de liste, la page s'affiche directement.
+			// Un seul onglet visible (Mon compte sans les menus techniques) : pas de liste.
 			visible: mainItem.families.filter(function (family) {
 				return family.visible === undefined || family.visible
 			}).length > 1
 			Layout.fillWidth: true
 			Layout.fillHeight: true
 			model: mainItem.families
-            Layout.topMargin: Utils.getSizeWithScreenRatio(41)
+            Layout.topMargin: Utils.getSizeWithScreenRatio(24)
 			Layout.leftMargin: leftPanel.sideMargin
+			Layout.rightMargin: leftPanel.sideMargin
 			property int selectedIndex: mainItem.defaultIndex != -1 ? mainItem.defaultIndex : 0
 			activeFocusOnTab: true
-			spacing: Utils.getSizeWithScreenRatio(5)
+			spacing: Utils.getSizeWithScreenRatio(4)
 			Accessible.role: Accessible.List
 			//: Settings page selection
 			Accessible.name: qsTr("settings_page_selection_accessible_name")
 			keyNavigationEnabled: false
-			
+
 			delegate: SettingsMenuItem {
 				titleText: modelData.title
+				iconSource: modelData.icon || ""
 				visible: modelData.visible != undefined ? modelData.visible : true
 				enabled: visible
 				isSelected: familiesList.selectedIndex == index
@@ -89,19 +108,17 @@ AbstractMainPage {
 				focusPolicy: visible ? Qt.StrongFocus : Qt.NoFocus
 				onSelected: {
 					familiesList.selectedIndex = index
-					rightPanelStackView.clear()
-					rightPanelStackView.push(layoutUrl(modelData.layout), { titleText: modelData.title, model: modelData.model, container: rightPanelStackView})
+					mainItem.openFamily(modelData)
 				}
 			}
 		}
-		// Sans liste : le titre reste en haut (sinon la colonne le centre verticalement).
+		// Sans liste : le haut de la colonne reste en haut (sinon la colonne le centre verticalement).
 		Item {
 			visible: !familiesList.visible
 			Layout.fillHeight: true
 		}
 		Component.onCompleted: {
-			let initialEntry = mainItem.families[familiesList.selectedIndex]
-			rightPanelStackView.push(layoutUrl(initialEntry.layout), { titleText: initialEntry.title, model: initialEntry.model, container: rightPanelStackView})
+			mainItem.openFamily(mainItem.families[familiesList.selectedIndex])
 			familiesList.currentIndex = familiesList.selectedIndex
 		}
 	}

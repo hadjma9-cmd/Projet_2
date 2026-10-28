@@ -21,6 +21,7 @@
 #include "SettingsCore.hpp"
 #include "core/App.hpp"
 #include "core/path/Paths.hpp"
+#include "model/core/CoreModel.hpp"
 #include "model/tool/ToolModel.hpp"
 #include "tool/Utils.hpp"
 
@@ -1233,6 +1234,19 @@ QString SettingsCore::getRingtonePath() const {
 
 void SettingsCore::cleanLogs() const {
 	mSettingsModelConnection->invokeToModel([this]() { SettingsModel::getInstance()->cleanLogs(); });
+}
+
+void SettingsCore::playRingtone() const {
+	auto path = Utils::appStringToCoreString(mRingtonePath);
+	mSettingsModelConnection->invokeToModel([path]() {
+		auto core = CoreModel::getInstance()->getCore();
+		core->stopRinging();
+		core->playLocal(path);
+	});
+}
+
+void SettingsCore::stopRingtone() const {
+	mSettingsModelConnection->invokeToModel([]() { CoreModel::getInstance()->getCore()->stopRinging(); });
 }
 
 void SettingsCore::sendLogs() const {

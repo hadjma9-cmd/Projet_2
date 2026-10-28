@@ -25,6 +25,8 @@ FocusScope {
 	property alias leftPanelContent: leftPanel.children
 	property alias rightPanelStackView: rightPanelStackView
 	property alias rightPanel: rightPanel
+	// Largeur de depart de la colonne de gauche.
+	property real leftPanelWidth: Utils.getSizeWithScreenRatio(404)
 	property int rightPanelStackTopMargin: 0
 	property int rightPanelStackBottomMargin: 0
 	signal noItemButtonPressed()
@@ -43,7 +45,7 @@ FocusScope {
 			spacing:0
 			// Control.SplitView.fillWidth:false
 			Control.SplitView.fillHeight: true
-			Control.SplitView.preferredWidth: Utils.getSizeWithScreenRatio(404)
+			Control.SplitView.preferredWidth: mainItem.leftPanelWidth
     		Control.SplitView.minimumWidth: Utils.getSizeWithScreenRatio(200)
     		Control.SplitView.maximumWidth: Utils.getSizeWithScreenRatio(500)
 		}

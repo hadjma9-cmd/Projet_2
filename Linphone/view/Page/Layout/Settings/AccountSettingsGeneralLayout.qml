@@ -16,11 +16,32 @@ AbstractSettingsLayout {
 	width: parent?.width
 	contentModel: [
 		{
-			// Sans titre de section : la page tient en trois cartes (identite, connexion, retrait du poste), centrees.
-			title: "",
+			title: "Connexion",
 			subTitle: "",
-			centered: true,
-			contentComponent: accountParametersComponent
+			contentComponent: connectionComponent
+		},
+		{
+			title: "Mon statut",
+			subTitle: "",
+			contentComponent: statusComponent
+		},
+		{
+			// Seulement pour un agent d'au moins une file (lu a l'affichage : pas de reconstruction de la page).
+			isVisible: function () { return QueuesCpp.agent && QueuesCpp.queueCount > 0 },
+			title: "Files d'attente",
+			subTitle: "",
+			contentComponent: queuesComponent
+		},
+		{
+			title: "Informations",
+			subTitle: "",
+			contentComponent: informationComponent
+		},
+		{
+			title: "Sur cet ordinateur",
+			subTitle: "",
+			plain: true,
+			contentComponent: removeComponent
 		},
 		{
             visible: SettingsCpp.showAccountDevices,
@@ -28,217 +49,218 @@ AbstractSettingsLayout {
             title: qsTr("manage_account_devices_title"),
             //: "La liste des appareils connectés à votre compte. Vous pouvez retirer les appareils que vous n’utilisez plus."
             subTitle: qsTr("manage_account_devices_subtitle"),
+			plain: true,
 			contentComponent: accountDevicesComponent
 		}
 	]
 
 	property alias account: mainItem.model
 
-	// Account parameters
-	//////////////////////////
-
+	// Statut du poste en pastilles (le meme que dans le menu de la photo, partage avec ses autres appareils), et ce
+	// qu'il fait des appels.
 	Component {
-		id: accountParametersComponent
+		id: statusComponent
 		ColumnLayout {
-			Layout.fillWidth: true
-			spacing: 0
-
-			// Identite : photo (changer, retirer), nom et poste. Le nom vient de l'extension dans FusionPBX : c'est a
-			// l'administrateur de le regler, il n'est pas modifiable ici.
-			Rectangle {
+			id: statusBox
+			spacing: Utils.getSizeWithScreenRatio(12)
+			readonly property int current: mainItem.account ? mainItem.account.core.presence : -1
+			Flow {
 				Layout.fillWidth: true
-				Layout.preferredHeight: identityColumn.implicitHeight + 2 * identityColumn.y
-				radius: Utils.getSizeWithScreenRatio(14)
-				color: DefaultStyle.main2_100
-				ColumnLayout {
-					id: identityColumn
-					x: Utils.getSizeWithScreenRatio(18)
-					y: Utils.getSizeWithScreenRatio(22)
-					width: parent.width - 2 * x
-					spacing: 0
-					Avatar {
-						Layout.alignment: Qt.AlignHCenter
-						Layout.preferredWidth: Utils.getSizeWithScreenRatio(84)
-						Layout.preferredHeight: Utils.getSizeWithScreenRatio(84)
-						account: model
-						displayPresence: false
-						shadowEnabled: false
-					}
-					// « Changer la photo · Retirer » (« Ajouter une photo » s'il n'y en a pas).
-					Text {
-						Layout.alignment: Qt.AlignHCenter
-						Layout.topMargin: Utils.getSizeWithScreenRatio(8)
-						textFormat: Text.StyledText
-						text: model.core.pictureUri.length === 0
-							? "<a href=\"change\">Ajouter une photo</a>"
-							: "<a href=\"change\">Changer la photo</a>  ·  <a href=\"remove\"><font color=\""
-							  + DefaultStyle.main2_500_main + "\">Retirer</font></a>"
-						linkColor: DefaultStyle.main1_500_main
-						font.pixelSize: Utils.getSizeWithScreenRatio(12)
-						onLinkActivated: link => {
-							if (link === "change")
-								fileDialog.open()
-							else
-								model.core.pictureUri = ""
-						}
-						MouseArea {
-							anchors.fill: parent
-							acceptedButtons: Qt.NoButton
-							cursorShape: parent.hoveredLink ? Qt.PointingHandCursor : Qt.ArrowCursor
-						}
-					}
-					Text {
-						Layout.fillWidth: true
-						Layout.topMargin: Utils.getSizeWithScreenRatio(12)
-						horizontalAlignment: Text.AlignHCenter
-						text: model.core.displayName
-						visible: text.length > 0
-						font.pixelSize: Utils.getSizeWithScreenRatio(18)
-						font.weight: Font.Bold
-						color: DefaultStyle.main2_800
-						elide: Text.ElideRight
-					}
-					Text {
-						Layout.fillWidth: true
-						Layout.topMargin: Utils.getSizeWithScreenRatio(2)
-						horizontalAlignment: Text.AlignHCenter
-						// Domaine : ce qui suit le « @ » de l'adresse, sans port ni parametres.
-						readonly property string domain: {
-							var address = model.core.identityAddress
-							var at = address.indexOf("@")
-							return at < 0 ? "" : address.substring(at + 1).split(";")[0].split(":")[0].replace(">", "")
-						}
-						text: "Poste " + UtilsCpp.getUsername(model.core.identityAddress) + (domain.length > 0 ? " · " + domain : "")
-						font.pixelSize: Utils.getSizeWithScreenRatio(13)
-						color: DefaultStyle.main2_500_main
-						elide: Text.ElideMiddle
-					}
-				}
-			}
-			FileDialog {
-				id: fileDialog
-				currentFolder: StandardPaths.standardLocations(StandardPaths.PicturesLocation)[0]
-				onAccepted: {
-					var avatarPath = UtilsCpp.createAvatar( selectedFile )
-					if(avatarPath){
-						model.core.pictureUri = avatarPath
-					}
-				}
-			}
-
-			// Connexion : etat du compte et interrupteur pour le couper ou le retablir.
-			Text {
-				Layout.topMargin: Utils.getSizeWithScreenRatio(24)
-				text: "Connexion"
-				font.pixelSize: Utils.getSizeWithScreenRatio(13)
-				color: DefaultStyle.main2_500_main
-			}
-			Rectangle {
-				Layout.fillWidth: true
-				Layout.topMargin: Utils.getSizeWithScreenRatio(8)
-				Layout.preferredHeight: connectionRow.implicitHeight + 2 * Utils.getSizeWithScreenRatio(14)
-				radius: Utils.getSizeWithScreenRatio(14)
-				color: DefaultStyle.main2_100
-				RowLayout {
-					id: connectionRow
-					anchors.fill: parent
-					anchors.leftMargin: Utils.getSizeWithScreenRatio(18)
-					anchors.rightMargin: Utils.getSizeWithScreenRatio(18)
-					spacing: Utils.getSizeWithScreenRatio(10)
-					Rectangle {
-						Layout.preferredWidth: Utils.getSizeWithScreenRatio(8)
-						Layout.preferredHeight: Utils.getSizeWithScreenRatio(8)
-						radius: width / 2
-						color: account ? account.core.registrationColor : DefaultStyle.main2_400
-					}
-					SwitchSetting {
-						Layout.fillWidth: true
-						titleText: account?.core.humaneReadableRegistrationState
-						subTitleText: account?.core.humaneReadableRegistrationStateExplained
-						propertyName: "registerEnabled"
-						propertyOwnerGui: account
-						Binding on checked {
-							when: account?.core.registrationState === LinphoneEnums.RegistrationState.Failed
-							value: false
-						}
-					}
-				}
-			}
-
-			// Retrait du poste de cet ordinateur (confirmation rouge avant).
-			Text {
-				Layout.topMargin: Utils.getSizeWithScreenRatio(24)
-				text: "Sur cet ordinateur"
-				font.pixelSize: Utils.getSizeWithScreenRatio(13)
-				color: DefaultStyle.main2_500_main
-			}
-			Rectangle {
-				id: removeRow
-				Layout.fillWidth: true
-				Layout.topMargin: Utils.getSizeWithScreenRatio(6)
-				Layout.preferredHeight: removeTexts.implicitHeight + 2 * Utils.getSizeWithScreenRatio(10)
-				radius: Utils.getSizeWithScreenRatio(10)
-				color: removeArea.containsMouse ? DefaultStyle.main2_100 : "transparent"
-				activeFocusOnTab: true
-				border.width: activeFocus ? Utils.getSizeWithScreenRatio(2) : 0
-				border.color: DefaultStyle.main1_500_main
-				Accessible.role: Accessible.Button
-				Accessible.name: "Retirer ce poste de Gamaphone"
-				function confirmRemoval() {
-					UtilsCpp.getMainWindow().showConfirmationLambdaPopup("",
-						"Retirer ce poste de Gamaphone ?",
-						"Pour le remettre, il faudra un nouveau lien de configuration.",
-						function (confirmed) {
-							if (confirmed) {
-								account.core.removeAccount()
+				spacing: Utils.getSizeWithScreenRatio(8)
+				Repeater {
+					model: [LinphoneEnums.Presence.Online, LinphoneEnums.Presence.Away, LinphoneEnums.Presence.Busy,
+						LinphoneEnums.Presence.DoNotDisturb, LinphoneEnums.Presence.Offline]
+					delegate: Rectangle {
+						id: chip
+						required property int modelData
+						readonly property bool selected: statusBox.current === modelData
+						width: chipRow.implicitWidth + 2 * Utils.getSizeWithScreenRatio(12)
+						height: Utils.getSizeWithScreenRatio(34)
+						radius: height / 2
+						color: selected ? DefaultStyle.main1_100 : chipArea.containsMouse ? DefaultStyle.main2_200 : DefaultStyle.grey_0
+						border.width: Utils.getSizeWithScreenRatio(1)
+						border.color: selected ? DefaultStyle.main1_500_main : DefaultStyle.main2_200
+						Accessible.role: Accessible.RadioButton
+						Accessible.name: UtilsCpp.getPresenceStatus(modelData)
+						Accessible.checked: selected
+						RowLayout {
+							id: chipRow
+							anchors.centerIn: parent
+							spacing: Utils.getSizeWithScreenRatio(8)
+							Image {
+								readonly property real side: Utils.getSizeWithScreenRatio(11)
+								Layout.preferredWidth: side
+								Layout.preferredHeight: side
+								sourceSize.width: side
+								sourceSize.height: side
+								source: UtilsCpp.getPresenceIcon(chip.modelData)
+							}
+							Text {
+								text: UtilsCpp.getPresenceStatus(chip.modelData)
+								font.pixelSize: Utils.getSizeWithScreenRatio(13)
+								font.weight: chip.selected ? Font.DemiBold : Font.Normal
+								color: DefaultStyle.main2_800
 							}
 						}
-					, undefined, undefined, undefined, "danger", AppIcons.signOut)
-				}
-				Keys.onPressed: event => {
-					if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-						removeRow.confirmRemoval()
-						event.accepted = true
+						MouseArea {
+							id: chipArea
+							anchors.fill: parent
+							hoverEnabled: true
+							cursorShape: Qt.PointingHandCursor
+							onClicked: mainItem.account.core.presence = chip.modelData
+						}
 					}
 				}
-				RowLayout {
-					anchors.fill: parent
-					anchors.leftMargin: Utils.getSizeWithScreenRatio(6)
-					anchors.rightMargin: Utils.getSizeWithScreenRatio(6)
-					spacing: Utils.getSizeWithScreenRatio(14)
-					EffectImage {
-						Layout.preferredWidth: Utils.getSizeWithScreenRatio(24)
-						Layout.preferredHeight: Utils.getSizeWithScreenRatio(24)
-						imageSource: AppIcons.signOut
-						colorizationColor: DefaultStyle.danger_500_main
+			}
+			Text {
+				Layout.fillWidth: true
+				wrapMode: Text.WordWrap
+				font.pixelSize: Utils.getSizeWithScreenRatio(12)
+				color: DefaultStyle.main2_500_main
+				text: statusBox.current === LinphoneEnums.Presence.Online ? "Tous les appels sonnent, files d'attente comprises."
+					: statusBox.current === LinphoneEnums.Presence.Away || statusBox.current === LinphoneEnums.Presence.Busy
+						? "Files d'attente en pause. Les appels directs arrivent sans sonnerie ni notification."
+						: "Aucun appel ne sonne et les files d'attente sont en pause."
+			}
+		}
+	}
+
+	// Files d'attente du poste, comme dans le menu du casque.
+	Component {
+		id: queuesComponent
+		QueuesSection {
+			headerVisible: false
+			Component.onCompleted: QueuesCpp.refresh()
+		}
+	}
+
+	// Poste, nom, domaine et transport : de quoi repondre au support.
+	Component {
+		id: informationComponent
+		GridLayout {
+			columns: 2
+			columnSpacing: Utils.getSizeWithScreenRatio(24)
+			rowSpacing: Utils.getSizeWithScreenRatio(10)
+			readonly property string identity: mainItem.account ? mainItem.account.core.identityAddress : ""
+			component InfoLabel: Text {
+				font.pixelSize: Utils.getSizeWithScreenRatio(13)
+				color: DefaultStyle.main2_500_main
+			}
+			component InfoValue: Text {
+				Layout.fillWidth: true
+				font.pixelSize: Utils.getSizeWithScreenRatio(14)
+				font.weight: Font.DemiBold
+				color: DefaultStyle.main2_800
+				wrapMode: Text.Wrap
+			}
+			InfoLabel { text: "Poste" }
+			InfoValue { text: UtilsCpp.getUsername(parent.identity) }
+			InfoLabel { text: "Nom" }
+			InfoValue { text: mainItem.account ? mainItem.account.core.displayName : "" }
+			InfoLabel { text: "Domaine" }
+			InfoValue {
+				// Ce qui suit le « @ » de l'adresse, sans port ni parametres.
+				text: parent.identity.indexOf("@") < 0 ? ""
+					: parent.identity.substring(parent.identity.indexOf("@") + 1).split(";")[0].split(":")[0].replace(">", "")
+			}
+			InfoLabel { text: "Transport" }
+			InfoValue { text: mainItem.account ? mainItem.account.core.transport.toUpperCase() : "" }
+		}
+	}
+
+	// Connexion : etat du compte et interrupteur pour le couper ou le retablir.
+	Component {
+		id: connectionComponent
+		RowLayout {
+			spacing: Utils.getSizeWithScreenRatio(10)
+			Rectangle {
+				Layout.preferredWidth: Utils.getSizeWithScreenRatio(8)
+				Layout.preferredHeight: Utils.getSizeWithScreenRatio(8)
+				radius: width / 2
+				color: mainItem.account ? mainItem.account.core.registrationColor : DefaultStyle.main2_400
+			}
+			SwitchSetting {
+				Layout.fillWidth: true
+				titleText: mainItem.account?.core.humaneReadableRegistrationState
+				subTitleText: mainItem.account?.core.humaneReadableRegistrationStateExplained
+				propertyName: "registerEnabled"
+				propertyOwnerGui: mainItem.account
+				Binding on checked {
+					when: mainItem.account?.core.registrationState === LinphoneEnums.RegistrationState.Failed
+					value: false
+				}
+			}
+		}
+	}
+
+	// Retrait du poste de cet ordinateur (confirmation rouge avant), dans un simple cadre : rouge au survol.
+	Component {
+		id: removeComponent
+		Rectangle {
+			id: removeRow
+			Layout.fillWidth: true
+			implicitHeight: removeTexts.implicitHeight + 2 * Utils.getSizeWithScreenRatio(14)
+			radius: Utils.getSizeWithScreenRatio(14)
+			color: removeArea.containsMouse ? "#FDF1F1" : "transparent"
+			activeFocusOnTab: true
+			border.width: activeFocus ? Utils.getSizeWithScreenRatio(2) : Utils.getSizeWithScreenRatio(1)
+			border.color: activeFocus ? DefaultStyle.main1_500_main : DefaultStyle.main2_200
+			Accessible.role: Accessible.Button
+			Accessible.name: "Retirer ce poste de Gamaphone"
+			function confirmRemoval() {
+				UtilsCpp.getMainWindow().showConfirmationLambdaPopup("",
+					"Retirer ce poste de Gamaphone ?",
+					"Pour le remettre, il faudra un nouveau lien de configuration.",
+					function (confirmed) {
+						if (confirmed) {
+							mainItem.account.core.removeAccount()
+						}
 					}
-					ColumnLayout {
-						id: removeTexts
+				, undefined, undefined, undefined, "danger", AppIcons.signOut)
+			}
+			Keys.onPressed: event => {
+				if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+					removeRow.confirmRemoval()
+					event.accepted = true
+				}
+			}
+			RowLayout {
+				anchors.fill: parent
+				anchors.leftMargin: Utils.getSizeWithScreenRatio(20)
+				anchors.rightMargin: Utils.getSizeWithScreenRatio(20)
+				spacing: Utils.getSizeWithScreenRatio(14)
+				EffectImage {
+					Layout.preferredWidth: Utils.getSizeWithScreenRatio(22)
+					Layout.preferredHeight: Utils.getSizeWithScreenRatio(22)
+					imageSource: AppIcons.signOut
+					colorizationColor: DefaultStyle.danger_500_main
+				}
+				ColumnLayout {
+					id: removeTexts
+					Layout.fillWidth: true
+					spacing: Utils.getSizeWithScreenRatio(2)
+					Text {
 						Layout.fillWidth: true
-						spacing: Utils.getSizeWithScreenRatio(2)
-						Text {
-							Layout.fillWidth: true
-							text: "Retirer ce poste de Gamaphone"
-							font.pixelSize: Utils.getSizeWithScreenRatio(14)
-							font.weight: Font.DemiBold
-							color: DefaultStyle.danger_500_main
-						}
-						Text {
-							Layout.fillWidth: true
-							text: "Le poste reste actif sur le serveur et sur ses autres appareils."
-							font.pixelSize: Utils.getSizeWithScreenRatio(12)
-							color: DefaultStyle.main2_500_main
-							wrapMode: Text.Wrap
-						}
+						text: "Retirer ce poste de Gamaphone"
+						font.pixelSize: Utils.getSizeWithScreenRatio(14)
+						font.weight: Font.DemiBold
+						color: DefaultStyle.danger_500_main
+					}
+					Text {
+						Layout.fillWidth: true
+						text: "Le poste reste actif sur le serveur et sur ses autres appareils."
+						font.pixelSize: Utils.getSizeWithScreenRatio(12)
+						color: DefaultStyle.main2_500_main
+						wrapMode: Text.Wrap
 					}
 				}
-				MouseArea {
-					id: removeArea
-					anchors.fill: parent
-					hoverEnabled: true
-					cursorShape: Qt.PointingHandCursor
-					onClicked: removeRow.confirmRemoval()
-				}
+			}
+			MouseArea {
+				id: removeArea
+				anchors.fill: parent
+				hoverEnabled: true
+				cursorShape: Qt.PointingHandCursor
+				onClicked: removeRow.confirmRemoval()
 			}
 		}
 	}
@@ -253,10 +275,6 @@ AbstractSettingsLayout {
 			Layout.fillWidth: true
 			Layout.fillHeight: true
             // Layout.minimumHeight: account.core.devices.length *Utils.getSizeWithScreenRatio(133) + (account.core.devices.length - 1) *Utils.getSizeWithScreenRatio(15) +  2 *Utils.getSizeWithScreenRatio(21)
-            Layout.rightMargin: Utils.getSizeWithScreenRatio(30)
-            Layout.topMargin: Utils.getSizeWithScreenRatio(20)
-            Layout.bottomMargin: Utils.getSizeWithScreenRatio(4)
-            Layout.leftMargin: Utils.getSizeWithScreenRatio(44)
             topPadding: Utils.getSizeWithScreenRatio(21)
             bottomPadding: Utils.getSizeWithScreenRatio(21)
             leftPadding: Utils.getSizeWithScreenRatio(17)

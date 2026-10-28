@@ -14,8 +14,11 @@ ColumnLayout {
 	readonly property bool available: QueuesCpp.agentStatus === "Available"
 		|| QueuesCpp.agentStatus === "Available (On Demand)"
 	readonly property real rowPadding: Utils.getSizeWithScreenRatio(10)
+	// Titre « Files d'attente » et compte des files activees (cache dans Mon compte, ou la rubrique a deja son titre).
+	property bool headerVisible: true
 
 	RowLayout {
+		visible: mainItem.headerVisible
 		Layout.fillWidth: true
 		Layout.leftMargin: mainItem.rowPadding
 		Layout.rightMargin: mainItem.rowPadding

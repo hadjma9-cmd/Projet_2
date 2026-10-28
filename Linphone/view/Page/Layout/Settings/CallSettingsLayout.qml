@@ -97,6 +97,7 @@ AbstractSettingsLayout {
 						//: "Change ringtone"
 						text: qsTr("settings_calls_change_ringtone_title")
 						font: Typography.p2l
+						color: DefaultStyle.main2_600
 						Layout.fillWidth: true
 					}
 					RowLayout {
@@ -121,6 +122,27 @@ AbstractSettingsLayout {
 					}
 				}
 				Item{Layout.fillWidth: true}
+				// Ecoute de la sonnerie choisie, quelques secondes ; un second clic l'arrete.
+				RoundButton {
+					style: ButtonStyle.noBackground
+					icon.source: ringtonePreview.running ? AppIcons.stopFill : AppIcons.play
+					onClicked: {
+						if (ringtonePreview.running) {
+							ringtonePreview.stop()
+							SettingsCpp.stopRingtone()
+						} else {
+							ringtonePreview.restart()
+							SettingsCpp.playRingtone()
+						}
+					}
+					Accessible.name: ringtonePreview.running ? "Arrêter la sonnerie" : "Écouter la sonnerie"
+					Timer {
+						id: ringtonePreview
+						interval: 8000
+						onTriggered: SettingsCpp.stopRingtone()
+						Component.onDestruction: if (running) SettingsCpp.stopRingtone()
+					}
+				}
 				RoundButton {
 					style: ButtonStyle.noBackground
 					icon.source: AppIcons.arrowSquareOut

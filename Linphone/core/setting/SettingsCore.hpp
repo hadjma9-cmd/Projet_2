@@ -275,6 +275,9 @@ public:
 	QString getRingtonePath() const;
 
 	Q_INVOKABLE void cleanLogs() const;
+	// Ecoute de la sonnerie choisie (Parametres > Appels), sur le peripherique de sonnerie.
+	Q_INVOKABLE void playRingtone() const;
+	Q_INVOKABLE void stopRingtone() const;
 	Q_INVOKABLE void sendLogs() const;
 	QString getLogsEmail() const;
 	QString getLogsFolder() const;
