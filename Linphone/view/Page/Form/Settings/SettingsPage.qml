@@ -14,11 +14,9 @@ AbstractSettingsMenu {
 	families: [
         //: "Appels"
         {title: qsTr("settings_calls_title"), layout: "CallSettingsLayout", icon: AppIcons.phone},
-		// Transfert d'appel : masque, Linphone enregistre le reglage mais ne l'applique pas (« TODO implement BL » dans
-		// SettingsModel::setCallForwardToAddress). Les renvois se reglent dans FusionPBX.
+		// Transfert d'appel : renvoi de tous les appels du poste, applique par le serveur (ForwardCpp).
 		//: "Transfert d'appel"
-        {title: qsTr("settings_call_forward"), layout: "CallForwardSettingsLayout", icon: AppIcons.transferCall,
-         visible: false},
+        {title: qsTr("settings_call_forward"), layout: "CallForwardSettingsLayout", icon: AppIcons.transferCall},
         //: "Conversations"
         {title: qsTr("settings_conversations_title"), layout: "ChatSettingsLayout", icon: AppIcons.chatTeardropText,
          visible: !SettingsCpp.disableChatFeature},

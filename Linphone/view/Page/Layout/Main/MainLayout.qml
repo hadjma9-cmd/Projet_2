@@ -519,6 +519,49 @@ Item {
                                 arrowSize: Utils.getSizeWithScreenRatio(16)
                             }
                         }
+                        // Renvoi de tous les appels actif : rappel discret a cote du statut, pour ne pas l'oublier en
+                        // revenant au bureau. Un clic propose de l'arreter.
+                        Rectangle {
+                            id: forwardReminder
+                            visible: ForwardCpp.enabled
+                            Layout.preferredHeight: Utils.getSizeWithScreenRatio(30)
+                            Layout.preferredWidth: forwardRow.implicitWidth + 2 * Utils.getSizeWithScreenRatio(10)
+                            radius: height / 2
+                            color: forwardArea.containsMouse ? "#FDF3E3" : "transparent"
+                            Accessible.role: Accessible.Button
+                            Accessible.name: forwardText.text
+                            RowLayout {
+                                id: forwardRow
+                                anchors.centerIn: parent
+                                spacing: Utils.getSizeWithScreenRatio(6)
+                                EffectImage {
+                                    Layout.preferredWidth: Utils.getSizeWithScreenRatio(16)
+                                    Layout.preferredHeight: Utils.getSizeWithScreenRatio(16)
+                                    imageSource: AppIcons.transferCall
+                                    colorizationColor: "#B8650F"
+                                }
+                                Text {
+                                    id: forwardText
+                                    text: "Renvoyé vers " + (ForwardCpp.destination === ForwardCpp.voicemail
+                                                             ? "ma messagerie" : ForwardCpp.destination)
+                                    font.pixelSize: Utils.getSizeWithScreenRatio(13)
+                                    color: "#B8650F"
+                                }
+                            }
+                            MouseArea {
+                                id: forwardArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: UtilsCpp.getMainWindow().showConfirmationLambdaPopup("",
+                                    "Arrêter le renvoi ?",
+                                    "Vos appels arriveront de nouveau sur Gamaphone.",
+                                    function (confirmed) {
+                                        if (confirmed)
+                                            ForwardCpp.save(false, "")
+                                    }, "Garder le renvoi", "Arrêter le renvoi", undefined, "warning", AppIcons.transferCall)
+                            }
+                        }
                         // Files d'attente : casque a anneau (un segment par file, bleu = active ; une seule
                         // file : casque bleu ou gris). Un clic ouvre leurs interrupteurs.
                         PopupButton {

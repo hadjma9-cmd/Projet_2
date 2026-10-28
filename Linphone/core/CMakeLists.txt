@@ -44,6 +44,7 @@ list(APPEND _LINPHONEAPP_SOURCES
 	core/fps-counter/FPSCounter.cpp
 	core/friend/FriendCore.cpp
 	core/fusion/FusionClient.cpp
+	core/fusion/ForwardCore.cpp
 	core/fusion/SharedContactsCore.cpp
 	core/fusion/StatusCore.cpp
 	core/fusion/SupervisionCore.cpp

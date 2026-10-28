@@ -9,7 +9,7 @@ import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 // bandeau d'etat (des appels attendent / tout est calme), appels a prendre (toutes files confondues, les plus anciens
 // d'abord), puis une carte par file avec ses agents. Donnees en direct (SupervisionCpp) tant que la page est affichee ;
 // les durees avancent ici, a partir des heures recues. Couleurs des agents : vert libre, jaune sonne ou absent, bleu
-// en appel, rouge en pause, occupe ou ne pas deranger, gris sonne ailleurs ou hors ligne.
+// en appel, rouge en pause, occupe ou ne pas deranger, gris sonne ailleurs ou hors ligne, orange renvoye.
 Item {
 	id: mainItem
 
@@ -122,6 +122,8 @@ Item {
 				return {color: mainItem.ringColor, text: "#9A6B00", icon: AppIcons.clock, label: "Absent"}
 			case "status-dnd":
 				return {color: mainItem.pauseColor, text: "#B23B3B", icon: AppIcons.minus, label: "Ne pas déranger"}
+			case "status-forward":
+				return {color: mainItem.warnColor, text: "#8A4B0B", icon: AppIcons.transferCall, label: "Renvoyé"}
 			default:
 				return {color: DefaultStyle.main2_400, text: DefaultStyle.main2_500_main, icon: AppIcons.signOut,
 					label: "Hors ligne"}

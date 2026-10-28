@@ -30,6 +30,7 @@
 #include "core/chat/ChatList.hpp"
 #include "core/conference/ConferenceInfoList.hpp"
 #include "core/event-filter/LockEventFilter.hpp"
+#include "core/fusion/ForwardCore.hpp"
 #include "core/fusion/SharedContactsCore.hpp"
 #include "core/fusion/StatusCore.hpp"
 #include "core/fusion/SupervisionCore.hpp"
@@ -334,6 +335,7 @@ private:
 	QSharedPointer<SupervisionCore> mSupervision;
 	// Statut du poste, le même sur tous ses appareils (StatusCpp en QML).
 	QSharedPointer<StatusCore> mStatus;
+	QSharedPointer<ForwardCore> mForward;
 	QSharedPointer<ConferenceInfoList> mConferenceInfoList;
 	QSharedPointer<ChatList> mChatList;
 	QSharedPointer<CallList> mCallList;

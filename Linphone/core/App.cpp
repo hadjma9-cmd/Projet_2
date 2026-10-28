@@ -1090,6 +1090,7 @@ void App::initCppInterfaces() {
 	if (!mFusionClient) mFusionClient = FusionClient::create();
 	if (!mQueues) mQueues = QueueCore::create(mFusionClient);
 	if (!mStatus) mStatus = StatusCore::create(mFusionClient);
+	if (!mForward) mForward = ForwardCore::create(mFusionClient);
 	if (!mSharedContacts) mSharedContacts = SharedContactsCore::create(mFusionClient);
 	if (!mUpdate) mUpdate = UpdateCore::create(mFusionClient);
 	if (!mSupport) mSupport = SupportCore::create(mFusionClient);
@@ -1105,6 +1106,9 @@ void App::initCppInterfaces() {
 	qmlRegisterSingletonType<StatusCore>(
 	    Constants::MainQmlUri, 1, 0, "StatusCpp",
 	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mStatus.get(); });
+	qmlRegisterSingletonType<ForwardCore>(
+	    Constants::MainQmlUri, 1, 0, "ForwardCpp",
+	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mForward.get(); });
 	qmlRegisterSingletonType<SupportCore>(
 	    Constants::MainQmlUri, 1, 0, "SupportCpp",
 	    [this](QQmlEngine *engine, QJSEngine *) -> QObject * { return mSupport.get(); });
@@ -1252,6 +1256,7 @@ void App::clean() {
 	mSettings = nullptr; // Need it because of SettingsModel singleton for letting thread to remove it.
 	mQueues = nullptr;
 	mStatus = nullptr;
+	mForward = nullptr;
 	mSharedContacts = nullptr;
 	mUpdate = nullptr;
 	mSupport = nullptr;
