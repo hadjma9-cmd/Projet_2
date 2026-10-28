@@ -32,8 +32,13 @@ AbstractSettingsMenu {
         // Réseau : la section ne contenait que « Autoriser l'IPv6 », désormais coupé pour de bon
         // (linphonerc-factory) : il empêche l'annuaire de répondre.
         // {title: qsTr("settings_network_title"), layout: "NetworkSettingsLayout"},
+        // Général : le lancement au démarrage, seul réglage de l'application utile à tous.
+        {title: "Général", layout: "GeneralSettingsLayout", icon: AppIcons.desktop},
+        // Paramètres avancés (chiffrement, codecs) : réservés à l'administrateur (Ctrl+Maj+M), un changement peut
+        // casser les appels.
         //: "Paramètres avancés"
-        {title: qsTr("settings_advanced_title"), layout: "AdvancedSettingsLayout", icon: AppIcons.settings},
+        {title: qsTr("settings_advanced_title"), layout: "AdvancedSettingsLayout", icon: AppIcons.settings,
+         visible: AppCpp.adminMenus},
         // Contacts (annuaires LDAP et CardDAV) : réservé à l'administrateur (Ctrl+Maj+M), l'annuaire est réglé par
         // le lien de configuration. En fin de liste : cachée, l'entrée ne laisse pas d'écart entre les autres.
         //: "Contacts"

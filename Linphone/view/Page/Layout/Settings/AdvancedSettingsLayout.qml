@@ -10,13 +10,9 @@ import 'qrc:/qt/qml/Linphone/view/Style/buttonStyle.js' as ButtonStyle
 
 AbstractSettingsLayout {
 	width: parent?.width
+	// Lancement au demarrage : dans General (visible par tous). Le reste ici, reserve a l'administrateur
+	// (Ctrl+Maj+M) : un changement de chiffrement ou de codec peut casser les appels.
 	contentModel: [
-		{
-            //: System
-            title: qsTr("settings_system_title"),
-			subTitle: "",
-			contentComponent: systemComponent
-		},
 		{
             //: Security / Encryption
             title: qsTr("settings_security_title"),
@@ -46,23 +42,6 @@ AbstractSettingsLayout {
 		SettingsCpp.save()
 	}
 	onUndo: SettingsCpp.undo()
-
-	// System
-	/////////
-
-	Component {
-		id: systemComponent
-		ColumnLayout {
-            spacing: Utils.getSizeWithScreenRatio(40)
-			SwitchSetting {
-				Layout.fillWidth: true
-                //: Auto start %1
-                titleText: qsTr("settings_advanced_auto_start_title").arg(applicationName)
-				propertyName: "autoStart"
-				propertyOwner: SettingsCpp
-			}
-		}
-	}
 
 	Component {
 		id: securityComponent
