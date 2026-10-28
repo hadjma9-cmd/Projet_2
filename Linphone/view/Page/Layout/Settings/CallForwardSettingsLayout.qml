@@ -17,7 +17,6 @@ AbstractSettingsLayout {
 	property int target: 0 // 0 : un numéro, 1 : un membre de l'équipe, 2 : ma messagerie
 	property string number
 	property string memberNumber
-	property string memberName
 	property bool edited: false
 	property string pageError
 	property bool savedNow: false
@@ -31,12 +30,41 @@ AbstractSettingsLayout {
 			// Numéro court : un poste interne.
 			mainItem.target = 1
 			mainItem.memberNumber = destination
-			mainItem.memberName = ""
 		} else {
 			mainItem.target = 0
 			mainItem.number = destination
 		}
 		mainItem.edited = false
+	}
+	// Postes internes de l'équipe, triés par nom (sans le sien) ; en tête, « Choisir… » tant qu'aucun n'est choisi.
+	readonly property string ownNumber: accounts.defaultAccount
+		? UtilsCpp.getUsername(accounts.defaultAccount.core.identityAddress) : ""
+	readonly property var members: {
+		var list = []
+		var count = teamList.count // relu quand la liste arrive
+		var all = teamList.getAll()
+		for (var i = 0; i < all.length; ++i) {
+			var number = all[i] ? UtilsCpp.getUsername(all[i].core.defaultAddress) : ""
+			if (number.length > 0 && number !== mainItem.ownNumber)
+				list.push({text: all[i].core.fullName + " · " + number, number: number})
+		}
+		list.sort(function (a, b) { return a.text.localeCompare(b.text) })
+		return [{text: "Choisir un membre de l'équipe", number: ""}].concat(list)
+	}
+	readonly property int memberIndex: Math.max(0, members.findIndex(function (member) {
+		return member.number === mainItem.memberNumber
+	}))
+	AccountProxy {
+		id: accounts
+	}
+	MagicSearchProxy {
+		id: teamList
+		aggregationFlag: LinphoneEnums.MagicSearchAggregation.Friend
+		sourceFlags: LinphoneEnums.MagicSearchSource.All
+		filterType: MagicSearchProxy.FilteringTypes.App | MagicSearchProxy.FilteringTypes.Ldap
+			| MagicSearchProxy.FilteringTypes.Extensions
+		initialDisplayItems: 1000
+		onInitialized: forceUpdate()
 	}
 	Component.onCompleted: {
 		load()
@@ -136,7 +164,7 @@ AbstractSettingsLayout {
 					}
 				}
 			}
-			// Un membre de l'équipe : recherche par nom ou numéro parmi les postes internes.
+			// Un membre de l'équipe : choisi dans la liste des postes internes (celle de l'onglet Équipe), par nom.
 			ColumnLayout {
 				visible: mainItem.forwardEnabled && mainItem.target === 1
 				Layout.fillWidth: true
@@ -146,68 +174,20 @@ AbstractSettingsLayout {
 					font: Typography.p2l
 					color: DefaultStyle.main2_600
 				}
-				TextField {
-					id: memberSearch
+				ComboBox {
 					Layout.fillWidth: true
-					placeholderText: "Rechercher un nom ou un poste"
-					text: mainItem.memberNumber.length === 0 ? ""
-						: mainItem.memberName.length > 0 ? mainItem.memberName + " · " + mainItem.memberNumber
-						: "Poste " + mainItem.memberNumber
-					onTextEdited: {
-						mainItem.memberNumber = ""
-						mainItem.memberName = ""
+					Layout.preferredHeight: Utils.getSizeWithScreenRatio(49)
+					model: mainItem.members
+					currentIndex: mainItem.memberIndex
+					onCurrentIndexChanged: {
+						var member = mainItem.members[currentIndex]
+						// La liste qui arrive ou se recharge suit le membre choisi : seul un choix dans la liste change
+						// la destination.
+						if (!member || currentIndex === mainItem.memberIndex) return
+						mainItem.memberNumber = member.number
 						mainItem.edited = true
 					}
-				}
-				Repeater {
-					// Propositions tant qu'aucun membre n'est choisi (cinq au plus).
-					model: mainItem.memberNumber.length === 0 && memberSearch.text.length > 0 ? teamSearch : []
-					delegate: Rectangle {
-						id: memberRow
-						readonly property var member: $modelData
-						readonly property string extension: member ? UtilsCpp.getUsername(member.core.defaultAddress) : ""
-						visible: index < 5
-						Layout.fillWidth: true
-						Layout.preferredHeight: visible ? Utils.getSizeWithScreenRatio(36) : 0
-						radius: Utils.getSizeWithScreenRatio(8)
-						color: memberArea.containsMouse ? DefaultStyle.main2_200 : DefaultStyle.grey_0
-						RowLayout {
-							anchors.fill: parent
-							anchors.leftMargin: Utils.getSizeWithScreenRatio(12)
-							anchors.rightMargin: Utils.getSizeWithScreenRatio(12)
-							Text {
-								Layout.fillWidth: true
-								text: memberRow.member ? memberRow.member.core.fullName : ""
-								font.pixelSize: Utils.getSizeWithScreenRatio(14)
-								color: DefaultStyle.main2_800
-								elide: Text.ElideRight
-							}
-							Text {
-								text: memberRow.extension
-								font.pixelSize: Utils.getSizeWithScreenRatio(12)
-								color: DefaultStyle.main2_500_main
-							}
-						}
-						MouseArea {
-							id: memberArea
-							anchors.fill: parent
-							hoverEnabled: true
-							cursorShape: Qt.PointingHandCursor
-							onClicked: {
-								mainItem.memberName = memberRow.member.core.fullName
-								mainItem.memberNumber = memberRow.extension
-								mainItem.edited = true
-							}
-						}
-					}
-				}
-				MagicSearchProxy {
-					id: teamSearch
-					searchText: mainItem.memberNumber.length === 0 ? memberSearch.text : ""
-					aggregationFlag: LinphoneEnums.MagicSearchAggregation.Friend
-					sourceFlags: LinphoneEnums.MagicSearchSource.All
-					filterType: MagicSearchProxy.FilteringTypes.App | MagicSearchProxy.FilteringTypes.Ldap
-						| MagicSearchProxy.FilteringTypes.Extensions
+					accessibleLabel: "Membre de l'équipe"
 				}
 			}
 			Text {

@@ -559,7 +559,8 @@ Item {
                                     function (confirmed) {
                                         if (confirmed)
                                             ForwardCpp.save(false, "")
-                                    }, "Garder le renvoi", "Arrêter le renvoi", undefined, "warning", AppIcons.transferCall)
+                                    // Fenetre sans titre : c'est le premier bouton qui valide.
+                                    }, "Arrêter le renvoi", "Garder le renvoi", undefined, "warning", AppIcons.transferCall)
                             }
                         }
                         // Files d'attente : casque a anneau (un segment par file, bleu = active ; une seule
@@ -861,8 +862,7 @@ Item {
                                         Layout.fillWidth: true
                                         icon.width: Utils.getSizeWithScreenRatio(32)
                                         icon.height: Utils.getSizeWithScreenRatio(32)
-                                        //: "Quitter l'application"
-                                        text: qsTr("help_quit_title")
+                                        text: "Quitter"
                                         icon.source: AppIcons.power
                                         onClicked: {
                                             settingsMenuButton.popup.close();
