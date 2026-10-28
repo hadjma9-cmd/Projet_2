@@ -85,9 +85,9 @@ AbstractSettingsLayout {
 				Layout.fillWidth: true
 				propertyName: "commandLine"
 				propertyOwner: SettingsCpp
-				//: Command line
-				title: qsTr("settings_calls_command_line_title")
-				placeHolder: qsTr("settings_calls_command_line_title_place_holder")
+				// Fiche de l'appelant dans le CRM, ouverte au decroche : un lien ($1 numero, $2 nom), ou une commande.
+				title: "Ouvrir la fiche de l'appelant au décroché (CRM)"
+				placeHolder: "https://crm.exemple.fr/fiche?tel=$1&nom=$2"
 				useTitleAsPlaceHolder: false
 				toValidate: true
 			}

@@ -22,11 +22,13 @@
 
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QQuickWindow>
 #include <QSysInfo>
 #include <QTimer>
+#include <QUrl>
 
 #include "core/App.hpp"
 #include "core/notifier/Notifier.hpp"
@@ -556,15 +558,27 @@ void CoreModel::onCallStateChanged(const std::shared_ptr<linphone::Core> &core,
 				lWarning() << log().arg("App notifier is null ! Cannot display call notification");
 			}
 		}
-		if (!core->getConfig()->getBool(SettingsModel::UiSection, "disable_command_line", false) &&
-		    !core->getConfig()->getString(SettingsModel::UiSection, "command_line", "").empty()) {
-			QString command = Utils::coreStringToAppString(
-			    core->getConfig()->getString(SettingsModel::UiSection, "command_line", ""));
-			QString userName = Utils::coreStringToAppString(call->getRemoteAddress()->getUsername());
-			QString displayName =
-			    call->getCallLog() && call->getCallLog()->getConferenceInfo()
-			        ? Utils::coreStringToAppString(call->getCallLog()->getConferenceInfo()->getSubject())
-			        : Utils::coreStringToAppString(call->getRemoteAddress()->getDisplayName());
+	}
+	// Fiche de l'appelant (Parametres > Appels, « command_line ») : ouverte au decroche, chez celui qui prend l'appel
+	// seulement (un appel de file sonne chez plusieurs agents a la fois, la fiche s'ouvrait chez chacun). Un lien
+	// http(s) s'ouvre dans le navigateur ; autre chose est lance comme une commande Windows.
+	if (state == linphone::Call::State::Connected && call->getDir() == linphone::Call::Dir::Incoming &&
+	    !core->getConfig()->getBool(SettingsModel::UiSection, "disable_command_line", false) &&
+	    !core->getConfig()->getString(SettingsModel::UiSection, "command_line", "").empty()) {
+		QString command =
+		    Utils::coreStringToAppString(core->getConfig()->getString(SettingsModel::UiSection, "command_line", ""))
+		        .trimmed();
+		QString userName = Utils::coreStringToAppString(call->getRemoteAddress()->getUsername());
+		QString displayName = call->getCallLog() && call->getCallLog()->getConferenceInfo()
+		                          ? Utils::coreStringToAppString(call->getCallLog()->getConferenceInfo()->getSubject())
+		                          : Utils::coreStringToAppString(call->getRemoteAddress()->getDisplayName());
+		if (command.startsWith("http://", Qt::CaseInsensitive) || command.startsWith("https://", Qt::CaseInsensitive)) {
+			// Numero et nom encodes pour l'adresse : aucun interpreteur de commandes ne la lit.
+			command.replace("$1", QString::fromUtf8(QUrl::toPercentEncoding(userName)));
+			command.replace("$2", QString::fromUtf8(QUrl::toPercentEncoding(displayName)));
+			const QUrl url(command);
+			QMetaObject::invokeMethod(App::getInstance(), [url]() { QDesktopServices::openUrl(url); });
+		} else {
 			// Identifiant et nom viennent de l'appelant, qui les choisit librement : inseres tels quels, un nom
 			// comme « x & calc » faisait executer une autre commande par cmd.exe (ou /bin/sh). Seuls lettres,
 			// chiffres, espaces et . _ - + @ sont gardes.
