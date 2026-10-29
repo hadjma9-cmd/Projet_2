@@ -85,6 +85,54 @@ AbstractSettingsLayout {
 		}
 	}
 
+	// Contact du support : icone et texte en entier (la largeur suit le texte, jamais coupe ; les boutons de
+	// l'application limitent la largeur de leur texte), un clic l'ouvre.
+	component ContactPill: Rectangle {
+		id: pill
+		property string iconSource
+		property string label
+		signal clicked()
+		implicitWidth: pillRow.implicitWidth + 2 * Utils.getSizeWithScreenRatio(16)
+		implicitHeight: Utils.getSizeWithScreenRatio(38)
+		radius: height / 2
+		color: pillArea.containsMouse ? DefaultStyle.main1_100 : DefaultStyle.grey_0
+		border.width: activeFocus ? Utils.getSizeWithScreenRatio(2) : Utils.getSizeWithScreenRatio(1)
+		border.color: DefaultStyle.main1_button
+		activeFocusOnTab: true
+		Accessible.role: Accessible.Button
+		Accessible.name: label
+		Keys.onPressed: event => {
+			if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+				pill.clicked()
+				event.accepted = true
+			}
+		}
+		RowLayout {
+			id: pillRow
+			anchors.centerIn: parent
+			spacing: Utils.getSizeWithScreenRatio(8)
+			EffectImage {
+				Layout.preferredWidth: Utils.getSizeWithScreenRatio(18)
+				Layout.preferredHeight: Utils.getSizeWithScreenRatio(18)
+				imageSource: pill.iconSource
+				colorizationColor: DefaultStyle.main1_button
+			}
+			Text {
+				text: pill.label
+				font.pixelSize: Utils.getSizeWithScreenRatio(14)
+				font.weight: Font.DemiBold
+				color: DefaultStyle.main1_button
+			}
+		}
+		MouseArea {
+			id: pillArea
+			anchors.fill: parent
+			hoverEnabled: true
+			cursorShape: Qt.PointingHandCursor
+			onClicked: pill.clicked()
+		}
+	}
+
 	Component {
 		id: versionContent
 		ColumnLayout {
@@ -154,16 +202,14 @@ AbstractSettingsLayout {
 			Flow {
 				Layout.fillWidth: true
 				spacing: Utils.getSizeWithScreenRatio(10)
-				MediumButton {
-					style: ButtonStyle.secondary
-					icon.source: AppIcons.phone
-					text: "Appeler le support · 05 61 83 28 32"
+				ContactPill {
+					iconSource: AppIcons.phone
+					label: "05 61 83 28 32"
 					onClicked: UtilsCpp.createCall("0561832832")
 				}
-				MediumButton {
-					style: ButtonStyle.secondary
-					icon.source: AppIcons.envelope
-					text: "support@gama-it.fr"
+				ContactPill {
+					iconSource: AppIcons.envelope
+					label: "support@gama-it.fr"
 					onClicked: Qt.openUrlExternally("mailto:support@gama-it.fr")
 				}
 			}
