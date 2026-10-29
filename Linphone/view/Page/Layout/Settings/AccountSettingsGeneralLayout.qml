@@ -119,7 +119,7 @@ AbstractSettingsLayout {
 				color: DefaultStyle.main2_500_main
 				text: statusBox.current === LinphoneEnums.Presence.Online ? "Tous les appels sonnent, files d'attente comprises."
 					: statusBox.current === LinphoneEnums.Presence.Away || statusBox.current === LinphoneEnums.Presence.Busy
-						? "Files d'attente en pause. Les appels directs arrivent sans sonnerie ni notification."
+						? "Vos appels arrivent sans sonnerie ni notification, ceux des files d'attente compris."
 						: "Aucun appel ne sonne et les files d'attente sont en pause."
 			}
 		}
