@@ -118,7 +118,7 @@ AbstractSettingsLayout {
 			SwitchSetting {
 				Layout.fillWidth: true
 				titleText: "Renvoyer mes appels"
-				subTitleText: "Vos appels arrivent sur un autre numéro, même PC éteint."
+				subTitleText: "Absent ou en réunion ? Vos appels directs vont à un collègue, à votre messagerie ou à un autre numéro."
 				propertyName: "forwardEnabled"
 				propertyOwner: mainItem
 			}
