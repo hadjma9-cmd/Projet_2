@@ -143,6 +143,8 @@ Control.Button {
 	
 	component ButtonText: Text {
 		id: buttonText
+		// Largeur du texte entier sur une ligne, en gras (le texte passe en gras au survol de certains boutons).
+		readonly property real naturalWidth: Math.ceil(textMetrics.advanceWidth)
 		horizontalAlignment: mainItem.textHAlignment
 		verticalAlignment: Text.AlignVCenter
 		width: textMetrics.advanceWidth
@@ -175,6 +177,9 @@ Control.Button {
 		TextMetrics {
 			id: textMetrics
 			text: mainItem.text
+			// Meme police et meme taille que le texte affiche (la taille par defaut le mesurait trop court).
+			font.family: DefaultStyle.defaultFont
+			font.pixelSize: mainItem.textSize
 			font.bold: true
 		}
 	}
@@ -218,8 +223,11 @@ Control.Button {
 						Layout.preferredHeight: mainItem.icon.height
 					}
 					ButtonText {
-						Layout.maximumWidth: content.width - image.width - content.spacing
-						Layout.preferredWidth: implicitWidth
+						// Largeur du texte entier (et non implicitWidth : un texte qui passe a la ligne la reduit a la
+						// largeur repliee, qui se reduisait ainsi d'elle-meme : « Envoyer les journa »). Au plus, la place
+						// laissee par l'icone et l'espace qui la separe du texte (celui de cette rangee).
+						Layout.maximumWidth: content.width - image.width - mainItem.spacing
+						Layout.preferredWidth: naturalWidth
 					}
 				}
 			}
